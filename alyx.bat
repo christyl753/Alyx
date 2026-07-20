@@ -1,0 +1,6 @@
+@echo off 
+echo [Alyx] Demarrage du Backend (API)... 
+start "Alyx API" /B "%~dp0.venv\Scripts\python.exe" "%~dp0api.py" 
+echo [Alyx] Demarrage du Frontend (Avalonia)... 
+cd /d "%~dp0AlyxDesktop" 
+dotnet run 

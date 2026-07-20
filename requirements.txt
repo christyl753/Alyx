@@ -32,7 +32,8 @@ urllib3==2.7.0
 vosk==0.3.45
 websockets==16.1.1
 Werkzeug==3.1.8
-faster-whisper==1.0.3
+faster-whisper==1.0.3; python_version < '3.14'
 fpdf2==2.7.9
 psutil
 send2trash
+numpy

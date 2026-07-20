@@ -115,7 +115,7 @@
               <StackPanel Spacing="2">
                 <TextBlock x:Name="StatusText" Text="Statut: Connecté" FontSize="10" FontFamily="Monospace" Foreground="#64748b" />
                 <TextBlock x:Name="LatencyText" Text="Latence: --" FontSize="10" FontFamily="Monospace" Foreground="#64748b" />
-                <TextBlock x:Name="ModelText" Text="Modèle: gemma4" FontSize="10" FontFamily="Monospace" Foreground="#64748b" />
+                <TextBlock x:Name="ModelText" Text="Modèle: Chargement..." FontSize="10" FontFamily="Monospace" Foreground="#64748b" />
               </StackPanel>
             </Border>
           </Grid>

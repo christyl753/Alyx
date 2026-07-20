@@ -27,7 +27,7 @@ public partial class MainWindow : Window
     private bool _isVocalActive = false;
     private bool _isProcessing = false;
     private bool _isLoadingModels = false;
-    private string _currentModel = "gemma4";
+    private string _currentModel = "Chargement...";
 
     public MainWindow()
     {
@@ -306,58 +306,71 @@ public partial class MainWindow : Window
 
         try
         {
-            var response = await _httpClient.GetAsync("http://localhost:5000/api/models");
-            if (response.IsSuccessStatusCode)
+            int retries = 5;
+            while (retries > 0)
             {
-                string body = await response.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(body);
-                var root = doc.RootElement;
-
-                var items = new List<string>();
-
-                if (root.TryGetProperty("current_model", out var currentEl))
+                try
                 {
-                    _currentModel = currentEl.GetString() ?? "gemma4";
-                }
-
-                if (root.TryGetProperty("providers", out var providers))
-                {
-                    foreach (var provider in providers.EnumerateObject())
+                    var response = await _httpClient.GetAsync("http://127.0.0.1:5000/api/models");
+                    if (response.IsSuccessStatusCode)
                     {
-                        string providerName = provider.Name.ToUpper();
-                        foreach (var model in provider.Value.EnumerateArray())
+                        string body = await response.Content.ReadAsStringAsync();
+                        using var doc = JsonDocument.Parse(body);
+                        var root = doc.RootElement;
+
+                        var items = new List<string>();
+
+                        if (root.TryGetProperty("current_model", out var currentEl))
                         {
-                            string name = model.GetProperty("name").GetString() ?? "unknown";
-                            string size = model.GetProperty("size").GetString() ?? "";
-                            string display = size != "--" && size != ""
-                                ? $"[{providerName}] {name} ({size})"
-                                : $"[{providerName}] {name}";
-                            items.Add(display);
+                            _currentModel = currentEl.GetString() ?? "Aucun modèle";
                         }
+
+                        if (root.TryGetProperty("providers", out var providers))
+                        {
+                            foreach (var provider in providers.EnumerateObject())
+                            {
+                                string providerName = provider.Name.ToUpper();
+                                foreach (var model in provider.Value.EnumerateArray())
+                                {
+                                    string name = model.GetProperty("name").GetString() ?? "unknown";
+                                    string size = model.GetProperty("size").GetString() ?? "";
+                                    string display = size != "--" && size != ""
+                                        ? $"[{providerName}] {name} ({size})"
+                                        : $"[{providerName}] {name}";
+                                    items.Add(display);
+                                }
+                            }
+                        }
+
+                        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            ModelSelector.ItemsSource = items;
+
+                            // Select current model
+                            for (int i = 0; i < items.Count; i++)
+                            {
+                                if (items[i].Contains(_currentModel))
+                                {
+                                    ModelSelector.SelectedIndex = i;
+                                    break;
+                                }
+                            }
+
+                            ModelText.Text = $"Modèle: {_currentModel}";
+                            StatusText.Text = "Statut: Connecté";
+                        });
+                        
+                        return; // Succès, on sort de la boucle
                     }
                 }
-
-                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                catch
                 {
-                    ModelSelector.ItemsSource = items;
-
-                    // Select current model
-                    for (int i = 0; i < items.Count; i++)
-                    {
-                        if (items[i].Contains(_currentModel))
-                        {
-                            ModelSelector.SelectedIndex = i;
-                            break;
-                        }
-                    }
-
-                    ModelText.Text = $"Modèle: {_currentModel}";
-                    StatusText.Text = "Statut: Connecté";
-                });
+                    retries--;
+                    if (retries > 0) await Task.Delay(3000);
+                }
             }
-        }
-        catch
-        {
+
+            // Si on arrive ici, c'est que toutes les tentatives ont échoué
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
                 ModelSelector.ItemsSource = new List<string> { $"[LOCAL] {_currentModel}" };
@@ -393,7 +406,7 @@ public partial class MainWindow : Window
             string json = JsonSerializer.Serialize(payload);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync("http://localhost:5000/api/models/select", content);
+            var response = await _httpClient.PostAsync("http://127.0.0.1:5000/api/models/select", content);
             if (response.IsSuccessStatusCode)
             {
                 _currentModel = modelName;
@@ -411,6 +424,16 @@ public partial class MainWindow : Window
     }
 
     // ========== Event Handlers ==========
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        try
+        {
+            _httpClient.PostAsync("http://127.0.0.1:5000/api/shutdown", null).Wait(500);
+        }
+        catch { }
+    }
+
     private async void OnSendClick(object? sender, RoutedEventArgs e)
     {
         await SendMessageAsync();
@@ -481,7 +504,7 @@ public partial class MainWindow : Window
             string json = JsonSerializer.Serialize(payload);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync("http://localhost:5000/api/chat", content);
+            var response = await _httpClient.PostAsync("http://127.0.0.1:5000/api/chat", content);
             response.EnsureSuccessStatusCode();
 
             stopwatch.Stop();
@@ -507,7 +530,14 @@ public partial class MainWindow : Window
                 }
             }
 
-            LatencyText.Text = $"Latence: {stopwatch.ElapsedMilliseconds}ms";
+            if (stopwatch.ElapsedMilliseconds > 1000)
+            {
+                LatencyText.Text = $"Latence: {stopwatch.ElapsedMilliseconds / 1000.0:F1}s";
+            }
+            else
+            {
+                LatencyText.Text = $"Latence: {stopwatch.ElapsedMilliseconds}ms";
+            }
             StatusText.Text = "Statut: Connecté";
         }
         catch (TaskCanceledException)

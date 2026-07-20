@@ -29,6 +29,7 @@ print(f"     [Succès : {len(ALIAS_DYNAMIQUES)} alias d'applications générés 
 
 # --- 3. DÉFINITION DES OUTILS LOCAUX ---
 def ouvrir_explorateur() -> str:
+    """Ouvre l'explorateur de fichiers."""
     if sys.platform == "win32":
         os.startfile('.')
     elif sys.platform == "darwin":
@@ -38,6 +39,7 @@ def ouvrir_explorateur() -> str:
     return "L'explorateur a été ouvert avec succès."
 
 def ouvrir_application(nom_commande: str) -> str:
+    """Lance une application via son nom système."""
     nom_propre = nom_commande.lower().strip()
     commande_reelle = ALIAS_DYNAMIQUES.get(nom_propre, nom_propre)
     try:
@@ -47,6 +49,7 @@ def ouvrir_application(nom_commande: str) -> str:
         return f"Erreur: la commande système '{commande_reelle}' est introuvable."
 
 def lister_apps_actives() -> str:
+    """Liste les applications courantes en cours d'exécution."""
     if sys.platform == "win32":
         apps_courantes = ['explorer.exe', 'notepad.exe', 'firefox.exe', 'chrome.exe', 'brave.exe', 'discord.exe']
     else:
@@ -61,6 +64,7 @@ def lister_apps_actives() -> str:
     return resultat if resultat else "Aucune application surveillée n'est actuellement ouverte."
 
 def fermer_application(nom_app: str) -> str:
+    """Ferme (tue le processus) une application via son nom."""
     nom_propre = nom_app.lower().strip().replace('.desktop', '')
     if sys.platform == "win32" and not nom_propre.endswith('.exe'):
         nom_propre += '.exe'
@@ -129,7 +133,7 @@ messages = [{'role': 'system', 'content': (
 )}]
 
 # Modèle courant (peut être changé dynamiquement via l'API)
-MODEL = 'gemma4'
+MODEL = 'Aucun modèle'
 
 # --- 6. PROVIDERS DE MODÈLES ---
 # Configuration des différents fournisseurs de modèles
@@ -141,12 +145,12 @@ PROVIDERS = {
     },
     'lmstudio': {
         'name': 'LM Studio',
-        'api_base': 'http://localhost:1234',
+        'api_base': 'http://127.0.0.1:1234',
         'list_endpoint': '/v1/models'
     },
     'nvidia': {
         'name': 'NVIDIA NIM',
-        'api_base': 'http://localhost:8000',
+        'api_base': 'http://127.0.0.1:8000',
         'list_endpoint': '/v1/models'
     }
 }
@@ -208,6 +212,59 @@ def lister_modeles_disponibles() -> dict:
 
     return resultats
 
+def get_default_model():
+    models = lister_modeles_disponibles()
+    if 'ollama' in models and len(models['ollama']) > 0:
+        return models['ollama'][0]['name']
+    if 'lmstudio' in models and len(models['lmstudio']) > 0:
+        return models['lmstudio'][0]['name']
+    return 'Aucun modèle'
+
+# On met à jour le modèle par défaut avec le premier modèle trouvé
+MODEL = get_default_model()
+
+def get_model_provider(model_name: str) -> str:
+    models = lister_modeles_disponibles()
+    for provider, model_list in models.items():
+        for m in model_list:
+            if m['name'] == model_name:
+                return provider
+    return 'ollama' # fallback
+
+def chat_with_provider(model_name, messages_list, tools=None):
+    provider = get_model_provider(model_name)
+    if provider == 'ollama':
+        return ollama.chat(
+            model=model_name,
+            messages=messages_list,
+            tools=tools,
+            keep_alive='1h'
+        )
+    elif provider in ['lmstudio', 'nvidia']:
+        # Fallback HTTP request to OpenAI-compatible endpoint (no tools support yet)
+        api_base = PROVIDERS[provider]['api_base']
+        payload = {
+            "model": model_name,
+            "messages": messages_list,
+            "temperature": 0.7
+        }
+        try:
+            resp = requests.post(f"{api_base}/v1/chat/completions", json=payload, timeout=120)
+            resp.raise_for_status()
+            data = resp.json()
+            content = data['choices'][0]['message'].get('content', '')
+            return {
+                'message': {
+                    'role': 'assistant',
+                    'content': content,
+                    'tool_calls': []
+                }
+            }
+        except Exception as e:
+            raise Exception(f"Erreur {provider}: {e}")
+    else:
+        raise Exception(f"Fournisseur non supporté: {provider}")
+
 
 def lancer_cli():
     global messages
@@ -245,11 +302,14 @@ def lancer_cli():
         messages.append({'role': 'user', 'content': user_input})
 
         try:
-            response = ollama.chat(
-                model=MODEL,
-                messages=messages,
-                tools=LISTE_FONCTIONS,
-                keep_alive='1h'
+            if MODEL == 'Aucun modèle':
+                print("\n---> Alyx: Aucun modèle n'est sélectionné ou disponible. Lancez Ollama ou LM Studio.")
+                continue
+
+            response = chat_with_provider(
+                model_name=MODEL,
+                messages_list=messages,
+                tools=LISTE_FONCTIONS
             )
             message_ia = response['message']
             messages.append(message_ia)
@@ -277,7 +337,7 @@ def lancer_cli():
                         'name': nom_fonction
                     })
 
-                response = ollama.chat(model=MODEL, messages=messages, tools=LISTE_FONCTIONS, keep_alive='1h')
+                response = chat_with_provider(model_name=MODEL, messages_list=messages, tools=LISTE_FONCTIONS)
                 message_ia = response['message']
                 messages.append(message_ia)
                 iteration += 1

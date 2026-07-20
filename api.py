@@ -1,6 +1,9 @@
 import flask
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import logging
+import os
+import signal
 import threading
 import requests as py_requests
 
@@ -12,6 +15,10 @@ import ai
 
 app = Flask(__name__)
 CORS(app)
+
+# Désactivation des logs serveur de développement Werkzeug
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 # Limite de contexte : garder le system prompt + les N derniers messages
 MAX_CONTEXT_MESSAGES = 40
@@ -47,12 +54,18 @@ def chat():
     
     try:
         current_model = ai.MODEL
+        if current_model == 'Aucun modèle':
+            return jsonify({
+                'message': "Aucun modèle n'est sélectionné ou disponible. Veuillez lancer un modèle via Ollama ou LM Studio.",
+                'actions': [],
+                'user_input': user_input
+            })
+            
         contexte = _messages_avec_fenetre()
-        response = ollama.chat(
-            model=current_model,
-            messages=contexte,
-            tools=LISTE_FONCTIONS,
-            keep_alive='1h'
+        response = ai.chat_with_provider(
+            model_name=current_model,
+            messages_list=contexte,
+            tools=LISTE_FONCTIONS
         )
         message_ia = response['message']
         messages.append(message_ia)
@@ -83,11 +96,10 @@ def chat():
                 })
 
             contexte = _messages_avec_fenetre()
-            response = ollama.chat(
-                model=current_model,
-                messages=contexte,
-                tools=LISTE_FONCTIONS,
-                keep_alive='1h'
+            response = ai.chat_with_provider(
+                model_name=current_model,
+                messages_list=contexte,
+                tools=LISTE_FONCTIONS
             )
             message_ia = response['message']
             messages.append(message_ia)
@@ -152,6 +164,13 @@ def listen_vocal():
     text = ecouter()
     return jsonify({'text': text})
 
+
+@app.route('/api/shutdown', methods=['POST'])
+def shutdown():
+    """Stops the Flask server gracefully."""
+    import signal
+    os.kill(os.getpid(), signal.SIGINT)
+    return jsonify({'message': 'Server shutting down...'}), 200
 
 if __name__ == '__main__':
     app.run(port=5000, debug=False)

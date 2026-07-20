@@ -9,7 +9,7 @@ echo.
 :: 1. Verification de Python
 echo [1/4] Verification de Python...
 python --version >nul 2>&1
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     echo [X] Python n'est pas installe ou n'est pas dans le PATH.
     echo Veuillez installer Python 3.10+ depuis https://www.python.org/downloads/
     pause
@@ -21,7 +21,7 @@ echo [OK] Python est installe.
 echo.
 echo [2/4] Verification de .NET 8.0 SDK...
 dotnet --list-sdks | findstr /C:"8.0" >nul 2>&1
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     echo [X] .NET 8.0 SDK n'est pas installe.
     echo Veuillez installer le SDK .NET 8.0 depuis https://dotnet.microsoft.com/download
     pause
@@ -29,17 +29,27 @@ if %errorlevel% neq 0 (
 )
 echo [OK] .NET 8.0 SDK est installe.
 
-:: 3. Verification de Ollama
+:: 3. Verification des fournisseurs IA (Ollama / LM Studio)
 echo.
-echo [3/4] Verification de Ollama...
+echo [3/4] Verification des moteurs d'IA (Ollama ou LM Studio)...
+set "IA_DETECTED=0"
+
 ollama --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [!] Ollama n'est pas detecte dans le PATH.
-    echo L'assistant necessite Ollama pour l'IA locale.
-    echo Telechargez-le depuis https://ollama.com/
-    echo Si vous l'avez deja installe, assurez-vous qu'il est lance.
-) else (
+if not errorlevel 1 (
     echo [OK] Ollama est installe.
+    set "IA_DETECTED=1"
+)
+
+lms --version >nul 2>&1
+if not errorlevel 1 (
+    echo [OK] LM Studio est installe.
+    set "IA_DETECTED=1"
+)
+
+if "!IA_DETECTED!"=="0" (
+    echo [!] Ni Ollama ni LM Studio n'ont ete detectes dans le PATH.
+    echo L'assistant necessite un moteur d'IA local.
+    echo Veuillez installer Ollama ^(https://ollama.com/^) ou LM Studio ^(https://lmstudio.ai/^).
 )
 
 :: 4. Installation des dependances Python
@@ -51,16 +61,27 @@ if not exist .venv (
 )
 
 echo Installation des librairies Python requises...
-call .venv\Scripts\activate.bat
-pip install --upgrade pip
-pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+echo.
+echo ==========================================
+echo    Generation du raccourci Alyx...
+echo ==========================================
+echo @echo off > alyx.bat
+echo echo [Alyx] Demarrage du Backend (API)... >> alyx.bat
+echo start "Alyx API" /B "%%~dp0.venv\Scripts\python.exe" "%%~dp0api.py" >> alyx.bat
+echo echo [Alyx] Demarrage du Frontend (Avalonia)... >> alyx.bat
+echo cd /d "%%~dp0AlyxDesktop" >> alyx.bat
+echo dotnet run >> alyx.bat
 
 echo.
 echo ==========================================
 echo    Installation terminee avec succes !
 echo ==========================================
-echo Pour lancer Alyx, ouvrez deux terminaux :
-echo 1. .venv\Scripts\python api.py
-echo 2. cd AlyxDesktop ^&^& dotnet run
+echo Pour lancer Alyx, tapez simplement la commande suivante dans ce dossier :
+echo .\alyx
+echo.
+echo (Vous pouvez aussi ajouter ce dossier a votre variable PATH Windows pour l'utiliser partout).
 echo.
 pause
