@@ -1,0 +1,164 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AlyxDesktop.MainWindow"
+        Title="Alyx Studio"
+        Width="1100" Height="800"
+        Background="#E8E8E6"
+        Foreground="#1A1A1A"
+        FontFamily="Inter, sans-serif">
+
+  <Window.Resources>
+    <!-- Blueprint Grid Background -->
+    <VisualBrush x:Key="BlueprintBrush" TileMode="Tile" SourceRect="0,0,32,32" DestinationRect="0,0,32,32">
+      <VisualBrush.Visual>
+        <Canvas Width="32" Height="32">
+          <Line StartPoint="0,0" EndPoint="32,0" Stroke="#10141414" StrokeThickness="1" />
+          <Line StartPoint="0,0" EndPoint="0,32" Stroke="#10141414" StrokeThickness="1" />
+        </Canvas>
+      </VisualBrush.Visual>
+    </VisualBrush>
+
+    <!-- Hatching Pattern Brush -->
+    <VisualBrush x:Key="HatchBrush" TileMode="Tile" SourceRect="0,0,8,8" DestinationRect="0,0,8,8">
+      <VisualBrush.Visual>
+        <Canvas Width="8" Height="8">
+          <Line StartPoint="-2,10" EndPoint="10,-2" Stroke="#1A1A1A" StrokeThickness="1.5" />
+        </Canvas>
+      </VisualBrush.Visual>
+    </VisualBrush>
+
+    <!-- Accent Hatch Brush (for loading animation) -->
+    <VisualBrush x:Key="AccentHatchBrush" TileMode="Tile" SourceRect="0,0,8,8" DestinationRect="0,0,8,8">
+      <VisualBrush.Visual>
+        <Canvas Width="8" Height="8">
+          <Line StartPoint="-2,10" EndPoint="10,-2" Stroke="#E55934" StrokeThickness="2" />
+        </Canvas>
+      </VisualBrush.Visual>
+    </VisualBrush>
+    
+    <SolidColorBrush x:Key="WireframeBorder" Color="#1A1A1A" />
+    <SolidColorBrush x:Key="WireframeBg" Color="#F4F4F2" />
+    <SolidColorBrush x:Key="AccentColor" Color="#E55934" />
+    <SolidColorBrush x:Key="DarkBg" Color="#1A1A1A" />
+    <SolidColorBrush x:Key="LightText" Color="#F4F4F2" />
+  </Window.Resources>
+
+  <Window.Styles>
+    <!-- Sidebar Button Style -->
+    <Style Selector="Button.sidebar-btn">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#475569" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="FontFamily" Value="Monospace" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.sidebar-btn:pointerover">
+      <Setter Property="Background" Value="#E8E8E6" />
+      <Setter Property="Foreground" Value="#E55934" />
+    </Style>
+    <Style Selector="Button.sidebar-btn.active">
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="#1A1A1A" />
+    </Style>
+  </Window.Styles>
+
+  <Grid Background="{StaticResource BlueprintBrush}">
+    <Grid ColumnDefinitions="300, *" Margin="25">
+      
+      <!-- SIDEBAR -->
+      <Grid Grid.Column="0" RowDefinitions="Auto, *" Margin="0,0,25,0">
+        <!-- Logo Box -->
+        <Grid Grid.Row="0" Margin="0,0,0,25">
+          <Border Background="{StaticResource HatchBrush}" Margin="6,6,-6,-6" />
+          <Border BorderBrush="{StaticResource WireframeBorder}" BorderThickness="1.5" Background="{StaticResource WireframeBg}" Padding="20">
+            <StackPanel>
+              <TextBlock Text="v.4.0" FontSize="10" FontFamily="Monospace" Foreground="#94a3b8" HorizontalAlignment="Right" />
+              <Border BorderBrush="{StaticResource WireframeBorder}" BorderThickness="2" Width="48" Height="48" Background="White" HorizontalAlignment="Left" Margin="0,0,0,15">
+                <TextBlock Text="⚙" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource WireframeBorder}" />
+              </Border>
+              <TextBlock Text="ALYX" FontSize="24" FontWeight="Bold" LetterSpacing="1" />
+              <TextBlock Text="STUDIO" FontSize="24" FontWeight="Bold" LetterSpacing="1" Foreground="{StaticResource AccentColor}" />
+              <Rectangle Height="1.5" Fill="{StaticResource AccentColor}" Margin="0,15,0,10" />
+              <TextBlock Text="Conception &amp; Architecture" FontSize="14" Foreground="#475569" FontStyle="Italic" />
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <!-- Tools Box -->
+        <Border Grid.Row="1" BorderBrush="{StaticResource WireframeBorder}" BorderThickness="1.5" Background="{StaticResource WireframeBg}">
+          <Grid RowDefinitions="Auto, Auto, *, Auto">
+            <Border Grid.Row="0" BorderBrush="{StaticResource WireframeBorder}" BorderThickness="0,0,0,1.5" Padding="15">
+              <Grid ColumnDefinitions="*, Auto">
+                <TextBlock Grid.Column="0" Text="OUTILS" FontSize="12" FontWeight="Bold" FontFamily="Monospace" />
+                <TextBlock Grid.Column="1" Text="≡" FontSize="14" FontWeight="Bold" FontFamily="Monospace" />
+              </Grid>
+            </Border>
+
+            <!-- Model Selector -->
+            <Border Grid.Row="1" BorderBrush="#cbd5e1" BorderThickness="0,0,0,1" Padding="10">
+              <StackPanel Spacing="6">
+                <TextBlock Text="MODÈLE IA" FontSize="10" FontWeight="Bold" FontFamily="Monospace" Foreground="#64748b" />
+                <ComboBox x:Name="ModelSelector" SelectionChanged="OnModelChanged" HorizontalAlignment="Stretch" FontFamily="Monospace" FontSize="12" Background="White" BorderBrush="#1A1A1A" BorderThickness="1" />
+                <Button Classes="sidebar-btn" Content="⟳ Actualiser" x:Name="BtnRefreshModels" Click="OnRefreshModelsClick" FontSize="11" />
+              </StackPanel>
+            </Border>
+
+            <StackPanel Grid.Row="2" Margin="10" Spacing="4">
+              <!-- Boutons superflus supprimés pour une interface plus claire -->
+              <Button Classes="sidebar-btn" Content="⟳ Vider le chat" x:Name="BtnClearChat" Click="OnClearChatClick" />
+            </StackPanel>
+            <Border Grid.Row="3" BorderBrush="#cbd5e1" BorderThickness="0,1.5,0,0" Margin="15" Padding="0,10,0,0">
+              <StackPanel Spacing="2">
+                <TextBlock x:Name="StatusText" Text="Statut: Connecté" FontSize="10" FontFamily="Monospace" Foreground="#64748b" />
+                <TextBlock x:Name="LatencyText" Text="Latence: --" FontSize="10" FontFamily="Monospace" Foreground="#64748b" />
+                <TextBlock x:Name="ModelText" Text="Modèle: gemma4" FontSize="10" FontFamily="Monospace" Foreground="#64748b" />
+              </StackPanel>
+            </Border>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <!-- MAIN CANVAS -->
+      <Grid Grid.Column="1" RowDefinitions="Auto, *, Auto">
+        <!-- Header -->
+        <Border Grid.Row="0" BorderBrush="{StaticResource WireframeBorder}" BorderThickness="0,0,0,2" Padding="0,0,0,10" Margin="0,0,0,15">
+          <Grid ColumnDefinitions="Auto, *, Auto">
+            <TextBlock Grid.Column="0" Text="ESPACE DE TRAVAIL" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,15,0" />
+            <Border Grid.Column="1" Background="{StaticResource WireframeBorder}" Padding="8,3" HorizontalAlignment="Left" VerticalAlignment="Center">
+              <TextBlock Text="ALYX_AGENT.sln" FontSize="10" FontFamily="Monospace" Foreground="{StaticResource LightText}" />
+            </Border>
+          </Grid>
+        </Border>
+
+        <!-- Chat Area -->
+        <ScrollViewer Grid.Row="1" x:Name="ChatScrollViewer" Padding="0,0,15,0">
+          <StackPanel x:Name="ChatPanel" Spacing="25">
+            <!-- Messages added dynamically via C# -->
+          </StackPanel>
+        </ScrollViewer>
+
+        <!-- Input Area -->
+        <Grid Grid.Row="2" Margin="0,20,0,0">
+           <Border Background="{StaticResource HatchBrush}" Margin="6,6,-6,-6" />
+           <Border Background="{StaticResource WireframeBg}" BorderBrush="{StaticResource WireframeBorder}" BorderThickness="1.5">
+             <Grid ColumnDefinitions="Auto, Auto, *, Auto" Margin="8">
+               <Border Grid.Column="0" Background="{StaticResource WireframeBorder}" Width="24" Height="24" Margin="5,0,10,0" VerticalAlignment="Center">
+                  <TextBlock Text="&gt;" FontFamily="Monospace" FontSize="14" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+               </Border>
+               
+               <Button Grid.Column="1" x:Name="VocalBtn" Click="OnVocalClick" Content="🎤 Off" Background="Transparent" Foreground="#475569" FontFamily="Monospace" FontSize="13" FontWeight="Bold" VerticalAlignment="Center" Padding="8,6" BorderThickness="1" BorderBrush="#94a3b8" />
+               
+               <TextBox Grid.Column="2" x:Name="InputBox" KeyDown="OnInputKeyDown" Background="Transparent" Foreground="{StaticResource WireframeBorder}" BorderThickness="0" FontSize="16" Watermark="Définir de nouvelles spécifications..." VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="10,0" />
+               
+               <Button Grid.Column="3" x:Name="SendBtn" Click="OnSendClick" Background="{StaticResource WireframeBorder}" Foreground="{StaticResource LightText}" Content="GÉNÉRER ▸" FontFamily="Monospace" FontWeight="Bold" FontSize="14" Padding="20,12" Margin="10,0,5,0" />
+             </Grid>
+           </Border>
+        </Grid>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

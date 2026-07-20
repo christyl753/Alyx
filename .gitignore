@@ -1,0 +1,31 @@
+# Fichiers Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environnement virtuel
+.venv/
+venv/
+ENV/
+env/
+
+# IDE et Configuration
+.idea/
+.vscode/
+
+# Logs et documentation locale
+api.log
+document.md
+documentation.txt
+
+# Modèles IA lourds
+models/
+
+# Fichiers générés C# (Avalonia)
+AlyxDesktop/bin/
+AlyxDesktop/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
