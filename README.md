@@ -1,52 +1,46 @@
 # Alyx
 
-Alyx est un assistant virtuel doté d'une interface graphique moderne en Avalonia (C#) et d'un backend puissant propulsé par Python (Flask) et Ollama. Alyx est conçu pour être cross-platform (Linux, Windows, macOS).
+Alyx est un assistant virtuel local. L'interface est codée en C# (Avalonia) et le moteur tourne en Python (Flask). Il se connecte à vos modèles d'IA hébergés localement via Ollama ou LM Studio.
 
-## Fonctionnalités Principales
-
-- **Chat interactif** avec interface fluide et animée (Avalonia).
-- **Intégration d'Ollama** (Modèles locaux comme Gemma, Llama).
-- **Reconnaissance vocale** (Speech-to-Text via Whisper).
-- **Synthèse vocale** (Text-to-Speech via pyttsx3).
-- **Outils Autonomes** (System Control) :
-  - Lancement et fermeture d'applications (Windows & Linux).
-  - Contrôle du système (Redémarrage).
-  - Gestion sécurisée des fichiers (Création, lecture, écriture, corbeille).
-  - Génération de documents PDF.
+## Fonctionnalités
+- Chat textuel et vocal (Whisper + pyttsx3).
+- Supporte Ollama et LM Studio.
+- Actions système : ouvrir/fermer des applications, gérer des fichiers (créer, lire, déplacer, supprimer), générer des PDF, redémarrer le PC.
 
 ## Prérequis
-
-### 1. Backend (Python)
 - **Python 3.10+**
-- **Ollama** installé sur votre machine et en cours d'exécution (port par défaut 11434).
+- **.NET 8.0 SDK** (pour compiler le frontend)
+- **Ollama** ou **LM Studio** pour faire tourner les modèles.
 
-Installation des dépendances Python :
+## Démarrage rapide (Windows)
+
+À la racine du projet :
+
+```bat
+# 1. Installation des dépendances (à faire une seule fois)
+.\install.bat
+
+# 2. Lancement
+.\alyx.bat
+```
+
+*Note: Quand vous fermez la fenêtre d'Alyx, le processus Python en arrière-plan se coupe tout seul.*
+
+## Installation manuelle (Linux / Mac)
+
+Si vous êtes sur un autre OS, lancez les deux parties séparément :
+
+1. **Backend Python**
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Sur Linux/Mac
-.venv\Scripts\activate     # Sur Windows
+source .venv/bin/activate
 pip install -r requirements.txt
+python api.py
 ```
+*(Sur Linux, assurez-vous d'avoir installé `portaudio19-dev` et `alsa-utils` pour la gestion du son).*
 
-*(Note pour Linux : vous aurez besoin de paquets systèmes comme `portaudio19-dev`, `alsa-utils`, et `espeak` pour l'audio).*
-
-### 2. Frontend (C# / Avalonia)
-- **.NET 8.0 SDK**
-
-## Démarrage Rapide
-
-1. **Lancer le serveur Python (API)**
-Dans le dossier racine :
-```bash
-./.venv/bin/python api.py
-```
-Le serveur démarrera sur le port 5000.
-
-2. **Lancer l'interface graphique (AlyxDesktop)**
-Dans un nouveau terminal :
+2. **Frontend C#** (dans un autre terminal)
 ```bash
 cd AlyxDesktop
 dotnet run
 ```
-
-L'interface se lancera et se connectera automatiquement à votre API locale !
