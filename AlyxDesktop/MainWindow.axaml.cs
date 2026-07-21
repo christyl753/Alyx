@@ -306,77 +306,109 @@ public partial class MainWindow : Window
 
         try
         {
-            int retries = 5;
-            while (retries > 0)
+            // Phase 1 : Attendre que l'API soit prête via polling rapide (500ms)
+            int maxAttempts = 30; // 30 × 500ms = 15s max
+            bool apiReady = false;
+            
+            for (int i = 0; i < maxAttempts; i++)
             {
                 try
                 {
-                    var response = await _httpClient.GetAsync("http://127.0.0.1:5000/api/models");
-                    if (response.IsSuccessStatusCode)
+                    var readyResponse = await _httpClient.GetAsync("http://127.0.0.1:5000/api/models/ready");
+                    if (readyResponse.IsSuccessStatusCode)
                     {
-                        string body = await response.Content.ReadAsStringAsync();
-                        using var doc = JsonDocument.Parse(body);
-                        var root = doc.RootElement;
-
-                        var items = new List<string>();
-
-                        if (root.TryGetProperty("current_model", out var currentEl))
+                        string readyBody = await readyResponse.Content.ReadAsStringAsync();
+                        using var readyDoc = JsonDocument.Parse(readyBody);
+                        if (readyDoc.RootElement.TryGetProperty("ready", out var readyEl) && readyEl.GetBoolean())
                         {
-                            _currentModel = currentEl.GetString() ?? "Aucun modèle";
-                        }
-
-                        if (root.TryGetProperty("providers", out var providers))
-                        {
-                            foreach (var provider in providers.EnumerateObject())
+                            apiReady = true;
+                            // Récupérer le modèle courant depuis la réponse ready
+                            if (readyDoc.RootElement.TryGetProperty("current_model", out var modelEl))
                             {
-                                string providerName = provider.Name.ToUpper();
-                                foreach (var model in provider.Value.EnumerateArray())
-                                {
-                                    string name = model.GetProperty("name").GetString() ?? "unknown";
-                                    string size = model.GetProperty("size").GetString() ?? "";
-                                    string display = size != "--" && size != ""
-                                        ? $"[{providerName}] {name} ({size})"
-                                        : $"[{providerName}] {name}";
-                                    items.Add(display);
-                                }
+                                _currentModel = modelEl.GetString() ?? "Aucun modèle";
                             }
+                            break;
                         }
-
-                        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-                        {
-                            ModelSelector.ItemsSource = items;
-
-                            // Select current model
-                            for (int i = 0; i < items.Count; i++)
-                            {
-                                if (items[i].Contains(_currentModel))
-                                {
-                                    ModelSelector.SelectedIndex = i;
-                                    break;
-                                }
-                            }
-
-                            ModelText.Text = $"Modèle: {_currentModel}";
-                            StatusText.Text = "Statut: Connecté";
-                        });
-                        
-                        return; // Succès, on sort de la boucle
                     }
                 }
-                catch
-                {
-                    retries--;
-                    if (retries > 0) await Task.Delay(3000);
-                }
+                catch { }
+                
+                await Task.Delay(500); // Polling rapide : 500ms entre chaque tentative
             }
 
-            // Si on arrive ici, c'est que toutes les tentatives ont échoué
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            if (!apiReady)
             {
-                ModelSelector.ItemsSource = new List<string> { $"[LOCAL] {_currentModel}" };
-                ModelSelector.SelectedIndex = 0;
-                StatusText.Text = "Statut: API non connectée";
-            });
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    ModelSelector.ItemsSource = new List<string> { "[LOCAL] Aucun modèle détecté" };
+                    ModelSelector.SelectedIndex = 0;
+                    StatusText.Text = "Statut: API non connectée";
+                });
+                return;
+            }
+
+            // Phase 2 : L'API est prête, charger la liste complète des modèles
+            try
+            {
+                var response = await _httpClient.GetAsync("http://127.0.0.1:5000/api/models");
+                if (response.IsSuccessStatusCode)
+                {
+                    string body = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(body);
+                    var root = doc.RootElement;
+
+                    var items = new List<string>();
+
+                    if (root.TryGetProperty("current_model", out var currentEl))
+                    {
+                        _currentModel = currentEl.GetString() ?? "Aucun modèle";
+                    }
+
+                    if (root.TryGetProperty("providers", out var providers))
+                    {
+                        foreach (var provider in providers.EnumerateObject())
+                        {
+                            string providerName = provider.Name.ToUpper();
+                            foreach (var model in provider.Value.EnumerateArray())
+                            {
+                                string name = model.GetProperty("name").GetString() ?? "unknown";
+                                string size = model.GetProperty("size").GetString() ?? "";
+                                string display = size != "--" && size != ""
+                                    ? $"[{providerName}] {name} ({size})"
+                                    : $"[{providerName}] {name}";
+                                items.Add(display);
+                            }
+                        }
+                    }
+
+                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        ModelSelector.ItemsSource = items;
+
+                        // Select current model
+                        for (int i = 0; i < items.Count; i++)
+                        {
+                            if (items[i].Contains(_currentModel))
+                            {
+                                ModelSelector.SelectedIndex = i;
+                                break;
+                            }
+                        }
+
+                        ModelText.Text = $"Modèle: {_currentModel}";
+                        StatusText.Text = "Statut: Connecté";
+                    });
+                }
+            }
+            catch
+            {
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    ModelSelector.ItemsSource = new List<string> { $"[LOCAL] {_currentModel}" };
+                    ModelSelector.SelectedIndex = 0;
+                    StatusText.Text = "Statut: Erreur chargement modèles";
+                });
+            }
         }
         finally
         {
@@ -420,6 +452,8 @@ public partial class MainWindow : Window
     private async void OnRefreshModelsClick(object? sender, RoutedEventArgs e)
     {
         AddMessage("Système", "Actualisation des modèles disponibles...", true, true);
+        // Forcer un refresh du cache côté API
+        try { await _httpClient.GetAsync("http://127.0.0.1:5000/api/models?refresh=true"); } catch { }
         await LoadModelsAsync();
     }
 

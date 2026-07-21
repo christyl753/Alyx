@@ -12,9 +12,29 @@ import sounddevice as sd
 SAMPLE_RATE = 16000
 WHISPER_MODEL_SIZE = "base"  # Options: tiny, base, small, medium, large-v3
 
+import threading
+
 # --- INITIALISATION TTS (Voix d'Alyx) ---
-_moteur_vocal = pyttsx3.init()
-_moteur_vocal.setProperty('rate', 170)
+_tts_queue = queue.Queue()
+
+def _tts_worker():
+    """Worker thread dédié à la synthèse vocale pour ne pas bloquer l'API."""
+    moteur = pyttsx3.init()
+    moteur.setProperty('rate', 170)
+    while True:
+        texte = _tts_queue.get()
+        if texte is None:
+            break
+        try:
+            moteur.say(texte)
+            moteur.runAndWait()
+        except Exception as e:
+            pass
+        finally:
+            _tts_queue.task_done()
+
+# Démarrage du thread TTS en mode démon (s'arrêtera avec le programme)
+threading.Thread(target=_tts_worker, daemon=True).start()
 
 # --- INITIALISATION STT (faster-whisper) ---
 _whisper_model = None
@@ -40,10 +60,10 @@ def _init_whisper():
 
 
 def faire_parler(texte: str) -> None:
-    """Fait parler Alyx à voix haute via synthèse vocale locale."""
+    """Fait parler Alyx à voix haute via synthèse vocale locale (Asynchrone)."""
     texte_propre = texte.replace('*', '').replace('#', '').replace('_', '')
-    _moteur_vocal.say(texte_propre)
-    _moteur_vocal.runAndWait()
+    if texte_propre.strip():
+        _tts_queue.put(texte_propre)
 
 
 def ecouter(duree_max_secondes: int = 8) -> str:

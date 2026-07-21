@@ -29,3 +29,5 @@ AlyxDesktop/obj/
 *.suo
 *.userosscache
 *.sln.docstates
+
+logs/

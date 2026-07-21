@@ -5,14 +5,28 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import messagebox
 from fpdf import FPDF
+from core.logger import get_logger
+
+logger = get_logger('alyx.files')
 
 def _resoudre_chemin(chemin: str) -> str:
-    """Résout un chemin utilisateur (~, relatif) en chemin absolu propre."""
-    return os.path.abspath(os.path.expanduser(chemin.strip()))
+    """Résout un chemin utilisateur (~, relatif) en chemin absolu propre et applique le sandboxing."""
+    chemin_absolu = os.path.abspath(os.path.expanduser(chemin.strip()))
+    home_dir = os.path.abspath(os.path.expanduser("~"))
+    
+    # Sandboxing: on vérifie que le chemin final est bien dans le dossier utilisateur
+    if not chemin_absolu.startswith(home_dir):
+        logger.warning(f"Tentative d'accès hors sandbox bloquée: {chemin_absolu}")
+        raise PermissionError(f"Accès refusé : Le chemin '{chemin_absolu}' est en dehors de votre répertoire utilisateur autorisé.")
+    
+    return chemin_absolu
 
 def creer_fichier(chemin: str) -> str:
     """Crée un fichier texte vide au chemin spécifié (ex: '~/Bureau/note.txt')."""
-    chemin_absolu = _resoudre_chemin(chemin)
+    try:
+        chemin_absolu = _resoudre_chemin(chemin)
+    except PermissionError as e:
+        return str(e)
     try:
         dossier_parent = os.path.dirname(chemin_absolu)
         if dossier_parent:
@@ -25,7 +39,10 @@ def creer_fichier(chemin: str) -> str:
 
 def creer_dossier(chemin: str) -> str:
     """Crée un nouveau dossier au chemin spécifié (ex: '~/Documents/Projet')."""
-    chemin_absolu = _resoudre_chemin(chemin)
+    try:
+        chemin_absolu = _resoudre_chemin(chemin)
+    except PermissionError as e:
+        return str(e)
     try:
         os.makedirs(chemin_absolu, exist_ok=True)
         return f"Succès : Le dossier '{chemin}' a été créé."
@@ -34,7 +51,10 @@ def creer_dossier(chemin: str) -> str:
 
 def lister_fichiers(dossier: str = "~") -> str:
     """Liste les fichiers et dossiers présents dans un répertoire donné."""
-    chemin = _resoudre_chemin(dossier)
+    try:
+        chemin = _resoudre_chemin(dossier)
+    except PermissionError as e:
+        return str(e)
     if not os.path.isdir(chemin):
         return f"Erreur: '{chemin}' n'est pas un dossier valide ou n'existe pas."
     try:
@@ -52,7 +72,10 @@ def lister_fichiers(dossier: str = "~") -> str:
 
 def renommer_fichier(chemin_actuel: str, nouveau_nom: str) -> str:
     """Renomme un fichier ou dossier."""
-    source = _resoudre_chemin(chemin_actuel)
+    try:
+        source = _resoudre_chemin(chemin_actuel)
+    except PermissionError as e:
+        return str(e)
     if not os.path.exists(source):
         return f"Erreur: '{source}' n'existe pas."
 
@@ -70,8 +93,11 @@ def renommer_fichier(chemin_actuel: str, nouveau_nom: str) -> str:
 
 def deplacer_fichier(chemin_source: str, dossier_destination: str) -> str:
     """Déplace un fichier ou dossier vers un autre dossier."""
-    source = _resoudre_chemin(chemin_source)
-    destination_dossier = _resoudre_chemin(dossier_destination)
+    try:
+        source = _resoudre_chemin(chemin_source)
+        destination_dossier = _resoudre_chemin(dossier_destination)
+    except PermissionError as e:
+        return str(e)
 
     if not os.path.exists(source):
         return f"Erreur: '{source}' n'existe pas."
@@ -89,7 +115,10 @@ def deplacer_fichier(chemin_source: str, dossier_destination: str) -> str:
 
 def supprimer_fichier(chemin: str) -> str:
     """Déplace un fichier vers la corbeille système de l'OS (XDG/Windows/Mac)."""
-    chemin_absolu = _resoudre_chemin(chemin)
+    try:
+        chemin_absolu = _resoudre_chemin(chemin)
+    except PermissionError as e:
+        return str(e)
 
     if not os.path.exists(chemin_absolu):
         return f"Erreur : L'élément '{chemin}' est introuvable."
@@ -106,31 +135,29 @@ def supprimer_fichier(chemin: str) -> str:
         return f"Erreur lors de la mise en corbeille : {str(e)}"
 
 def _demander_permission(action: str, cible: str) -> bool:
-    """Affiche une popup pour demander la permission à l'utilisateur via un sous-processus."""
-    import subprocess
-    import sys
-    
-    script = f'''
-import tkinter as tk
-from tkinter import messagebox
-root = tk.Tk()
-root.withdraw()
-root.attributes("-topmost", True)
-rep = messagebox.askyesno("Permission requise", """Alyx demande l'autorisation pour l'action suivante:\\n\\n{action}\\n\\nCible : {cible}\\n\\nAutoriser ?""")
-print("YES" if rep else "NO")
-    '''
+    """
+    Demande la permission d'effectuer une action critique.
+    Vérifie si la requête API actuelle a le flag `permission_granted`.
+    Sinon, lève une PermissionRequiredException interceptée par l'API.
+    """
     try:
-        res = subprocess.check_output([sys.executable, "-c", script], text=True, stderr=subprocess.DEVNULL)
-        return "YES" in res
-    except Exception as e:
-        print(f"Erreur popup tkinter via subprocess : {e}")
-        # Fallback console si pas d'interface
-        reponse = input(f"Alyx demande la permission de {action} sur {cible}. (o/N): ")
-        return reponse.lower().strip() == 'o'
+        from flask import request
+        if request and request.is_json and request.json.get("permission_granted"):
+            logger.info(f"Permission accordée via API pour {action} sur {cible}.")
+            return True
+    except RuntimeError:
+        # Hors contexte Flask (ex: test local)
+        pass
+        
+    from core.exceptions import PermissionRequiredException
+    raise PermissionRequiredException(action, cible)
 
 def lire_fichier_securise(chemin: str) -> str:
     """Lit le contenu d'un fichier après avoir demandé la permission."""
-    chemin_absolu = _resoudre_chemin(chemin)
+    try:
+        chemin_absolu = _resoudre_chemin(chemin)
+    except PermissionError as e:
+        return str(e)
     if not os.path.isfile(chemin_absolu):
         return f"Erreur : Le fichier '{chemin}' n'existe pas."
     
@@ -146,7 +173,10 @@ def lire_fichier_securise(chemin: str) -> str:
 
 def ecrire_fichier_securise(chemin: str, contenu: str) -> str:
     """Écrit du contenu dans un fichier après avoir demandé la permission."""
-    chemin_absolu = _resoudre_chemin(chemin)
+    try:
+        chemin_absolu = _resoudre_chemin(chemin)
+    except PermissionError as e:
+        return str(e)
     
     if _demander_permission("ECRIRE dans un fichier (ou le créer)", chemin_absolu):
         try:
@@ -166,7 +196,10 @@ def generer_pdf(chemin: str, contenu: str) -> str:
     if not chemin.lower().endswith(".pdf"):
         chemin += ".pdf"
     
-    chemin_absolu = _resoudre_chemin(chemin)
+    try:
+        chemin_absolu = _resoudre_chemin(chemin)
+    except PermissionError as e:
+        return str(e)
     
     if _demander_permission("GENERER UN PDF", chemin_absolu):
         try:

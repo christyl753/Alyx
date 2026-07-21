@@ -11,4 +11,11 @@ from .files import (
     ecrire_fichier_securise,
     generer_pdf
 )
-from .voice import faire_parler, ecouter   # <-- Ajout des modules vocaux
+from .voice import faire_parler, ecouter
+from .system import (
+    ouvrir_explorateur,
+    ouvrir_application,
+    lister_apps_actives,
+    fermer_application,
+    redemarrer_pc
+)
