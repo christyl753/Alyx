@@ -22,6 +22,16 @@ Alyx ne contient pas de modèle d'intelligence artificielle intégré (pour rest
 
 Pour une expérience **fluide, rapide et sécuritaire (respect des consignes système)**, voici les recommandations :
 
+### 💻 Recommandations selon votre Matériel (RAM / VRAM)
+Le choix du modèle dépend fortement de votre ordinateur. Les modèles d'IA consomment de la mémoire vive (RAM) et, idéalement, de la mémoire vidéo (VRAM) pour être rapides.
+
+- **PC standard (16 Go de RAM, pas de carte graphique dédiée ou GPU faible)** :
+  Privilégiez les modèles plus petits (7B à 8B paramètres) avec une forte compression (Quantization). Le traitement se fera sur le processeur (CPU), ce qui est plus lent.
+  - *Recommandations* : `qwen2.5:7b` (Ollama) ou **Qwen2.5-7B-Instruct-GGUF en Q4_K_M** (LM Studio).
+- **PC Gamer / Station de travail (16-32 Go de RAM, Carte graphique dédiée > 8 Go VRAM)** :
+  Vous pouvez utiliser des modèles légèrement plus lourds ou avec une compression moindre, tout en profitant de l'accélération matérielle ultra-rapide du GPU.
+  - *Recommandations* : `gemma2:9b`, `llama3.1:8b` (Ollama) ou **Meta-Llama-3.1-8B-Instruct-GGUF en Q6_K** ou **Q8_0** (LM Studio).
+
 ### Option 1 : Ollama (Le plus simple)
 1. Téléchargez et installez [Ollama](https://ollama.com/).
 2. Ouvrez un terminal et téléchargez un modèle recommandé. Par exemple :
