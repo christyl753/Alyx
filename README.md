@@ -17,7 +17,10 @@ Il prend en charge nativement **Windows** et **Linux** (Fedora/Nobara) et s'int�
 
 ## 🧠 Configuration des Moteurs IA & Modèles Recommandés
 
-Alyx ne contient pas de modèle d'intelligence artificielle intégré (pour rester léger). Il interroge les modèles que vous téléchargez localement. Pour une expérience **fluide, rapide et sécuritaire (respect des consignes système)**, voici les recommandations :
+Alyx ne contient pas de modèle d'intelligence artificielle intégré (pour rester léger). Il interroge les modèles que vous téléchargez localement. 
+*Note importante : La latence perçue par l'utilisateur dépend non seulement de la vitesse de génération du modèle (Tokens/s), mais aussi de la latence réseau locale (WebSocket/HTTP) entre l'interface Alyx et le serveur IA. Il est donc crucial de privilégier des modèles très rapides pour compenser ce délai de transmission.*
+
+Pour une expérience **fluide, rapide et sécuritaire (respect des consignes système)**, voici les recommandations :
 
 ### Option 1 : Ollama (Le plus simple)
 1. Téléchargez et installez [Ollama](https://ollama.com/).
