@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="256" height="256">
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#FAFAF8" stroke="#1A1A1A" stroke-width="16" />
+  
+  <g transform="translate(8, 8)">
+    <circle cx="256" cy="256" r="185" fill="none" stroke="#1A1A1A" stroke-width="40" stroke-dasharray="45 33" />
+    <circle cx="256" cy="256" r="175" fill="#1A1A1A" stroke="none" />
+  </g>
+
+  <circle cx="256" cy="256" r="185" fill="none" stroke="#1A1A1A" stroke-width="40" stroke-dasharray="45 33" />
+  <circle cx="256" cy="256" r="175" fill="#D0D0CE" stroke="#1A1A1A" stroke-width="16" />
+  <circle cx="256" cy="256" r="130" fill="#FAFAF8" stroke="#1A1A1A" stroke-width="16" />
+
+  <path d="M 230 150 L 282 150 L 350 340 L 300 340 L 285 295 L 227 295 L 212 340 L 162 340 Z" fill="#1A1A1A" transform="translate(8, 8)" />
+  <path d="M 230 150 L 282 150 L 350 340 L 300 340 L 285 295 L 227 295 L 212 340 L 162 340 Z" fill="#FAFAF8" stroke="#1A1A1A" stroke-width="16" stroke-linejoin="round" />
+  <path d="M 256 195 L 272 245 L 240 245 Z" fill="#FAFAF8" stroke="#1A1A1A" stroke-width="16" stroke-linejoin="round" />
+
+  <path d="M 215 245 L 297 245 L 312 295 L 200 295 Z" fill="#1A1A1A" transform="translate(8, 8)" />
+  <path d="M 215 245 L 297 245 L 312 295 L 200 295 Z" fill="#E55934" stroke="#1A1A1A" stroke-width="16" stroke-linejoin="round" />
+
+  <polyline points="231,260 248,270 231,280" fill="none" stroke="#FAFAF8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="258" y1="282" x2="282" y2="282" stroke="#FAFAF8" stroke-width="10" stroke-linecap="round"/>
+</svg>
