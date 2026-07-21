@@ -145,11 +145,17 @@ async def handle_chat(websocket, data):
             else:
                 resultat_execution = f"Erreur: Outil {nom_fonction} introuvable."
                 
-            messages.append({
+            tool_call_id = tool_call.get('id')
+            
+            tool_msg = {
                 'role': 'tool',
-                'content': resultat_execution,
+                'content': str(resultat_execution),
                 'name': nom_fonction
-            })
+            }
+            if tool_call_id:
+                tool_msg['tool_call_id'] = tool_call_id
+                
+            messages.append(tool_msg)
             
         contexte = _messages_avec_fenetre()
         response = await asyncio.to_thread(
@@ -283,6 +289,12 @@ async def handler_client(websocket):
                 elif msg_type == 'shutdown':
                     logger.info("Signal de fermeture reçu du C#.")
                     await websocket.send(json.dumps({"type": "shutting_down"}))
+                    
+                    import subprocess
+                    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'stop.bat')
+                    if os.path.exists(script_path):
+                        subprocess.Popen(['cmd.exe', '/c', script_path], creationflags=subprocess.CREATE_NO_WINDOW)
+                    
                     os.kill(os.getpid(), signal.SIGINT)
                     
             except json.JSONDecodeError:
