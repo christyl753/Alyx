@@ -66,14 +66,10 @@ echo Installation des librairies Python requises...
 
 echo.
 echo ==========================================
-echo    Generation du raccourci Alyx...
+echo    Configuration du lancement Alyx...
 echo ==========================================
-echo @echo off > alyx.bat
-echo echo [Alyx] Demarrage du Backend (API)... >> alyx.bat
-echo start "Alyx API" /B "%%~dp0.venv\Scripts\python.exe" "%%~dp0api.py" >> alyx.bat
-echo echo [Alyx] Demarrage du Frontend (Avalonia)... >> alyx.bat
-echo cd /d "%%~dp0AlyxDesktop" >> alyx.bat
-echo dotnet run >> alyx.bat
+echo Le script 'alyx.bat' est deja configure pour lancer l'API et l'UI en arriere-plan.
+
 
 echo.
 echo ==========================================

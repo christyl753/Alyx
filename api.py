@@ -9,21 +9,42 @@ import concurrent.futures
 from core.exceptions import PermissionRequiredException
 import ai
 from ai import messages, LISTE_FONCTIONS, outils_disponibles
-from core.llm_provider import lister_modeles_disponibles, is_models_ready
-from function import faire_parler, ecouter
+from core.llm_provider import lister_modeles_disponibles, is_models_ready, get_provider_status, load_config
+from function import faire_parler
 from core.logger import get_logger
+import urllib.request
+import urllib.error
+import time
 
 logger = get_logger('alyx.ws_api')
 
-MAX_CONTEXT_MESSAGES = 40
+config = load_config()
+MAX_CONTEXT_MESSAGES = config.get('llm_provider', {}).get('max_context_messages', 40)
+PORT = config.get('server', {}).get('port', 8765)
+
+# Gestion du Kill Switch
+_cancel_events = {}
 
 def _messages_avec_fenetre():
     if len(messages) <= 1:
         return messages
     system_prompt = messages[0]
     recents = messages[1:]
+    
     if len(recents) > MAX_CONTEXT_MESSAGES:
-        recents = recents[-MAX_CONTEXT_MESSAGES:]
+        # Trouver un point de coupure sûr
+        start_idx = len(recents) - MAX_CONTEXT_MESSAGES
+        
+        # On recule si on coupe au milieu d'une paire tool_call/tool
+        while start_idx > 0:
+            msg = recents[start_idx]
+            prev_msg = recents[start_idx - 1]
+            if msg.get('role') == 'tool' or prev_msg.get('tool_calls'):
+                start_idx -= 1
+            else:
+                break
+                
+        recents = recents[start_idx:]
         
     last_user_idx = len(recents) - 1
     while last_user_idx >= 0 and recents[last_user_idx].get('role') != 'user':
@@ -44,12 +65,19 @@ async def handle_chat(websocket, data):
     mode_vocal = data.get('vocal', False)
     
     if mode_vocal and not user_input:
-        # Run synchronous voice recognition in thread
-        user_input = await asyncio.to_thread(ecouter)
+        try:
+            req = urllib.request.Request("http://127.0.0.1:5001/listen", method="POST")
+            with urllib.request.urlopen(req, timeout=15) as response:
+                res_data = json.loads(response.read().decode('utf-8'))
+                user_input = res_data.get('text', '')
+        except Exception as e:
+            logger.error(f"Erreur STT: {e}")
+            user_input = ""
+            
         if not user_input:
             await websocket.send(json.dumps({
                 "type": "error",
-                "message": "Je n'ai rien entendu..."
+                "message": "Je n'ai rien entendu (ou erreur STT)..."
             }))
             await websocket.send(json.dumps({"type": "done"}))
             return
@@ -152,10 +180,25 @@ async def handle_chat(websocket, data):
         # Pour lire le générateur asynchrone depuis un générateur synchrone bloquant :
         # On lit chunk par chunk via un ThreadPool
         loop = asyncio.get_running_loop()
+        cancel_event = _cancel_events.get(websocket)
+        
         while True:
+            if cancel_event and cancel_event.is_set():
+                logger.info("Génération annulée via Kill Switch.")
+                full_content += "\n[Génération interrompue par l'utilisateur]"
+                break
+                
             try:
-                # `next()` est bloquant, on le passe à to_thread
-                chunk = await asyncio.to_thread(next, generator)
+                def _get_next():
+                    try:
+                        return next(generator)
+                    except StopIteration:
+                        return None
+                        
+                chunk = await asyncio.to_thread(_get_next)
+                if chunk is None:
+                    break
+                    
                 content = chunk.get('message', {}).get('content', '')
                 if content:
                     full_content += content
@@ -175,7 +218,8 @@ async def handle_chat(websocket, data):
                                         faire_parler(sentence.strip())
                                     tts_buffer = parts[1] if len(parts) > 1 else ""
                                     break
-            except StopIteration:
+            except Exception as e:
+                logger.error(f"Erreur chunk: {e}")
                 break
                 
         if mode_vocal and tts_buffer.strip():
@@ -195,6 +239,8 @@ async def handle_chat(websocket, data):
 
 async def handler_client(websocket):
     logger.info("Interface C# connectée.")
+    _cancel_events[websocket] = asyncio.Event()
+    
     try:
         async for message_brut in websocket:
             try:
@@ -202,7 +248,12 @@ async def handler_client(websocket):
                 msg_type = data.get('type', 'chat')
                 
                 if msg_type == 'chat':
+                    _cancel_events[websocket].clear()
                     await handle_chat(websocket, data)
+                    
+                elif msg_type == 'cancel':
+                    logger.info("Kill Switch activé.")
+                    _cancel_events[websocket].set()
                     
                 elif msg_type == 'get_models':
                     force = data.get('refresh', False)
@@ -211,6 +262,13 @@ async def handler_client(websocket):
                         "type": "models_list",
                         "current_model": ai.MODEL,
                         "providers": resultats
+                    }))
+                    
+                elif msg_type == 'get_status':
+                    status = await asyncio.to_thread(get_provider_status)
+                    await websocket.send(json.dumps({
+                        "type": "provider_status",
+                        "status": status
                     }))
                     
                 elif msg_type == 'select_model':
@@ -232,10 +290,31 @@ async def handler_client(websocket):
                 
     except websockets.exceptions.ConnectionClosed:
         logger.info("Interface C# déconnectée.")
-
+    finally:
+        _cancel_events.pop(websocket, None)
 
 async def demarrer_serveur_alyx():
-    port = 8765
+    port = PORT
+    
+    # Précharger les modèles en arrière-plan
+    def _preload():
+        from core.llm_provider import preload_models
+        ai.MODEL = preload_models()
+        logger.info(f"Modèles préchargés, modèle par défaut: {ai.MODEL}")
+        
+        # Handshake STT
+        logger.info("Attente du service STT (Handshake)...")
+        for _ in range(10):
+            try:
+                urllib.request.urlopen("http://127.0.0.1:5001/health", timeout=1)
+                logger.info("Service STT prêt.")
+                break
+            except Exception:
+                time.sleep(1)
+        
+    import threading
+    threading.Thread(target=_preload, daemon=True).start()
+    
     logger.info(f"---> Serveur WebSocket Alyx démarré sur ws://localhost:{port}")
     print(f"---> Serveur WebSocket Alyx démarré sur ws://localhost:{port}")
     async with websockets.serve(handler_client, "localhost", port):

@@ -1,3 +1,10 @@
+# ============================================================================
+# DEPRECATED - Ce fichier est un vestige de l'ancienne architecture (Tkinter).
+# Le vrai frontend est le client C# Avalonia (AlyxDesktop/) communiquant via
+# WebSocket avec api.py. Ce fichier contourne le système multi-fournisseurs
+# (llm_provider.py) en appelant ollama.chat() directement.
+# NE PAS UTILISER EN PRODUCTION. Conservé uniquement comme référence.
+# ============================================================================
 # pyrefly: ignore [missing-import]
 import customtkinter as ctk
 import threading

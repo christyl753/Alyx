@@ -24,15 +24,25 @@ if ! dotnet --list-sdks | grep "8.0" &> /dev/null; then
 fi
 echo "[OK] .NET 8.0 SDK est installe."
 
-# 3. Verification de Ollama
+# 3. Verification des fournisseurs IA (Ollama / LM Studio)
 echo ""
-echo "[3/4] Verification de Ollama..."
-if ! command -v ollama &> /dev/null; then
-    echo "[!] Ollama n'est pas detecte."
-    echo "L'assistant necessite Ollama pour l'IA locale."
-    echo "Installation recommandee : curl -fsSL https://ollama.com/install.sh | sh"
-else
+echo "[3/4] Verification des moteurs d'IA (Ollama ou LM Studio)..."
+IA_DETECTED=0
+
+if command -v ollama &> /dev/null; then
     echo "[OK] Ollama est installe."
+    IA_DETECTED=1
+fi
+
+if command -v lms &> /dev/null; then
+    echo "[OK] LM Studio est installe."
+    IA_DETECTED=1
+fi
+
+if [ "$IA_DETECTED" -eq 0 ]; then
+    echo "[!] Ni Ollama ni LM Studio n'ont ete detectes dans le PATH."
+    echo "L'assistant necessite un moteur d'IA local."
+    echo "Veuillez installer Ollama (https://ollama.com/) ou LM Studio (https://lmstudio.ai/)."
 fi
 
 # 4. Dependances systeme audio (Linux)
@@ -51,15 +61,14 @@ if [ ! -d ".venv" ]; then
 fi
 
 echo "Installation des librairies Python requises..."
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements.txt
 
 echo ""
 echo "=========================================="
 echo "   Installation terminee avec succes !"
 echo "=========================================="
 echo "Pour lancer Alyx, ouvrez deux terminaux :"
-echo "1. source .venv/bin/activate && python api.py"
+echo "1. .venv/bin/python api.py"
 echo "2. cd AlyxDesktop && dotnet run"
 echo ""

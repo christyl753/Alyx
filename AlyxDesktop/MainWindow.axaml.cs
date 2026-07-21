@@ -10,7 +10,7 @@ using Avalonia.Styling;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Net.Http;
+using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -20,22 +20,192 @@ namespace AlyxDesktop;
 
 public partial class MainWindow : Window
 {
-    private readonly HttpClient _httpClient = new HttpClient
-    {
-        Timeout = TimeSpan.FromSeconds(120)
-    };
+    private ClientWebSocket _webSocket = new ClientWebSocket();
     private bool _isVocalActive = false;
     private bool _isProcessing = false;
-    private bool _isLoadingModels = false;
     private string _currentModel = "Chargement...";
+    private TextBlock? _currentStreamingBlock = null;
 
     public MainWindow()
     {
         InitializeComponent();
         AddMessage("Alyx", "Système initialisé. Bonjour, je suis Alyx. Quel concept allons-nous prototyper aujourd'hui ?", true);
-        // Load models on startup
-        _ = LoadModelsAsync();
+        _ = ConnectWebSocketAsync();
     }
+
+    private async Task ConnectWebSocketAsync()
+    {
+        while (true)
+        {
+            try
+            {
+                if (_webSocket.State != WebSocketState.Open)
+                {
+                    _webSocket = new ClientWebSocket();
+                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => StatusText.Text = "Statut: Connexion...");
+                    await _webSocket.ConnectAsync(new Uri("ws://127.0.0.1:8765"), CancellationToken.None);
+                    
+                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => StatusText.Text = "Statut: Connecté");
+                    
+                    // Demande des modèles après connexion
+                    await SendWebSocketMessage(new { type = "get_models", refresh = false });
+                    
+                    _ = ReceiveLoopAsync();
+                }
+                break;
+            }
+            catch (Exception)
+            {
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => StatusText.Text = "Statut: Déconnecté (Re-essai...)");
+                await Task.Delay(3000);
+            }
+        }
+    }
+
+    private async Task SendWebSocketMessage(object payload)
+    {
+        if (_webSocket.State == WebSocketState.Open)
+        {
+            string json = JsonSerializer.Serialize(payload);
+            byte[] bytes = Encoding.UTF8.GetBytes(json);
+            await _webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+        }
+    }
+
+    private async Task ReceiveLoopAsync()
+    {
+        var buffer = new byte[8192];
+        var sb = new StringBuilder();
+
+        try
+        {
+            while (_webSocket.State == WebSocketState.Open)
+            {
+                var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                    break;
+                }
+
+                sb.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+                if (result.EndOfMessage)
+                {
+                    string message = sb.ToString();
+                    sb.Clear();
+                    _ = HandleServerMessageAsync(message);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Disconnected
+        }
+
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => 
+        {
+            StatusText.Text = "Statut: Déconnecté";
+            _ = ConnectWebSocketAsync(); // Reconnect
+        });
+    }
+
+    private async Task HandleServerMessageAsync(string messageJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(messageJson);
+            var root = doc.RootElement;
+            string type = root.TryGetProperty("type", out var typeEl) ? typeEl.GetString() ?? "" : "";
+
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                switch (type)
+                {
+                    case "models_list":
+                        _currentModel = root.GetProperty("current_model").GetString() ?? "Aucun modèle";
+                        var items = new List<string>();
+                        if (root.TryGetProperty("providers", out var providers))
+                        {
+                            foreach (var provider in providers.EnumerateObject())
+                            {
+                                string providerName = provider.Name.ToUpper();
+                                foreach (var model in provider.Value.EnumerateArray())
+                                {
+                                    string name = model.GetProperty("name").GetString() ?? "unknown";
+                                    string size = model.GetProperty("size").GetString() ?? "";
+                                    string display = size != "--" && size != ""
+                                        ? $"[{providerName}] {name} ({size})"
+                                        : $"[{providerName}] {name}";
+                                    items.Add(display);
+                                }
+                            }
+                        }
+                        
+                        ModelSelector.ItemsSource = items;
+                        for (int i = 0; i < items.Count; i++)
+                        {
+                            if (items[i].Contains(_currentModel))
+                            {
+                                ModelSelector.SelectedIndex = i;
+                                break;
+                            }
+                        }
+                        ModelText.Text = $"Modèle: {_currentModel}";
+                        break;
+                        
+                    case "model_selected":
+                        _currentModel = root.GetProperty("model").GetString() ?? "";
+                        ModelText.Text = $"Modèle: {_currentModel}";
+                        AddMessage("Système", $"Modèle changé vers '{_currentModel}'", true, true);
+                        break;
+                        
+                    case "system_action":
+                        string content = root.GetProperty("content").GetString() ?? "";
+                        AddMessage("Système", content, true, true);
+                        break;
+
+                    case "token":
+                        if (_currentStreamingBlock == null)
+                        {
+                            _currentStreamingBlock = AddStreamingMessage("Alyx");
+                            HideTypingIndicator(); // L'IA commence à parler
+                        }
+                        _currentStreamingBlock.Text += root.GetProperty("content").GetString();
+                        ChatScrollViewer.ScrollToEnd();
+                        break;
+
+                    case "done":
+                        _currentStreamingBlock = null;
+                        _isProcessing = false;
+                        SendBtn.Content = "GÉNÉRER ▸";
+                        SendBtn.IsEnabled = true;
+                        HideTypingIndicator();
+                        break;
+                        
+                    case "error":
+                        string errorMsg = root.GetProperty("message").GetString() ?? "Erreur";
+                        AddMessage("Erreur", errorMsg, true, true);
+                        _isProcessing = false;
+                        SendBtn.Content = "GÉNÉRER ▸";
+                        SendBtn.IsEnabled = true;
+                        HideTypingIndicator();
+                        break;
+                        
+                    case "action_required":
+                        string action = root.GetProperty("action").GetString() ?? "";
+                        string cible = root.GetProperty("cible").GetString() ?? "";
+                        var toolCall = root.GetProperty("tool_call").Clone();
+                        AddActionRequiredMessage(action, cible, toolCall);
+                        break;
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error parsing JSON: {ex.Message}");
+        }
+    }
+
 
     // ========== Animated Typing Indicator ==========
     private StackPanel? _typingContainer = null;
@@ -43,6 +213,8 @@ public partial class MainWindow : Window
 
     private void ShowTypingIndicator()
     {
+        if (_typingContainer != null) return;
+        
         _typingContainer = new StackPanel
         {
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -51,7 +223,6 @@ public partial class MainWindow : Window
             Spacing = 5
         };
 
-        // Meta label
         var metaPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -74,7 +245,6 @@ public partial class MainWindow : Window
             Foreground = new SolidColorBrush(Color.Parse("#E55934"))
         });
 
-        // Main animated box
         var outerBox = new Border
         {
             BorderBrush = new SolidColorBrush(Color.Parse("#1A1A1A")),
@@ -86,7 +256,6 @@ public partial class MainWindow : Window
 
         var content = new StackPanel { Spacing = 10 };
 
-        // Pencil icon + "Alyx réfléchit" text
         var topRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         topRow.Children.Add(new TextBlock
         {
@@ -104,9 +273,7 @@ public partial class MainWindow : Window
         });
         content.Children.Add(topRow);
 
-        // Animated hatched progress bar
         var accentHatch = this.FindResource("AccentHatchBrush") as IBrush;
-
         var progressTrack = new Border
         {
             Height = 10,
@@ -125,14 +292,12 @@ public partial class MainWindow : Window
         content.Children.Add(progressTrack);
 
         outerBox.Child = content;
-
         _typingContainer.Children.Add(metaPanel);
         _typingContainer.Children.Add(outerBox);
 
         ChatPanel.Children.Add(_typingContainer);
-        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => ChatScrollViewer.ScrollToEnd());
+        ChatScrollViewer.ScrollToEnd();
 
-        // Start progress animation
         _animationCts = new CancellationTokenSource();
         _ = AnimateProgressBar(progressFill, progressTrack, _animationCts.Token);
     }
@@ -182,17 +347,111 @@ public partial class MainWindow : Window
     }
 
     // ========== Message Rendering ==========
+    
+    private TextBlock AddStreamingMessage(string sender)
+    {
+        var (container, textBlock) = CreateMessageContainer(sender, true, false);
+        ChatPanel.Children.Add(container);
+        ChatScrollViewer.ScrollToEnd();
+        return textBlock;
+    }
+    
     private void AddMessage(string sender, string text, bool isSystem, bool isAction = false)
     {
-        bool isUser = !isSystem;
+        var (container, textBlock) = CreateMessageContainer(sender, isSystem, isAction);
+        textBlock.Text = text;
+        ChatPanel.Children.Add(container);
+        ChatScrollViewer.ScrollToEnd();
+    }
+    
+    private void AddActionRequiredMessage(string action, string cible, JsonElement toolCall)
+    {
+        var container = new Grid
+        {
+            Margin = new Thickness(0, 0, 0, 10),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            MaxWidth = 650
+        };
 
-        string metaLabel;
-        if (isUser)
-            metaLabel = "USER.INPUT";
-        else if (isAction)
-            metaLabel = "SYS.ACTION";
-        else
-            metaLabel = "ALYX.SYS";
+        var metadataPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 10,
+            Margin = new Thickness(0, 0, 0, 5),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        metadataPanel.Children.Add(new TextBlock
+        {
+            Text = "SYS.ACTION_REQUIRED",
+            FontWeight = FontWeight.Bold,
+            FontFamily = new FontFamily("Monospace"),
+            FontSize = 11,
+            Foreground = new SolidColorBrush(Color.Parse("#E55934"))
+        });
+
+        var mainBox = new Border
+        {
+            BorderBrush = new SolidColorBrush(Color.Parse("#E55934")),
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(20),
+            Background = new SolidColorBrush(Color.Parse("#FAFAF8"))
+        };
+
+        var content = new StackPanel { Spacing = 10 };
+        content.Children.Add(new TextBlock
+        {
+            Text = $"Action destructive détectée : {action}",
+            FontWeight = FontWeight.Bold,
+            Foreground = new SolidColorBrush(Color.Parse("#1A1A1A"))
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = $"Cible : {cible}\nAlyx attend votre validation (Human-in-the-Loop) avant de procéder.",
+            TextWrapping = TextWrapping.Wrap
+        });
+        
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Margin = new Thickness(0, 10, 0, 0) };
+        var btnAccept = new Button { Content = "Autoriser", Background = new SolidColorBrush(Color.Parse("#1A1A1A")), Foreground = Brushes.White, Padding = new Thickness(15,8) };
+        var btnReject = new Button { Content = "Refuser", Background = new SolidColorBrush(Color.Parse("#D0D0CE")), Padding = new Thickness(15,8) };
+        
+        string toolCallJson = toolCall.GetRawText();
+        
+        btnAccept.Click += async (s, e) => {
+            buttons.IsEnabled = false;
+            await SendWebSocketMessage(new { type = "permission_granted", tool_call = JsonSerializer.Deserialize<object>(toolCallJson) });
+            AddMessage("Vous", "J'autorise l'action.", false);
+        };
+        
+        btnReject.Click += async (s, e) => {
+            buttons.IsEnabled = false;
+            await SendWebSocketMessage(new { type = "permission_denied", tool_call = JsonSerializer.Deserialize<object>(toolCallJson) });
+            AddMessage("Vous", "Je refuse cette action.", false);
+        };
+        
+        buttons.Children.Add(btnAccept);
+        buttons.Children.Add(btnReject);
+        content.Children.Add(buttons);
+        
+        mainBox.Child = content;
+        
+        var finalStack = new StackPanel { Spacing = 5 };
+        finalStack.Children.Add(metadataPanel);
+        finalStack.Children.Add(mainBox);
+        container.Children.Add(finalStack);
+        
+        ChatPanel.Children.Add(container);
+        ChatScrollViewer.ScrollToEnd();
+        
+        _isProcessing = false;
+        SendBtn.Content = "GÉNÉRER ▸";
+        SendBtn.IsEnabled = true;
+        HideTypingIndicator();
+    }
+
+    private (Grid, TextBlock) CreateMessageContainer(string sender, bool isSystem, bool isAction)
+    {
+        bool isUser = !isSystem;
+        string metaLabel = isUser ? "USER.INPUT" : (isAction ? "SYS.ACTION" : "ALYX.SYS");
 
         var container = new Grid
         {
@@ -261,7 +520,6 @@ public partial class MainWindow : Window
 
         var textBlock = new TextBlock
         {
-            Text = text,
             Foreground = new SolidColorBrush(Color.Parse(isUser ? "#F4F4F2" : "#1A1A1A")),
             TextWrapping = TextWrapping.Wrap,
             FontSize = 15,
@@ -293,134 +551,16 @@ public partial class MainWindow : Window
         finalStack.Children.Add(messageContentGrid);
 
         container.Children.Add(finalStack);
-        ChatPanel.Children.Add(container);
-
-        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => ChatScrollViewer.ScrollToEnd());
+        
+        return (container, textBlock);
     }
 
-    // ========== Model Management ==========
-    private async Task LoadModelsAsync()
-    {
-        if (_isLoadingModels) return;
-        _isLoadingModels = true;
 
-        try
-        {
-            // Phase 1 : Attendre que l'API soit prête via polling rapide (500ms)
-            int maxAttempts = 30; // 30 × 500ms = 15s max
-            bool apiReady = false;
-            
-            for (int i = 0; i < maxAttempts; i++)
-            {
-                try
-                {
-                    var readyResponse = await _httpClient.GetAsync("http://127.0.0.1:5000/api/models/ready");
-                    if (readyResponse.IsSuccessStatusCode)
-                    {
-                        string readyBody = await readyResponse.Content.ReadAsStringAsync();
-                        using var readyDoc = JsonDocument.Parse(readyBody);
-                        if (readyDoc.RootElement.TryGetProperty("ready", out var readyEl) && readyEl.GetBoolean())
-                        {
-                            apiReady = true;
-                            // Récupérer le modèle courant depuis la réponse ready
-                            if (readyDoc.RootElement.TryGetProperty("current_model", out var modelEl))
-                            {
-                                _currentModel = modelEl.GetString() ?? "Aucun modèle";
-                            }
-                            break;
-                        }
-                    }
-                }
-                catch { }
-                
-                await Task.Delay(500); // Polling rapide : 500ms entre chaque tentative
-            }
-
-            if (!apiReady)
-            {
-                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    ModelSelector.ItemsSource = new List<string> { "[LOCAL] Aucun modèle détecté" };
-                    ModelSelector.SelectedIndex = 0;
-                    StatusText.Text = "Statut: API non connectée";
-                });
-                return;
-            }
-
-            // Phase 2 : L'API est prête, charger la liste complète des modèles
-            try
-            {
-                var response = await _httpClient.GetAsync("http://127.0.0.1:5000/api/models");
-                if (response.IsSuccessStatusCode)
-                {
-                    string body = await response.Content.ReadAsStringAsync();
-                    using var doc = JsonDocument.Parse(body);
-                    var root = doc.RootElement;
-
-                    var items = new List<string>();
-
-                    if (root.TryGetProperty("current_model", out var currentEl))
-                    {
-                        _currentModel = currentEl.GetString() ?? "Aucun modèle";
-                    }
-
-                    if (root.TryGetProperty("providers", out var providers))
-                    {
-                        foreach (var provider in providers.EnumerateObject())
-                        {
-                            string providerName = provider.Name.ToUpper();
-                            foreach (var model in provider.Value.EnumerateArray())
-                            {
-                                string name = model.GetProperty("name").GetString() ?? "unknown";
-                                string size = model.GetProperty("size").GetString() ?? "";
-                                string display = size != "--" && size != ""
-                                    ? $"[{providerName}] {name} ({size})"
-                                    : $"[{providerName}] {name}";
-                                items.Add(display);
-                            }
-                        }
-                    }
-
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        ModelSelector.ItemsSource = items;
-
-                        // Select current model
-                        for (int i = 0; i < items.Count; i++)
-                        {
-                            if (items[i].Contains(_currentModel))
-                            {
-                                ModelSelector.SelectedIndex = i;
-                                break;
-                            }
-                        }
-
-                        ModelText.Text = $"Modèle: {_currentModel}";
-                        StatusText.Text = "Statut: Connecté";
-                    });
-                }
-            }
-            catch
-            {
-                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    ModelSelector.ItemsSource = new List<string> { $"[LOCAL] {_currentModel}" };
-                    ModelSelector.SelectedIndex = 0;
-                    StatusText.Text = "Statut: Erreur chargement modèles";
-                });
-            }
-        }
-        finally
-        {
-            _isLoadingModels = false;
-        }
-    }
-
+    // ========== Events Handlers ==========
     private async void OnModelChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (ModelSelector.SelectedItem is not string selected || _isLoadingModels) return;
+        if (ModelSelector.SelectedItem is not string selected) return;
 
-        // Extract model name from display string "[PROVIDER] model_name (size)"
         string modelName = selected;
         int bracketEnd = modelName.IndexOf(']');
         if (bracketEnd >= 0)
@@ -432,52 +572,31 @@ public partial class MainWindow : Window
 
         if (modelName == _currentModel) return;
 
-        try
-        {
-            var payload = new { model = modelName };
-            string json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-            var response = await _httpClient.PostAsync("http://127.0.0.1:5000/api/models/select", content);
-            if (response.IsSuccessStatusCode)
-            {
-                _currentModel = modelName;
-                ModelText.Text = $"Modèle: {_currentModel}";
-                AddMessage("Système", $"Modèle changé vers '{_currentModel}'", true, true);
-            }
-        }
-        catch { }
+        await SendWebSocketMessage(new { type = "select_model", model = modelName });
     }
 
     private async void OnRefreshModelsClick(object? sender, RoutedEventArgs e)
     {
         AddMessage("Système", "Actualisation des modèles disponibles...", true, true);
-        // Forcer un refresh du cache côté API
-        try { await _httpClient.GetAsync("http://127.0.0.1:5000/api/models?refresh=true"); } catch { }
-        await LoadModelsAsync();
+        await SendWebSocketMessage(new { type = "get_models", refresh = true });
     }
 
-    // ========== Event Handlers ==========
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
-        try
-        {
-            _httpClient.PostAsync("http://127.0.0.1:5000/api/shutdown", null).Wait(500);
-        }
-        catch { }
+        _ = SendWebSocketMessage(new { type = "shutdown" });
     }
 
     private async void OnSendClick(object? sender, RoutedEventArgs e)
     {
-        await SendMessageAsync();
+        await SendChatAsync();
     }
 
     private async void OnInputKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
         {
-            await SendMessageAsync();
+            await SendChatAsync();
         }
     }
 
@@ -491,7 +610,7 @@ public partial class MainWindow : Window
         if (_isVocalActive)
         {
             AddMessage("Système", "Mode vocal activé. Je vous écoute...", true, true);
-            _ = SendMessageAsync();
+            _ = SendChatAsync();
         }
         else
         {
@@ -505,12 +624,12 @@ public partial class MainWindow : Window
         AddMessage("Alyx", "Conversation réinitialisée. Comment puis-je vous aider ?", true);
     }
 
-    // ========== Networking ==========
-    private async Task SendMessageAsync(string? overrideText = null)
+    // ========== Send Logic ==========
+    private async Task SendChatAsync()
     {
         if (_isProcessing) return;
 
-        string text = overrideText ?? InputBox.Text?.Trim() ?? "";
+        string text = InputBox.Text?.Trim() ?? "";
         if (string.IsNullOrEmpty(text) && !_isVocalActive) return;
 
         if (!string.IsNullOrEmpty(text))
@@ -522,88 +641,14 @@ public partial class MainWindow : Window
         _isProcessing = true;
         SendBtn.Content = "...";
         SendBtn.IsEnabled = false;
-
+        
         ShowTypingIndicator();
 
-        var stopwatch = Stopwatch.StartNew();
-
-        try
+        await SendWebSocketMessage(new
         {
-            var payload = new
-            {
-                message = text,
-                vocal = _isVocalActive
-            };
-
-            string json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-            var response = await _httpClient.PostAsync("http://127.0.0.1:5000/api/chat", content);
-            response.EnsureSuccessStatusCode();
-
-            stopwatch.Stop();
-
-            string responseBody = await response.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(responseBody);
-            var root = doc.RootElement;
-
-            if (root.TryGetProperty("actions", out var actionsEl) && actionsEl.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var action in actionsEl.EnumerateArray())
-                {
-                    AddMessage("Système", action.GetString() ?? "", true, true);
-                }
-            }
-
-            if (root.TryGetProperty("message", out var msgEl))
-            {
-                string msgText = msgEl.GetString() ?? "";
-                if (!string.IsNullOrWhiteSpace(msgText))
-                {
-                    AddMessage("Alyx", msgText, true);
-                }
-            }
-
-            if (stopwatch.ElapsedMilliseconds > 1000)
-            {
-                LatencyText.Text = $"Latence: {stopwatch.ElapsedMilliseconds / 1000.0:F1}s";
-            }
-            else
-            {
-                LatencyText.Text = $"Latence: {stopwatch.ElapsedMilliseconds}ms";
-            }
-            StatusText.Text = "Statut: Connecté";
-        }
-        catch (TaskCanceledException)
-        {
-            AddMessage("Erreur", "La requête a expiré (timeout 120s). Vérifiez que l'API et Ollama sont fonctionnels.", true, true);
-            StatusText.Text = "Statut: Timeout";
-        }
-        catch (HttpRequestException)
-        {
-            AddMessage("Erreur", "Connexion à l'API Python échouée. Vérifiez que le serveur est lancé sur le port 5000.", true, true);
-            StatusText.Text = "Statut: Déconnecté";
-        }
-        catch (Exception ex)
-        {
-            AddMessage("Erreur", $"Erreur inattendue : {ex.Message}", true, true);
-            StatusText.Text = "Statut: Erreur";
-        }
-        finally
-        {
-            HideTypingIndicator();
-
-            _isProcessing = false;
-            SendBtn.Content = "GÉNÉRER ▸";
-            SendBtn.IsEnabled = true;
-
-            InputBox.Focus();
-
-            if (_isVocalActive && string.IsNullOrEmpty(text))
-            {
-                await Task.Delay(1000);
-                _ = SendMessageAsync();
-            }
-        }
+            type = "chat",
+            prompt = text,
+            vocal = _isVocalActive
+        });
     }
 }

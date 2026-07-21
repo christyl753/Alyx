@@ -103,6 +103,9 @@ def fermer_application(nom_app: str) -> str:
 
 def redemarrer_pc() -> str:
     """Redémarre l'ordinateur."""
+    from function.files import _demander_permission
+    _demander_permission("REDEMARRER le PC", "Système d'exploitation")
+    
     try:
         if sys.platform == "win32":
             os.system("shutdown /r /t 0")

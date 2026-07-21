@@ -1,0 +1,22 @@
+# Configuration Globale d'Alyx
+
+server:
+  port: 8765
+
+llm_provider:
+  cache_ttl: 60
+  scan_timeout: 1.5
+  circuit_breaker_max_failures: 3
+  circuit_breaker_cooldown: 30
+  max_context_messages: 40
+
+providers:
+  - name: "ollama"
+    api_base: "http://127.0.0.1:11434"
+    priority: 1
+  - name: "lmstudio"
+    api_base: "http://127.0.0.1:1234"
+    priority: 2
+  - name: "nvidia"
+    api_base: "http://127.0.0.1:8000"
+    priority: 3

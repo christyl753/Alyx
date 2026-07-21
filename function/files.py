@@ -127,6 +127,8 @@ def supprimer_fichier(chemin: str) -> str:
     if chemin_absolu in dossiers_proteges:
         return f"Erreur : '{chemin_absolu}' est un dossier système protégé, action refusée."
 
+    _demander_permission("SUPPRIMER un fichier", chemin_absolu)
+    
     try:
         from send2trash import send2trash
         send2trash(chemin_absolu)
@@ -137,18 +139,9 @@ def supprimer_fichier(chemin: str) -> str:
 def _demander_permission(action: str, cible: str) -> bool:
     """
     Demande la permission d'effectuer une action critique.
-    Vérifie si la requête API actuelle a le flag `permission_granted`.
-    Sinon, lève une PermissionRequiredException interceptée par l'API.
+    Lève une PermissionRequiredException interceptée par le handler WebSocket (api.py),
+    qui suspend l'exécution et envoie une demande de validation au frontend C# (Human-in-the-Loop).
     """
-    try:
-        from flask import request
-        if request and request.is_json and request.json.get("permission_granted"):
-            logger.info(f"Permission accordée via API pour {action} sur {cible}.")
-            return True
-    except RuntimeError:
-        # Hors contexte Flask (ex: test local)
-        pass
-        
     from core.exceptions import PermissionRequiredException
     raise PermissionRequiredException(action, cible)
 

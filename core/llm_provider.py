@@ -2,93 +2,111 @@ import threading
 import time
 import requests
 import ollama
+import json
+import yaml
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from core.logger import get_logger
 
 logger = get_logger('alyx.llm_provider')
 
-# --- CACHE DES MODÈLES ---
-_models_cache = {}           # Résultats mis en cache
-_model_to_provider = {}      # Map rapide nom -> provider
-_cache_timestamp = 0.0       # Quand le cache a été mis à jour
-_cache_lock = threading.Lock()
-_models_ready = threading.Event()  # Signale que le premier scan est terminé
-CACHE_TTL = 60               # Durée de vie du cache en secondes
+# --- CONFIGURATION ---
+CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.yaml')
 
-# --- PROVIDERS DE MODÈLES ---
-PROVIDERS = {
-    'ollama': {
-        'name': 'Ollama',
-        'api_base': 'http://localhost:11434',
-        'list_endpoint': '/api/tags'
-    },
-    'lmstudio': {
-        'name': 'LM Studio',
-        'api_base': 'http://127.0.0.1:1234',
-        'list_endpoint': '/v1/models'
-    },
-    'nvidia': {
-        'name': 'NVIDIA NIM',
-        'api_base': 'http://127.0.0.1:8000',
-        'list_endpoint': '/v1/models'
+def load_config():
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+    return {}
+
+config = load_config()
+llm_config = config.get('llm_provider', {})
+
+CACHE_TTL = llm_config.get('cache_ttl', 60)
+SCAN_TIMEOUT = llm_config.get('scan_timeout', 1.5)
+CB_MAX_FAILURES = llm_config.get('circuit_breaker_max_failures', 3)
+CB_COOLDOWN = llm_config.get('circuit_breaker_cooldown', 30)
+
+PROVIDERS = {p['name']: p for p in config.get('providers', [])}
+if not PROVIDERS:
+    PROVIDERS = {
+        'ollama': {'name': 'ollama', 'api_base': 'http://127.0.0.1:11434', 'priority': 1},
+        'lmstudio': {'name': 'lmstudio', 'api_base': 'http://127.0.0.1:1234', 'priority': 2},
+        'nvidia': {'name': 'nvidia', 'api_base': 'http://127.0.0.1:8000', 'priority': 3}
     }
-}
 
-# --- Fonctions internes de scan par provider ---
+# --- CACHE & CIRCUIT BREAKER ---
+_models_cache = {}           
+_model_to_provider = {}      
+_cache_timestamp = 0.0       
+_cache_lock = threading.Lock()
+_models_ready = threading.Event()
 
+# { 'provider_name': {'failures': int, 'last_failure': timestamp, 'latency': float, 'status': str} }
+_provider_stats = {name: {'failures': 0, 'last_failure': 0.0, 'latency': 0.0, 'status': 'unknown'} for name in PROVIDERS}
+
+def _is_provider_available(provider_name: str) -> bool:
+    stats = _provider_stats[provider_name]
+    if stats['failures'] >= CB_MAX_FAILURES:
+        if time.time() - stats['last_failure'] < CB_COOLDOWN:
+            return False
+        else:
+            # Demi-ouvert
+            stats['failures'] = CB_MAX_FAILURES - 1 
+    return True
+
+def _record_success(provider_name: str, latency: float):
+    _provider_stats[provider_name]['failures'] = 0
+    _provider_stats[provider_name]['latency'] = latency
+    _provider_stats[provider_name]['status'] = 'online'
+
+def _record_failure(provider_name: str):
+    _provider_stats[provider_name]['failures'] += 1
+    _provider_stats[provider_name]['last_failure'] = time.time()
+    _provider_stats[provider_name]['status'] = 'offline'
+
+# --- SCAN ---
 def _scan_ollama():
+    provider_name = 'ollama'
+    if not _is_provider_available(provider_name):
+        return provider_name, []
     try:
-        resp = requests.get(f"{PROVIDERS['ollama']['api_base']}/api/tags", timeout=1.5)
-        if resp.status_code == 200:
-            data = resp.json()
-            models = data.get('models', [])
-            return 'ollama', [
-                {
-                    'name': m.get('name', m.get('model', 'inconnu')),
-                    'size': f"{m.get('size', 0) / (1024**3):.1f} GB",
-                    'provider': 'ollama'
-                }
-                for m in models
-            ]
-    except Exception:
-        pass
-    return 'ollama', []
+        t0 = time.time()
+        response = ollama.list()
+        latency = time.time() - t0
+        models = response.get('models', []) if isinstance(response, dict) else getattr(response, 'models', response)
+        formatted = []
+        for m in models:
+            if hasattr(m, 'model'):
+                name = m.model
+                size_gb = getattr(m, 'size', 0) / (1024**3)
+            else:
+                name = m.get('name', m.get('model', 'inconnu'))
+                size_gb = m.get('size', 0) / (1024**3)
+            formatted.append({'name': name, 'size': f"{size_gb:.1f} GB", 'provider': provider_name})
+        _record_success(provider_name, latency)
+        return provider_name, formatted
+    except Exception as e:
+        _record_failure(provider_name)
+    return provider_name, []
 
-def _scan_lmstudio():
+def _scan_generic(provider_name: str, endpoint: str):
+    if not _is_provider_available(provider_name):
+        return provider_name, []
     try:
-        resp = requests.get(f"{PROVIDERS['lmstudio']['api_base']}/v1/models", timeout=1.5)
+        t0 = time.time()
+        resp = requests.get(f"{PROVIDERS[provider_name]['api_base']}{endpoint}", timeout=SCAN_TIMEOUT)
         if resp.status_code == 200:
+            latency = time.time() - t0
             data = resp.json()
             models = data.get('data', [])
-            return 'lmstudio', [
-                {
-                    'name': m.get('id', 'inconnu'),
-                    'size': '--',
-                    'provider': 'lmstudio'
-                }
-                for m in models
-            ]
+            formatted = [{'name': m.get('id', 'inconnu'), 'size': '--', 'provider': provider_name} for m in models]
+            _record_success(provider_name, latency)
+            return provider_name, formatted
     except Exception:
         pass
-    return 'lmstudio', []
-
-def _scan_nvidia():
-    try:
-        resp = requests.get(f"{PROVIDERS['nvidia']['api_base']}/v1/models", timeout=1.5)
-        if resp.status_code == 200:
-            data = resp.json()
-            models = data.get('data', [])
-            return 'nvidia', [
-                {
-                    'name': m.get('id', 'inconnu'),
-                    'size': '--',
-                    'provider': 'nvidia'
-                }
-                for m in models
-            ]
-    except Exception:
-        pass
-    return 'nvidia', []
+    _record_failure(provider_name)
+    return provider_name, []
 
 def _refresh_models_cache():
     global _models_cache, _model_to_provider, _cache_timestamp
@@ -96,12 +114,15 @@ def _refresh_models_cache():
     resultats = {}
     provider_map = {}
     
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = [
-            executor.submit(_scan_ollama),
-            executor.submit(_scan_lmstudio),
-            executor.submit(_scan_nvidia),
-        ]
+    with ThreadPoolExecutor(max_workers=len(PROVIDERS)) as executor:
+        futures = []
+        if 'ollama' in PROVIDERS:
+            futures.append(executor.submit(_scan_ollama))
+        if 'lmstudio' in PROVIDERS:
+            futures.append(executor.submit(_scan_generic, 'lmstudio', '/v1/models'))
+        if 'nvidia' in PROVIDERS:
+            futures.append(executor.submit(_scan_generic, 'nvidia', '/v1/models'))
+            
         for future in as_completed(futures):
             try:
                 provider_name, models_list = future.result()
@@ -131,15 +152,20 @@ def lister_modeles_disponibles(force_refresh=False) -> dict:
 def is_models_ready() -> bool:
     return _models_ready.is_set()
 
+def get_provider_status() -> dict:
+    with _cache_lock:
+        return _provider_stats
+
 def get_default_model():
     with _cache_lock:
         models = _models_cache
-    if 'ollama' in models and len(models['ollama']) > 0:
-        return models['ollama'][0]['name']
-    if 'lmstudio' in models and len(models['lmstudio']) > 0:
-        return models['lmstudio'][0]['name']
-    if 'nvidia' in models and len(models['nvidia']) > 0:
-        return models['nvidia'][0]['name']
+    
+    sorted_providers = sorted(PROVIDERS.values(), key=lambda x: x.get('priority', 99))
+    for p in sorted_providers:
+        p_name = p['name']
+        if p_name in models and len(models[p_name]) > 0:
+            return models[p_name][0]['name']
+            
     return 'Aucun modèle'
 
 def get_model_provider(model_name: str) -> str:
@@ -148,8 +174,6 @@ def get_model_provider(model_name: str) -> str:
     if provider:
         return provider
     return 'ollama'
-
-import json
 
 def chat_with_provider(model_name, messages_list, tools=None, stream=False):
     provider = get_model_provider(model_name)
@@ -208,7 +232,6 @@ def chat_with_provider(model_name, messages_list, tools=None, stream=False):
                         'tool_calls': []
                     }
                 }
-            }
         except Exception as e:
             raise Exception(f"Erreur {provider}: {e}")
     else:
@@ -225,3 +248,4 @@ def preload_models():
     logger.info(f"{total} modèle(s) détecté(s), modèle par défaut: {model}")
     print(f"     [Succès : {total} modèle(s) détecté(s), modèle par défaut: {model}]")
     return model
+
