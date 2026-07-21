@@ -15,6 +15,27 @@ Il prend en charge nativement **Windows** et **Linux** (Fedora/Nobara) et s'int�
 - **.NET 8.0 SDK** (pour compiler le frontend Avalonia)
 - **Ollama** ou **LM Studio** pour exécuter les modèles en local.
 
+## 🧠 Configuration des Moteurs IA & Modèles Recommandés
+
+Alyx ne contient pas de modèle d'intelligence artificielle intégré (pour rester léger). Il interroge les modèles que vous téléchargez localement. Pour une expérience **fluide, rapide et sécuritaire (respect des consignes système)**, voici les recommandations :
+
+### Option 1 : Ollama (Le plus simple)
+1. Téléchargez et installez [Ollama](https://ollama.com/).
+2. Ouvrez un terminal et téléchargez un modèle recommandé. Par exemple :
+   - `ollama run qwen2.5:7b` (Très rapide, excellent en français, parfait pour le rôle d'agent).
+   - `ollama run llama3.1:8b` (Très robuste pour suivre des consignes complexes).
+   - `ollama run gemma2:9b` (Bonnes capacités de raisonnement).
+3. Assurez-vous que l'icône Ollama est active dans votre barre des tâches. Alyx détectera automatiquement les modèles.
+
+### Option 2 : LM Studio (Pour une gestion visuelle avancée)
+1. Téléchargez et installez [LM Studio](https://lmstudio.ai/).
+2. Cherchez et téléchargez un modèle quantizé (GGUF). Recommandations :
+   - **Qwen2.5-7B-Instruct-GGUF** (Q4_K_M ou Q5_K_M).
+   - **Meta-Llama-3.1-8B-Instruct-GGUF**.
+3. **Étape cruciale** : Allez dans l'onglet **Local Server** (l'icône avec les doubles flèches `<->` à gauche).
+4. Assurez-vous que le port est sur `1234` (par défaut).
+5. Cliquez sur le bouton **Start Server**. Alyx pourra alors se connecter et voir vos modèles.
+
 ## ⚙️ Installation & Démarrage
 
 ### Sous Windows
