@@ -10,6 +10,13 @@ Il prend en charge nativement **Windows** et **Linux** (Fedora/Nobara) et s'int�
 - **Agentivité Système (Human-in-the-Loop)** : L'IA peut fermer/ouvrir des applications, chercher des processus, gérer vos fichiers, et plus encore. (Les actions critiques requièrent votre validation).
 - **Communication Zéro-Latence** via WebSocket bidirectionnel.
 
+## 📥 Télécharger Alyx
+
+Téléchargez la dernière version d'Alyx selon votre système (les archives contiennent uniquement les fichiers utiles pour chaque OS) :
+
+- [🐧 Télécharger pour Linux](https://github.com/christyl753/Alyx/releases/latest/download/Alyx-Linux.zip)
+- [🪟 Télécharger pour Windows](https://github.com/christyl753/Alyx/releases/latest/download/Alyx-Windows.zip)
+
 ## 🛠️ Prérequis
 - **Python 3.10+** (Testé sur 3.11 / 3.12)
 - **.NET 8.0 SDK** (pour compiler le frontend Avalonia)
