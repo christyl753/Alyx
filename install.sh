@@ -1,5 +1,7 @@
 #!/bin/bash
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
 echo "=========================================="
 echo "   Installation des dependances ALYX"
 echo "=========================================="
@@ -54,21 +56,40 @@ echo "Ex (Ubuntu/Debian) : sudo apt install portaudio19-dev alsa-utils espeak"
 
 # 5. Installation des dependances Python
 echo ""
-echo "[5/5] Configuration de l'environnement virtuel et des dependances..."
-if [ ! -d ".venv" ]; then
+echo "[5/6] Configuration de l'environnement virtuel et des dependances..."
+if [ ! -d "$DIR/.venv" ]; then
     echo "Creation de l'environnement virtuel .venv..."
-    python3 -m venv .venv
+    python3 -m venv "$DIR/.venv"
 fi
 
 echo "Installation des librairies Python requises..."
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements.txt
+"$DIR/.venv/bin/python" -m pip install --upgrade pip
+"$DIR/.venv/bin/python" -m pip install -r "$DIR/requirements.txt"
+
+# 6. Creation de la commande globale 'alyx'
+echo ""
+echo "[6/6] Creation de la commande globale 'alyx'..."
+chmod +x "$DIR/alyx.sh" "$DIR/stop.sh"
+BIN_DIR="$HOME/.local/bin"
+mkdir -p "$BIN_DIR"
+ln -sf "$DIR/alyx.sh" "$BIN_DIR/alyx"
+echo "[OK] Lien cree : $BIN_DIR/alyx -> $DIR/alyx.sh"
+
+case ":$PATH:" in
+    *":$BIN_DIR:"*)
+        echo "[OK] $BIN_DIR est deja dans votre PATH."
+        ;;
+    *)
+        echo "[!] $BIN_DIR n'est pas dans votre PATH."
+        echo "    Ajoutez cette ligne a votre ~/.bashrc (ou ~/.zshrc), puis rouvrez votre terminal :"
+        echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""
+        ;;
+esac
 
 echo ""
 echo "=========================================="
 echo "   Installation terminee avec succes !"
 echo "=========================================="
-echo "Pour lancer Alyx, ouvrez deux terminaux :"
-echo "1. .venv/bin/python api.py"
-echo "2. cd AlyxDesktop && dotnet run"
+echo "Lancez Alyx depuis n'importe quel dossier avec la commande :"
+echo "    alyx"
 echo ""

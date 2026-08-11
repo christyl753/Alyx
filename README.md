@@ -4,11 +4,14 @@ Alyx est un assistant virtuel local **100% Air-Gapped**. Pensé pour la confiden
 
 Il prend en charge nativement **Windows** et **Linux** (Fedora/Nobara) et s'intègre comme un véritable "sysadmin" virtuel sur votre système.
 
-## 🚀 Fonctionnalités
-- **Fonctionnement 100% local (Air-Gapped)** sans aucune télémétrie.
-- **Routage multi-fournisseurs dynamique** : Support de Ollama, LM Studio et NVIDIA NIM avec basculement intelligent (Circuit Breaker).
-- **Agentivité Système (Human-in-the-Loop)** : L'IA peut fermer/ouvrir des applications, chercher des processus, gérer vos fichiers, et plus encore. (Les actions critiques requièrent votre validation).
-- **Communication Zéro-Latence** via WebSocket bidirectionnel.
+## 🚀 Fonctionnalités (V2)
+- **Air-Gapped (100% Hors Ligne)** : Aucune télémétrie, aucune API cloud de secours. Confidentialité absolue.
+- **Command Palette & Conscience Contextuelle** : Invocation instantanée via `Alt+Espace`. Lecture automatique du presse-papiers et de la fenêtre active à l'invocation.
+- **Daily Tasks & Agentivité (Human-in-the-Loop)** : Gestion de rappels, prises de notes, vérification matérielle (batterie, réseau), gestion des fichiers. Validation humaine obligatoire pour les actions destructrices.
+- **Mode Focus / Gaming (Nobara)** : Détection d'applications plein écran gourmandes et déchargement intelligent de la VRAM pour un impact FPS nul.
+- **Routage multi-fournisseurs dynamique** : Support d'Ollama, LM Studio et NVIDIA NIM avec basculement automatique (Circuit Breaker).
+- **Communication Zéro-Latence** : Échanges via WebSocket bidirectionnel pour une fluidité d'exécution instantanée.
+- **Interface Néo-Brutaliste** : Contrastes forts, typographie mixte (Inter/Roboto + Fira Code), et indicateurs d'état non-intrusifs (animations subtiles plutôt que texte).
 
 ## 🛠️ Prérequis
 - **Python 3.10+** (Testé sur 3.11 / 3.12)
@@ -60,9 +63,9 @@ Le choix du modèle dépend fortement de votre ordinateur. Les modèles d'IA con
 *(Cela va créer l'environnement virtuel et installer les dépendances).*
 
 **2. Lancement**
-Vous avez deux options pour démarrer Alyx :
+`install.bat` ajoute le dossier du projet à votre PATH utilisateur : après avoir **rouvert un terminal**, la commande `alyx` est disponible depuis n'importe quel dossier.
 - **Mode Simple (Recommandé)** : Double-cliquez sur le fichier `Lancer_Alyx.vbs`. Cela démarrera tout en arrière-plan sans afficher de fenêtre noire.
-- **Mode Développeur** : Exécutez `.\alyx.bat` dans un terminal pour voir les logs système.
+- **Mode Développeur** : Tapez `alyx` dans un terminal pour voir les logs système (équivalent à `.\alyx.bat`).
 
 *(Lance l'API Python et le frontend C# en arrière-plan. Les PIDs sont sauvegardés pour un arrêt propre).*
 
@@ -76,11 +79,12 @@ Vous avez deux options pour démarrer Alyx :
 ```bash
 ./install.sh
 ```
-*(Assurez-vous d'avoir les paquets audio comme `portaudio-devel` et `alsa-plugins-pulseaudio` installés).*
+*(Assurez-vous d'avoir les paquets audio comme `portaudio-devel` et `alsa-plugins-pulseaudio` installés. Le script crée aussi un lien `alyx` dans `~/.local/bin`).*
 
 **2. Lancement**
+Après avoir **rouvert un terminal** (pour recharger le PATH) :
 ```bash
-./alyx.sh
+alyx
 ```
 
 **3. Arrêt**

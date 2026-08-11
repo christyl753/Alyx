@@ -19,6 +19,12 @@ API_PID=$!
 echo $API_PID > "$RUNDIR/api.pid"
 echo "Backend API demarre (PID: $API_PID)"
 
+echo "[Alyx] Demarrage du Micro-service STT..."
+nohup "$DIR/.venv/bin/python" "$DIR/stt_server.py" > "$LOGDIR/stt.log" 2>&1 &
+STT_PID=$!
+echo $STT_PID > "$RUNDIR/stt.pid"
+echo "Micro-service STT demarre (PID: $STT_PID)"
+
 echo "[Alyx] Demarrage du Frontend UI (C#)..."
 cd "$DIR/AlyxDesktop"
 nohup dotnet run > "$LOGDIR/ui.log" 2>&1 &
