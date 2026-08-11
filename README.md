@@ -14,7 +14,7 @@ Il prend en charge nativement **Windows** et **Linux** (Fedora/Nobara) et s'int�
 - **Interface Néo-Brutaliste** : Contrastes forts, typographie mixte (Inter/Roboto + Fira Code), et indicateurs d'état non-intrusifs (animations subtiles plutôt que texte).
 
 ## 🛠️ Prérequis
-- **Python 3.10+** (Testé sur 3.11 / 3.12)
+- **Python 3.11 ou 3.12** (⚠️ *Attention : Python 3.14 n'est pas supporté* nativement en raison de dépendances C complexes pour le STT et l'Audio. L'architecture V2 isole le STT dans un environnement figé).
 - **.NET 8.0 SDK** (pour compiler le frontend Avalonia)
 - **Ollama** ou **LM Studio** pour exécuter les modèles en local.
 
@@ -95,3 +95,10 @@ alyx
 ## 🔧 Configuration Avancée
 
 Toutes les configurations clés (ports, TTL de cache, priorités des fournisseurs d'IA, limites de contexte) sont centralisées dans le fichier `config.yaml` à la racine du projet. Vous pouvez le modifier pour changer le comportement de l'assistant sans toucher au code source.
+
+## 🏗️ Architecture Technique Fondamentale (V2)
+- **Isolation STT** : Exécuté dans un sous-processus figé (Python 3.11/3.12) avec communication via HTTP local ou gRPC.
+- **Exécution Saine (Windows)** : Jamais d'activation via `activate.bat`, appels directs exclusifs à l'exécutable `.venv\Scripts\python.exe`.
+- **Mécanismes Avancés** : Scan asynchrone des LLMs locaux, vérification d'espace disque avant téléchargement, et ring buffer pour la gestion du contexte.
+- **WebSockets Avalonia (C#)** : Événements routés de façon asynchrone sur l'UI Thread (`Dispatcher.UIThread.Post`) pour maintenir 60 FPS fluides.
+- **Graceful Shutdown** : Routage dynamique de l'arrêt selon l'OS (SIGTERM/SIGKILL vs Taskkill), capture des PIDs et élimination des processus zombies.
