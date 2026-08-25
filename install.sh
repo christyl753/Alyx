@@ -111,6 +111,9 @@ BIN_DIR="$HOME/.local/bin"
 mkdir -p "$BIN_DIR"
 
 # Nettoyage des anciens liens ou dossiers de test (alyz, ancien alyx)
+if [ -L "$BIN_DIR/alyx" ] && [ "$(readlink -f "$BIN_DIR/alyx")" != "$DIR/alyx.sh" ]; then
+    echo "[!] Une installation Alyx precedente a ete trouvee ($(readlink -f "$BIN_DIR/alyx")). Elle sera remplacee par celle-ci."
+fi
 rm -rf "$BIN_DIR/alyx" "$BIN_DIR/alyz"
 
 ln -sf "$DIR/alyx.sh" "$BIN_DIR/alyx"
@@ -118,6 +121,13 @@ ln -sf "$DIR/stop.sh" "$BIN_DIR/alyx-stop"
 echo "[OK] Liens crees :"
 echo "     - $BIN_DIR/alyx -> $DIR/alyx.sh"
 echo "     - $BIN_DIR/alyx-stop -> $DIR/stop.sh"
+
+# Verifie qu'aucun autre executable "alyx" plus prioritaire dans le PATH ne masque le notre.
+RESOLVED_ALYX="$(command -v alyx 2>/dev/null || true)"
+if [ -n "$RESOLVED_ALYX" ] && [ "$(readlink -f "$RESOLVED_ALYX" 2>/dev/null)" != "$DIR/alyx.sh" ]; then
+    echo "[!] Attention : la commande 'alyx' resout actuellement vers '$RESOLVED_ALYX', pas vers ce projet."
+    echo "    Un autre executable du meme nom, plus tot dans votre PATH, masque celui d'Alyx. Verifiez votre PATH."
+fi
 
 case ":$PATH:" in
     *":$BIN_DIR:"*)

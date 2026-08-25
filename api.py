@@ -3,7 +3,9 @@ import websockets
 import json
 import os
 import signal
+import socket
 import sys
+import threading
 
 from core.exceptions import PermissionRequiredException
 import ai
@@ -197,28 +199,39 @@ async def handle_chat(websocket, data):
         
         full_content = ""
         tts_buffer = ""
-        
-        # Pour lire le générateur asynchrone depuis un générateur synchrone bloquant :
-        # On lit chunk par chunk via un ThreadPool
+
+        # Un seul thread draine tout le générateur bloquant vers une queue asyncio,
+        # au lieu d'un aller-retour ThreadPool par token (latence/jitter par token).
+        loop = asyncio.get_running_loop()
+        token_queue: asyncio.Queue = asyncio.Queue()
+        _STREAM_DONE = object()
+
+        def _drain_generator():
+            try:
+                for chunk in generator:
+                    loop.call_soon_threadsafe(token_queue.put_nowait, chunk)
+            except Exception as e:
+                loop.call_soon_threadsafe(token_queue.put_nowait, e)
+            finally:
+                loop.call_soon_threadsafe(token_queue.put_nowait, _STREAM_DONE)
+
+        threading.Thread(target=_drain_generator, daemon=True).start()
+
         cancel_event = _cancel_events.get(websocket)
-        
+
         while True:
             if cancel_event and cancel_event.is_set():
                 logger.info("Génération annulée via Kill Switch.")
                 full_content += "\n[Génération interrompue par l'utilisateur]"
                 break
-                
+
             try:
-                def _get_next():
-                    try:
-                        return next(generator)
-                    except StopIteration:
-                        return None
-                        
-                chunk = await asyncio.to_thread(_get_next)
-                if chunk is None:
+                chunk = await token_queue.get()
+                if chunk is _STREAM_DONE:
                     break
-                    
+                if isinstance(chunk, Exception):
+                    raise chunk
+
                 content = chunk.get('message', {}).get('content', '')
                 if content:
                     full_content += content
@@ -259,6 +272,14 @@ async def handle_chat(websocket, data):
 
 async def handler_client(websocket):
     logger.info("Interface C# connectée.")
+    # Désactive l'algorithme de Nagle : évite jusqu'à ~40ms de délai par frame
+    # WS sur la boucle locale (latence perçue GUI <-> agent).
+    sock = websocket.transport.get_extra_info('socket')
+    if sock is not None:
+        try:
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError:
+            pass
     _cancel_events[websocket] = asyncio.Event()
     
     try:
@@ -344,12 +365,13 @@ async def demarrer_serveur_alyx():
             except Exception:
                 time.sleep(1)
         
-    import threading
     threading.Thread(target=_preload, daemon=True).start()
     
     logger.info(f"---> Serveur WebSocket Alyx démarré sur ws://localhost:{port}")
     print(f"---> Serveur WebSocket Alyx démarré sur ws://localhost:{port}")
-    async with websockets.serve(handler_client, "localhost", port):
+    # compression=None : évite le coût CPU de la compression deflate pour des
+    # messages JSON courts échangés en local (pas de gain bande passante à attendre).
+    async with websockets.serve(handler_client, "localhost", port, compression=None):
         await asyncio.Future()
 
 if __name__ == "__main__":

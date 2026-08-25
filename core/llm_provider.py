@@ -10,6 +10,10 @@ from core.logger import get_logger
 
 logger = get_logger('alyx.llm_provider')
 
+# Session HTTP partagée (keep-alive) : évite une nouvelle poignée de main TCP
+# à chaque appel vers LM Studio/NVIDIA NIM, ce qui réduit la latence perçue.
+_http_session = requests.Session()
+
 # --- CONFIGURATION ---
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.yaml')
 
@@ -95,7 +99,7 @@ def _scan_generic(provider_name: str, endpoint: str):
         return provider_name, []
     try:
         t0 = time.time()
-        resp = requests.get(f"{PROVIDERS[provider_name]['api_base']}{endpoint}", timeout=SCAN_TIMEOUT)
+        resp = _http_session.get(f"{PROVIDERS[provider_name]['api_base']}{endpoint}", timeout=SCAN_TIMEOUT)
         if resp.status_code == 200:
             latency = time.time() - t0
             data = resp.json()
@@ -205,7 +209,7 @@ def chat_with_provider(model_name, messages_list, tools=None, stream=False):
             payload["tools"] = tools
         try:
             if stream:
-                resp = requests.post(f"{api_base}/v1/chat/completions", json=payload, stream=True, timeout=120)
+                resp = _http_session.post(f"{api_base}/v1/chat/completions", json=payload, stream=True, timeout=120)
                 resp.raise_for_status()
                 def generate():
                     for line in resp.iter_lines():
@@ -223,7 +227,7 @@ def chat_with_provider(model_name, messages_list, tools=None, stream=False):
                                     pass
                 return generate()
             else:
-                resp = requests.post(f"{api_base}/v1/chat/completions", json=payload, timeout=120)
+                resp = _http_session.post(f"{api_base}/v1/chat/completions", json=payload, timeout=120)
                 resp.raise_for_status()
                 data = resp.json()
                 message = data['choices'][0]['message']

@@ -20,13 +20,6 @@ Téléchargez la dernière version d'Alyx selon votre système (les archives con
 - **Communication Zéro-Latence** : Échanges via WebSocket bidirectionnel pour une fluidité d'exécution instantanée.
 - **Interface Néo-Brutaliste** : Contrastes forts, typographie mixte (Inter/Roboto + Fira Code), et indicateurs d'état non-intrusifs (animations subtiles plutôt que texte).
 
-## 📥 Télécharger Alyx
-
-Téléchargez la dernière version d'Alyx selon votre système (les archives contiennent uniquement les fichiers utiles pour chaque OS) :
-
-- [🐧 Télécharger pour Linux](https://github.com/christyl753/Alyx/releases/latest/download/Alyx-Linux.zip)
-- [🪟 Télécharger pour Windows](https://github.com/christyl753/Alyx/releases/latest/download/Alyx-Windows.zip)
-
 ## 🛠️ Prérequis
 - **Python 3.11 ou 3.12** (⚠️ *Attention : Python 3.14 n'est pas supporté* nativement en raison de dépendances C complexes pour le STT et l'Audio. L'architecture V2 isole le STT dans un environnement figé).
 - **.NET 8.0 SDK** (pour compiler le frontend Avalonia)
@@ -77,7 +70,7 @@ Le choix du modèle dépend fortement de votre ordinateur. Les modèles d'IA con
 *(Cela va créer l'environnement virtuel et installer les dépendances).*
 
 **2. Lancement**
-`install.bat` ajoute le dossier du projet à votre PATH utilisateur : après avoir **rouvert un terminal**, la commande `alyx` est disponible depuis n'importe quel dossier.
+`install.bat` ajoute le dossier du projet à votre PATH utilisateur : après avoir **rouvert un terminal**, la commande `alyx` est disponible depuis n'importe quel dossier. Relancer `install.bat` depuis un autre emplacement retire automatiquement l'ancien dossier Alyx du PATH avant d'ajouter le nouveau — pas de doublon ni de conflit entre deux installations.
 - **Mode Simple (Recommandé)** : Double-cliquez sur le fichier `Lancer_Alyx.vbs`. Cela démarrera tout en arrière-plan sans afficher de fenêtre noire.
 - **Mode Développeur** : Tapez `alyx` dans un terminal pour voir les logs système (équivalent à `.\alyx.bat`).
 
@@ -93,7 +86,7 @@ Le choix du modèle dépend fortement de votre ordinateur. Les modèles d'IA con
 ```bash
 ./install.sh
 ```
-*(Assurez-vous d'avoir les paquets audio comme `portaudio-devel` et `alsa-plugins-pulseaudio` installés. Le script nettoie les anciens exécutables de test (comme `alyz` ou d'anciens dossiers) et configure les commandes globales `alyx` et `alyx-stop` dans `~/.local/bin`).*
+*(Assurez-vous d'avoir les paquets audio comme `portaudio-devel` et `alsa-plugins-pulseaudio` installés. Le script nettoie les anciens exécutables de test (comme `alyz` ou d'anciens dossiers) et configure les commandes globales `alyx` et `alyx-stop` dans `~/.local/bin`. Relancer `install.sh` depuis un autre emplacement du projet remplace proprement le lien existant — pas de doublon, pas de conflit — et le script vous prévient si une commande `alyx` d'un autre programme le masque dans votre `PATH`).*
 
 **2. Vérification de l'accès global (PATH)**
 Si `~/.local/bin` n'est pas encore présent dans votre variable `PATH`, ajoutez-le dans votre fichier d'environnement (ex: `~/.bashrc` ou `~/.zshrc`) puis rechargez votre terminal :
@@ -125,3 +118,4 @@ Toutes les configurations clés (ports, TTL de cache, priorités des fournisseur
 - **Mécanismes Avancés** : Scan asynchrone des LLMs locaux, vérification d'espace disque avant téléchargement, et ring buffer pour la gestion du contexte.
 - **WebSockets Avalonia (C#)** : Événements routés de façon asynchrone sur l'UI Thread (`Dispatcher.UIThread.Post`) pour maintenir 60 FPS fluides.
 - **Graceful Shutdown** : Routage dynamique de l'arrêt selon l'OS (SIGTERM/SIGKILL vs Taskkill), capture des PIDs et élimination des processus zombies.
+- **WebSocket basse latence (Windows & Linux)** : `TCP_NODELAY` activé des deux côtés (serveur Python via le socket de connexion, client C# via un `SocketsHttpHandler.ConnectCallback` puisque `ClientWebSocketOptions` ne l'expose pas) pour éviter les délais de l'algorithme de Nagle sur les échanges de petits messages ; compression `permessage-deflate` désactivée côté serveur (coût CPU inutile en local) ; le streaming de tokens passe par une file asyncio alimentée par un unique thread producteur au lieu d'un aller-retour ThreadPool par token, réduisant la latence/gigue perçue pendant la génération.

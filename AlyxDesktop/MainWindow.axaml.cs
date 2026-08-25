@@ -10,6 +10,8 @@ using Avalonia.Styling;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Net.Http;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -20,6 +22,27 @@ namespace AlyxDesktop;
 
 public partial class MainWindow : Window
 {
+    // Handler avec ConnectCallback : désactive l'algorithme de Nagle (Socket.NoDelay)
+    // sur la connexion WebSocket locale, ClientWebSocketOptions ne l'exposant pas
+    // directement. Réduit la latence perçue GUI <-> agent (Windows et Linux).
+    private static readonly HttpMessageInvoker s_wsInvoker = new HttpMessageInvoker(new SocketsHttpHandler
+    {
+        ConnectCallback = async (context, cancellationToken) =>
+        {
+            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            try
+            {
+                await socket.ConnectAsync(context.DnsEndPoint, cancellationToken);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
+        }
+    });
+
     private ClientWebSocket _webSocket = new ClientWebSocket();
     private bool _isVocalActive = false;
     private bool _isProcessing = false;
@@ -43,7 +66,7 @@ public partial class MainWindow : Window
                 {
                     _webSocket = new ClientWebSocket();
                     await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => StatusText.Text = "Statut: Connexion...");
-                    await _webSocket.ConnectAsync(new Uri("ws://127.0.0.1:8765"), CancellationToken.None);
+                    await _webSocket.ConnectAsync(new Uri("ws://127.0.0.1:8765"), s_wsInvoker, CancellationToken.None);
                     
                     await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => StatusText.Text = "Statut: Connecté");
                     

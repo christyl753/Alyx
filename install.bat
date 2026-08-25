@@ -97,7 +97,7 @@ set "PROJECT_DIR=%~dp0"
 if "%PROJECT_DIR:~-1%"=="\" set "PROJECT_DIR=%PROJECT_DIR:~0,-1%"
 
 powershell -NoProfile -Command ^
-    "$dir = '%PROJECT_DIR%'; $p = [Environment]::GetEnvironmentVariable('Path','User'); if (-not $p) { $p = '' }; if (($p -split ';') -notcontains $dir) { [Environment]::SetEnvironmentVariable('Path', ($p.TrimEnd(';') + ';' + $dir), 'User'); Write-Host '[OK] Dossier ajoute au PATH utilisateur.' } else { Write-Host '[OK] Dossier deja present dans le PATH utilisateur.' }"
+    "$dir = '%PROJECT_DIR%'; $p = [Environment]::GetEnvironmentVariable('Path','User'); if (-not $p) { $p = '' }; $parts = @($p -split ';' | Where-Object { $_ -ne '' }); $parts = @($parts | Where-Object { $_ -eq $dir -or -not (Test-Path (Join-Path $_ 'alyx.bat') -PathType Leaf) }); if ($parts -notcontains $dir) { $parts += $dir }; [Environment]::SetEnvironmentVariable('Path', ($parts -join ';'), 'User'); Write-Host '[OK] PATH utilisateur mis a jour (toute ancienne installation Alyx retiree du PATH pour eviter un doublon/conflit avec celle-ci).'"
 
 echo.
 echo ==========================================
