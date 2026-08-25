@@ -201,6 +201,8 @@ def chat_with_provider(model_name, messages_list, tools=None, stream=False):
             "temperature": 0.7,
             "stream": stream
         }
+        if tools:
+            payload["tools"] = tools
         try:
             if stream:
                 resp = requests.post(f"{api_base}/v1/chat/completions", json=payload, stream=True, timeout=120)
@@ -224,12 +226,31 @@ def chat_with_provider(model_name, messages_list, tools=None, stream=False):
                 resp = requests.post(f"{api_base}/v1/chat/completions", json=payload, timeout=120)
                 resp.raise_for_status()
                 data = resp.json()
-                content = data['choices'][0]['message'].get('content', '')
+                message = data['choices'][0]['message']
+                content = message.get('content', '') or ''
+
+                # Traduction du schéma OpenAI (arguments en string JSON) vers le schéma
+                # interne (arguments en dict) attendu par ai.py/api.py.
+                tool_calls = []
+                for tc in (message.get('tool_calls') or []):
+                    raw_args = tc.get('function', {}).get('arguments', '{}')
+                    try:
+                        parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                    except json.JSONDecodeError:
+                        parsed_args = {}
+                    tool_calls.append({
+                        'id': tc.get('id'),
+                        'function': {
+                            'name': tc.get('function', {}).get('name'),
+                            'arguments': parsed_args
+                        }
+                    })
+
                 return {
                     'message': {
                         'role': 'assistant',
                         'content': content,
-                        'tool_calls': []
+                        'tool_calls': tool_calls
                     }
                 }
         except Exception as e:

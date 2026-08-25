@@ -4,12 +4,11 @@ import json
 import os
 import signal
 import sys
-import concurrent.futures
 
 from core.exceptions import PermissionRequiredException
 import ai
 from ai import messages, LISTE_FONCTIONS, outils_disponibles
-from core.llm_provider import lister_modeles_disponibles, is_models_ready, get_provider_status, load_config
+from core.llm_provider import lister_modeles_disponibles, get_provider_status, load_config
 from function import faire_parler
 from core.logger import get_logger
 import urllib.request
@@ -168,7 +167,23 @@ async def handle_chat(websocket, data):
         message_ia = response['message']
         iteration += 1
 
-    # PHASE 2: Réponse textuelle (Appel streamé)
+    # Le dernier appel non-streamé (détection d'outils ou fin de boucle d'outils)
+    # a déjà produit la réponse finale : on l'utilise directement plutôt que de
+    # relancer une 2e inférence complète juste pour la re-streamer (latence x2).
+    contenu_deja_genere = (message_ia.get('content') or '').strip()
+    if not message_ia.get('tool_calls') and contenu_deja_genere:
+        await websocket.send(json.dumps({
+            "type": "token",
+            "content": contenu_deja_genere
+        }))
+        if mode_vocal:
+            faire_parler(contenu_deja_genere)
+        messages.append({'role': 'assistant', 'content': contenu_deja_genere})
+        await websocket.send(json.dumps({"type": "done"}))
+        return
+
+    # PHASE 2: Réponse textuelle (Appel streamé) — filet de sécurité si le
+    # dernier appel n'a produit aucun contenu exploitable.
     contexte = _messages_avec_fenetre()
     try:
         # Pousser l'appel bloquant dans un thread séparé
@@ -185,7 +200,6 @@ async def handle_chat(websocket, data):
         
         # Pour lire le générateur asynchrone depuis un générateur synchrone bloquant :
         # On lit chunk par chunk via un ThreadPool
-        loop = asyncio.get_running_loop()
         cancel_event = _cancel_events.get(websocket)
         
         while True:
@@ -291,10 +305,16 @@ async def handler_client(websocket):
                     await websocket.send(json.dumps({"type": "shutting_down"}))
                     
                     import subprocess
-                    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'stop.bat')
-                    if os.path.exists(script_path):
-                        subprocess.Popen(['cmd.exe', '/c', script_path], creationflags=subprocess.CREATE_NO_WINDOW)
-                    
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+                    if sys.platform == "win32":
+                        script_path = os.path.join(base_dir, 'stop.bat')
+                        if os.path.exists(script_path):
+                            subprocess.Popen(['cmd.exe', '/c', script_path], creationflags=subprocess.CREATE_NO_WINDOW)
+                    else:
+                        script_path = os.path.join(base_dir, 'stop.sh')
+                        if os.path.exists(script_path):
+                            subprocess.Popen(['/bin/bash', script_path])
+
                     os.kill(os.getpid(), signal.SIGINT)
                     
             except json.JSONDecodeError:

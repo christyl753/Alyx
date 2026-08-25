@@ -2,7 +2,7 @@
 # Script de lancement pour Linux (Fedora/Nobara)
 set -e
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+DIR="$( cd "$( dirname "$(readlink -f "${BASH_SOURCE[0]}")" )" &> /dev/null && pwd )"
 RUNDIR="$DIR/run"
 LOGDIR="$DIR/logs"
 
@@ -18,6 +18,12 @@ nohup "$DIR/.venv/bin/python" "$DIR/api.py" > "$LOGDIR/api.log" 2>&1 &
 API_PID=$!
 echo $API_PID > "$RUNDIR/api.pid"
 echo "Backend API demarre (PID: $API_PID)"
+
+echo "[Alyx] Demarrage du Micro-service STT..."
+nohup "$DIR/.venv/bin/python" "$DIR/stt_server.py" > "$LOGDIR/stt.log" 2>&1 &
+STT_PID=$!
+echo $STT_PID > "$RUNDIR/stt.pid"
+echo "Micro-service STT demarre (PID: $STT_PID)"
 
 echo "[Alyx] Demarrage du Frontend UI (C#)..."
 cd "$DIR/AlyxDesktop"

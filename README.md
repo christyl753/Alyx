@@ -4,11 +4,21 @@ Alyx est un assistant virtuel local **100% Air-Gapped**. Pensé pour la confiden
 
 Il prend en charge nativement **Windows** et **Linux** (Fedora/Nobara) et s'intègre comme un véritable "sysadmin" virtuel sur votre système.
 
-## 🚀 Fonctionnalités
-- **Fonctionnement 100% local (Air-Gapped)** sans aucune télémétrie.
-- **Routage multi-fournisseurs dynamique** : Support de Ollama, LM Studio et NVIDIA NIM avec basculement intelligent (Circuit Breaker).
-- **Agentivité Système (Human-in-the-Loop)** : L'IA peut fermer/ouvrir des applications, chercher des processus, gérer vos fichiers, et plus encore. (Les actions critiques requièrent votre validation).
-- **Communication Zéro-Latence** via WebSocket bidirectionnel.
+## 📥 Télécharger Alyx
+
+Téléchargez la dernière version d'Alyx selon votre système (les archives contiennent uniquement les fichiers utiles pour chaque OS) :
+
+- [🐧 Télécharger pour Linux](https://github.com/christyl753/Alyx/releases/latest/download/Alyx-Linux.zip)
+- [🪟 Télécharger pour Windows](https://github.com/christyl753/Alyx/releases/latest/download/Alyx-Windows.zip)
+
+## 🚀 Fonctionnalités (V2)
+- **Air-Gapped (100% Hors Ligne)** : Aucune télémétrie, aucune API cloud de secours. Confidentialité absolue.
+- **Command Palette & Conscience Contextuelle** : Invocation instantanée via `Alt+Espace`. Lecture automatique du presse-papiers et de la fenêtre active à l'invocation.
+- **Daily Tasks & Agentivité (Human-in-the-Loop)** : Gestion de rappels, prises de notes, vérification matérielle (batterie, réseau), gestion des fichiers. Validation humaine obligatoire pour les actions destructrices.
+- **Mode Focus / Gaming (Nobara)** : Détection d'applications plein écran gourmandes et déchargement intelligent de la VRAM pour un impact FPS nul.
+- **Routage multi-fournisseurs dynamique** : Support d'Ollama, LM Studio et NVIDIA NIM avec basculement automatique (Circuit Breaker).
+- **Communication Zéro-Latence** : Échanges via WebSocket bidirectionnel pour une fluidité d'exécution instantanée.
+- **Interface Néo-Brutaliste** : Contrastes forts, typographie mixte (Inter/Roboto + Fira Code), et indicateurs d'état non-intrusifs (animations subtiles plutôt que texte).
 
 ## 📥 Télécharger Alyx
 
@@ -18,7 +28,7 @@ Téléchargez la dernière version d'Alyx selon votre système (les archives con
 - [🪟 Télécharger pour Windows](https://github.com/christyl753/Alyx/releases/latest/download/Alyx-Windows.zip)
 
 ## 🛠️ Prérequis
-- **Python 3.10+** (Testé sur 3.11 / 3.12)
+- **Python 3.11 ou 3.12** (⚠️ *Attention : Python 3.14 n'est pas supporté* nativement en raison de dépendances C complexes pour le STT et l'Audio. L'architecture V2 isole le STT dans un environnement figé).
 - **.NET 8.0 SDK** (pour compiler le frontend Avalonia)
 - **Ollama** ou **LM Studio** pour exécuter les modèles en local.
 
@@ -67,9 +77,9 @@ Le choix du modèle dépend fortement de votre ordinateur. Les modèles d'IA con
 *(Cela va créer l'environnement virtuel et installer les dépendances).*
 
 **2. Lancement**
-Vous avez deux options pour démarrer Alyx :
+`install.bat` ajoute le dossier du projet à votre PATH utilisateur : après avoir **rouvert un terminal**, la commande `alyx` est disponible depuis n'importe quel dossier.
 - **Mode Simple (Recommandé)** : Double-cliquez sur le fichier `Lancer_Alyx.vbs`. Cela démarrera tout en arrière-plan sans afficher de fenêtre noire.
-- **Mode Développeur** : Exécutez `.\alyx.bat` dans un terminal pour voir les logs système.
+- **Mode Développeur** : Tapez `alyx` dans un terminal pour voir les logs système (équivalent à `.\alyx.bat`).
 
 *(Lance l'API Python et le frontend C# en arrière-plan. Les PIDs sont sauvegardés pour un arrêt propre).*
 
@@ -83,18 +93,35 @@ Vous avez deux options pour démarrer Alyx :
 ```bash
 ./install.sh
 ```
-*(Assurez-vous d'avoir les paquets audio comme `portaudio-devel` et `alsa-plugins-pulseaudio` installés).*
+*(Assurez-vous d'avoir les paquets audio comme `portaudio-devel` et `alsa-plugins-pulseaudio` installés. Le script nettoie les anciens exécutables de test (comme `alyz` ou d'anciens dossiers) et configure les commandes globales `alyx` et `alyx-stop` dans `~/.local/bin`).*
 
-**2. Lancement**
+**2. Vérification de l'accès global (PATH)**
+Si `~/.local/bin` n'est pas encore présent dans votre variable `PATH`, ajoutez-le dans votre fichier d'environnement (ex: `~/.bashrc` ou `~/.zshrc`) puis rechargez votre terminal :
 ```bash
-./alyx.sh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
 ```
 
-**3. Arrêt**
+**3. Lancement**
+Lancez l'assistant depuis n'importe quel répertoire dans le terminal :
 ```bash
-./stop.sh
+alyx
 ```
+
+**4. Arrêt**
+Pour arrêter tous les processus d'Alyx (API Backend, micro-service STT, UI C# Avalonia) :
+```bash
+alyx-stop
+```
+*(Ou exécutez `./stop.sh` depuis le répertoire du projet).*
 
 ## 🔧 Configuration Avancée
 
 Toutes les configurations clés (ports, TTL de cache, priorités des fournisseurs d'IA, limites de contexte) sont centralisées dans le fichier `config.yaml` à la racine du projet. Vous pouvez le modifier pour changer le comportement de l'assistant sans toucher au code source.
+
+## 🏗️ Architecture Technique Fondamentale (V2)
+- **Isolation STT** : Exécuté dans un sous-processus figé (Python 3.11/3.12) avec communication via HTTP local ou gRPC.
+- **Exécution Saine (Windows)** : Jamais d'activation via `activate.bat`, appels directs exclusifs à l'exécutable `.venv\Scripts\python.exe`.
+- **Mécanismes Avancés** : Scan asynchrone des LLMs locaux, vérification d'espace disque avant téléchargement, et ring buffer pour la gestion du contexte.
+- **WebSockets Avalonia (C#)** : Événements routés de façon asynchrone sur l'UI Thread (`Dispatcher.UIThread.Post`) pour maintenir 60 FPS fluides.
+- **Graceful Shutdown** : Routage dynamique de l'arrêt selon l'OS (SIGTERM/SIGKILL vs Taskkill), capture des PIDs et élimination des processus zombies.

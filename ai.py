@@ -1,5 +1,4 @@
 import threading
-import sys
 from core.logger import get_logger
 
 logger = get_logger('alyx.ai')
@@ -24,10 +23,7 @@ from function import (
 
 from core.llm_provider import (
     chat_with_provider,
-    preload_models,
-    lister_modeles_disponibles,
-    is_models_ready,
-    get_default_model
+    preload_models
 )
 
 # --- 1. DÉFINITION DES OUTILS LOCAUX ---

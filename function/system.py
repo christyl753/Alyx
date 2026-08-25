@@ -2,7 +2,6 @@ import os
 import sys
 import subprocess
 import psutil
-import time
 from .scrap import construire_dictionnaire_applications
 from core.logger import get_logger
 
