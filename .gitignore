@@ -11,7 +11,9 @@ venv/
 ENV/
 env/
 
-# IDE et Configuration locale
+# IDE, Agents et Configuration locale
+.agents/
+.claude/
 .idea/
 .vscode/
 *.swp
