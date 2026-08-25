@@ -1,4 +1,5 @@
 import asyncio
+import http
 import websockets
 import json
 import os
@@ -6,11 +7,13 @@ import signal
 import socket
 import sys
 import threading
+from urllib.parse import urlparse, parse_qs
 
 from core.exceptions import PermissionRequiredException
 import ai
 from ai import messages, LISTE_FONCTIONS, outils_disponibles
 from core.llm_provider import lister_modeles_disponibles, get_provider_status, load_config
+from core.pairing import obtenir_token, regenerer_token, obtenir_ip_locale
 from function import faire_parler
 from core.logger import get_logger
 import urllib.request
@@ -21,10 +24,66 @@ logger = get_logger('alyx.ws_api')
 
 config = load_config()
 MAX_CONTEXT_MESSAGES = config.get('llm_provider', {}).get('max_context_messages', 40)
-PORT = config.get('server', {}).get('port', 8765)
+_server_config = config.get('server', {})
+PORT = _server_config.get('port', 8765)
+MOBILE_PORT = _server_config.get('mobile_port', 8766)
+# Ouvre l'API au réseau Wi-Fi local (app mobile) : toute connexion NON locale doit
+# passer le jeton de jumelage (voir _verifier_origine_connexion). Mettre à false
+# revient au comportement historique 100% local (aucune écoute réseau).
+ALLOW_LAN = _server_config.get('allow_lan', True)
+BIND_ADDRESS = "0.0.0.0" if ALLOW_LAN else "localhost"
+
+_stt_config = config.get('stt', {})
+STT_PORT = _stt_config.get('port', 5001)
+STT_TIMEOUT = _stt_config.get('request_timeout', 20)
 
 # Gestion du Kill Switch
 _cancel_events = {}
+# Dernier mode_vocal utilisé par connexion : permet à la reprise après validation
+# Human-in-the-Loop (_reprendre_apres_permission) de savoir si la réponse doit être
+# aussi lue à voix haute, sans que le client ait besoin de le retransmettre.
+_last_mode_vocal = {}
+
+
+def _tool_call_vers_dict(tool_call) -> dict:
+    """Normalise un tool_call en dict JSON-sérialisable.
+
+    Selon le fournisseur, tool_call est soit un objet pydantic 'ollama.ToolCall' (non
+    JSON-sérialisable tel quel : json.dumps() plantait ici, faisant crasher toute
+    demande de permission — cf. tests/test_pairing.py découvert en testant le
+    compagnon mobile), soit déjà un dict plat construit à la main (LM Studio/NVIDIA,
+    voir core/llm_provider.py). Les deux cas sont couverts.
+    """
+    if hasattr(tool_call, 'model_dump'):
+        return tool_call.model_dump()
+    return dict(tool_call)
+
+
+def _verifier_origine_connexion(connection, request):
+    """Porte d'entrée unique du serveur : exécutée avant l'upgrade WebSocket.
+
+    La machine locale (127.0.0.1/::1) est TOUJOURS autorisée sans jeton — c'est le
+    chemin emprunté par l'UI C# elle-même, aucune friction pour l'usage principal.
+    Toute autre origine (le téléphone sur le Wi-Fi local, ou n'importe quel autre
+    appareil du réseau) doit présenter le jeton de jumelage en paramètre d'URL
+    (?token=...), sans quoi la connexion est rejetée avant même d'atteindre
+    handler_client. C'est ce qui rend l'ouverture au réseau (ALLOW_LAN) sûre.
+    """
+    if not ALLOW_LAN:
+        return None  # BIND_ADDRESS vaut déjà "localhost" dans ce cas ; rien à faire ici
+
+    ip_distante = connection.remote_address[0] if connection.remote_address else None
+    if ip_distante in ('127.0.0.1', '::1', None):
+        return None
+
+    query = parse_qs(urlparse(request.path).query)
+    token_fourni = (query.get('token') or [''])[0]
+
+    if not token_fourni or token_fourni != obtenir_token():
+        logger.warning(f"Connexion refusée depuis {ip_distante} : jeton de jumelage invalide ou absent.")
+        return connection.respond(http.HTTPStatus.UNAUTHORIZED, "Jeton de jumelage invalide ou manquant.\n")
+
+    return None
 
 def _messages_avec_fenetre():
     if len(messages) <= 1:
@@ -64,21 +123,59 @@ def _messages_avec_fenetre():
 async def handle_chat(websocket, data):
     user_input = data.get('prompt', '')
     mode_vocal = data.get('vocal', False)
-    
+
     if mode_vocal and not user_input:
+        # "listening" est un statut distinct de "system_action" : il permet à l'UI
+        # d'afficher un indicateur micro-actif différent de "l'IA réfléchit", ce qui
+        # évite la confusion "pourquoi ça ne répond pas" pendant l'enregistrement.
+        await websocket.send(json.dumps({"type": "listening"}))
+
+        def _appeler_stt():
+            req = urllib.request.Request(f"http://127.0.0.1:{STT_PORT}/listen", method="POST")
+            with urllib.request.urlopen(req, timeout=STT_TIMEOUT) as response:
+                return json.loads(response.read().decode('utf-8'))
+
+        # L'appel STT est poussé dans un thread (jamais d'appel bloquant dans la boucle
+        # asyncio, cf. AGENTS.md B.3) et couru contre le Kill Switch : un clic sur
+        # "annuler" pendant l'écoute rend la main immédiatement, sans attendre la fin
+        # de l'enregistrement/transcription côté micro-service.
+        cancel_event = _cancel_events.get(websocket)
+        stt_task = asyncio.ensure_future(asyncio.to_thread(_appeler_stt))
+        a_attendre = {stt_task}
+        cancel_task = asyncio.ensure_future(cancel_event.wait()) if cancel_event else None
+        if cancel_task:
+            a_attendre.add(cancel_task)
+
+        done, _ = await asyncio.wait(a_attendre, return_when=asyncio.FIRST_COMPLETED)
+
+        if cancel_task and cancel_task in done:
+            logger.info("Écoute annulée via Kill Switch.")
+            await websocket.send(json.dumps({"type": "done"}))
+            return
+        if cancel_task:
+            cancel_task.cancel()
+
         try:
-            req = urllib.request.Request("http://127.0.0.1:5001/listen", method="POST")
-            with urllib.request.urlopen(req, timeout=15) as response:
-                res_data = json.loads(response.read().decode('utf-8'))
-                user_input = res_data.get('text', '')
+            res_data = stt_task.result()
+            user_input = res_data.get('text', '')
+            raison = res_data.get('reason', 'ok')
         except Exception as e:
             logger.error(f"Erreur STT: {e}")
             user_input = ""
-            
+            raison = "erreur_micro"
+
         if not user_input:
+            messages_par_raison = {
+                'silence': "Je n'ai rien entendu.",
+                'modele_indisponible': "La reconnaissance vocale n'est pas disponible sur cet environnement.",
+                'erreur_micro': "Erreur du microphone ou du service de reconnaissance vocale.",
+            }
+            # 'reason' permet au client de distinguer un silence normal (à réessayer
+            # sans pénalité) d'une vraie panne (à compter dans son compteur d'échecs).
             await websocket.send(json.dumps({
                 "type": "error",
-                "message": "Je n'ai rien entendu (ou erreur STT)..."
+                "reason": raison,
+                "message": messages_par_raison.get(raison, "Je n'ai rien entendu (ou erreur STT)...")
             }))
             await websocket.send(json.dumps({"type": "done"}))
             return
@@ -87,7 +184,8 @@ async def handle_chat(websocket, data):
         return
 
     messages.append({'role': 'user', 'content': user_input})
-    
+    _last_mode_vocal[websocket] = mode_vocal
+
     current_model = ai.MODEL
     if current_model == 'Aucun modèle':
         await websocket.send(json.dumps({
@@ -97,6 +195,19 @@ async def handle_chat(websocket, data):
         await websocket.send(json.dumps({"type": "done"}))
         return
 
+    await _continuer_conversation(websocket, current_model, mode_vocal)
+
+
+async def _continuer_conversation(websocket, current_model, mode_vocal):
+    """
+    Corps de la boucle agentique (appel LLM -> outils -> réponse), partagé par deux
+    points d'entrée :
+    - handle_chat() : nouveau message utilisateur (texte ou vocal transcrit).
+    - _reprendre_apres_permission() : reprise après décision Human-in-the-Loop, où le
+      dernier message de `messages` est déjà le résultat d'un outil (pas un nouveau
+      prompt utilisateur) — extraire cette fonction évite de dupliquer toute la logique
+      de streaming/TTS/kill-switch entre les deux chemins.
+    """
     # PHASE 1: Outils (Appel non-streamé)
     contexte = _messages_avec_fenetre()
     response = await asyncio.to_thread(
@@ -139,10 +250,12 @@ async def handle_chat(websocket, data):
                         "type": "action_required",
                         "action": e.action,
                         "cible": e.cible,
-                        "tool_call": tool_call
+                        "tool_call": _tool_call_vers_dict(tool_call)
                     }))
-                    # On arrête le traitement de ce chat, le C# devra relancer avec permission_granted
-                    return 
+                    # On suspend ce tour : le client devra renvoyer permission_granted
+                    # ou permission_denied (voir _reprendre_apres_permission) pour
+                    # reprendre la conversation là où elle s'est arrêtée.
+                    return
             else:
                 resultat_execution = f"Erreur: Outil {nom_fonction} introuvable."
                 
@@ -270,6 +383,71 @@ async def handle_chat(websocket, data):
         await websocket.send(json.dumps({"type": "done"}))
 
 
+async def _reprendre_apres_permission(websocket, tool_call: dict, autorise: bool):
+    """
+    Reprend une conversation suspendue par une demande Human-in-the-Loop
+    (voir 'action_required' dans _continuer_conversation).
+
+    Si autorisé : réexécute EXACTEMENT le même outil, mais cette fois avec
+    permission_deja_accordee positionnée (core/exceptions.py) pour que
+    _demander_permission() (function/files.py) laisse l'action passer au lieu de
+    relever une nouvelle PermissionRequiredException.
+    Si refusé : n'exécute rien, enregistre le refus comme résultat de l'outil.
+
+    Dans les deux cas, le résultat est ajouté à l'historique puis la conversation
+    reprend normalement (nouvel appel LLM, qui peut streamer une réponse ou demander
+    une nouvelle permission si une autre action critique s'enchaîne).
+    """
+    from core.exceptions import permission_deja_accordee
+
+    nom_fonction = tool_call.get('function', {}).get('name', '')
+    arguments = tool_call.get('function', {}).get('arguments', {}) or {}
+
+    if not autorise:
+        resultat_execution = "Action refusée par l'utilisateur."
+    elif nom_fonction not in outils_disponibles:
+        resultat_execution = f"Erreur: Outil {nom_fonction} introuvable."
+    else:
+        await websocket.send(json.dumps({
+            "type": "system_action",
+            "content": f"Exécution de {nom_fonction} (autorisée par l'utilisateur)..."
+        }))
+
+        def run_tool_autorise():
+            token = permission_deja_accordee.set(True)
+            try:
+                try:
+                    return outils_disponibles[nom_fonction](**arguments)
+                except TypeError:
+                    return outils_disponibles[nom_fonction]()
+            finally:
+                permission_deja_accordee.reset(token)
+
+        try:
+            resultat_execution = await asyncio.to_thread(run_tool_autorise)
+        except Exception as e:
+            logger.error(f"Erreur lors de l'exécution autorisée de {nom_fonction} : {e}")
+            resultat_execution = f"Erreur lors de l'exécution : {e}"
+
+    tool_call_id = tool_call.get('id')
+    tool_msg = {'role': 'tool', 'content': str(resultat_execution), 'name': nom_fonction}
+    if tool_call_id:
+        tool_msg['tool_call_id'] = tool_call_id
+    messages.append(tool_msg)
+
+    current_model = ai.MODEL
+    if current_model == 'Aucun modèle':
+        await websocket.send(json.dumps({
+            "type": "error",
+            "message": "Aucun modèle n'est sélectionné ou disponible."
+        }))
+        await websocket.send(json.dumps({"type": "done"}))
+        return
+
+    mode_vocal = _last_mode_vocal.get(websocket, False)
+    await _continuer_conversation(websocket, current_model, mode_vocal)
+
+
 async def handler_client(websocket):
     logger.info("Interface C# connectée.")
     # Désactive l'algorithme de Nagle : évite jusqu'à ~40ms de délai par frame
@@ -320,7 +498,35 @@ async def handler_client(websocket):
                             "type": "model_selected",
                             "model": ai.MODEL
                         }))
-                        
+
+                elif msg_type in ('permission_granted', 'permission_denied'):
+                    tool_call = data.get('tool_call') or {}
+                    await _reprendre_apres_permission(
+                        websocket, tool_call, autorise=(msg_type == 'permission_granted')
+                    )
+
+                elif msg_type == 'get_mobile_info':
+                    # N'importe quel client déjà connecté peut demander ceci sans
+                    # nouvelle vérification : _verifier_origine_connexion a déjà
+                    # filtré à l'entrée (loopback, ou jeton valide) avant même
+                    # d'atteindre ce code — donc ce client est déjà de confiance.
+                    await websocket.send(json.dumps({
+                        "type": "mobile_info",
+                        "allow_lan": ALLOW_LAN,
+                        "lan_ip": obtenir_ip_locale(),
+                        "port": PORT,
+                        "mobile_port": MOBILE_PORT,
+                        "token": obtenir_token(),
+                    }))
+
+                elif msg_type == 'regenerate_pairing_token':
+                    nouveau_token = await asyncio.to_thread(regenerer_token)
+                    logger.info("Jeton de jumelage régénéré : les appareils mobiles déjà connectés devront se rejumeler.")
+                    await websocket.send(json.dumps({
+                        "type": "pairing_token_regenerated",
+                        "token": nouveau_token
+                    }))
+
                 elif msg_type == 'shutdown':
                     logger.info("Signal de fermeture reçu du C#.")
                     await websocket.send(json.dumps({"type": "shutting_down"}))
@@ -359,19 +565,27 @@ async def demarrer_serveur_alyx():
         logger.info("Attente du service STT (Handshake)...")
         for _ in range(10):
             try:
-                urllib.request.urlopen("http://127.0.0.1:5001/health", timeout=1)
+                urllib.request.urlopen(f"http://127.0.0.1:{STT_PORT}/health", timeout=1)
                 logger.info("Service STT prêt.")
                 break
             except Exception:
                 time.sleep(1)
         
     threading.Thread(target=_preload, daemon=True).start()
-    
-    logger.info(f"---> Serveur WebSocket Alyx démarré sur ws://localhost:{port}")
-    print(f"---> Serveur WebSocket Alyx démarré sur ws://localhost:{port}")
+
+    logger.info(f"---> Serveur WebSocket Alyx démarré sur ws://{BIND_ADDRESS}:{port} (LAN: {'ouvert' if ALLOW_LAN else 'désactivé'})")
+    print(f"---> Serveur WebSocket Alyx démarré sur ws://{BIND_ADDRESS}:{port}")
+    if ALLOW_LAN:
+        ip_locale = obtenir_ip_locale()
+        if ip_locale:
+            print(f"     [Accès mobile (Wi-Fi local) : ws://{ip_locale}:{port} — jeton requis, voir l'UI]")
     # compression=None : évite le coût CPU de la compression deflate pour des
     # messages JSON courts échangés en local (pas de gain bande passante à attendre).
-    async with websockets.serve(handler_client, "localhost", port, compression=None):
+    # process_request : porte d'entrée du jumelage mobile (voir _verifier_origine_connexion).
+    async with websockets.serve(
+        handler_client, BIND_ADDRESS, port,
+        compression=None, process_request=_verifier_origine_connexion
+    ):
         await asyncio.Future()
 
 if __name__ == "__main__":

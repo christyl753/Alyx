@@ -49,6 +49,15 @@ public partial class MainWindow : Window
     private string _currentModel = "Chargement...";
     private TextBlock? _currentStreamingBlock = null;
 
+    // --- Mode vocal continu ---
+    // Nombre d'échecs RÉELS consécutifs (micro absent/occupé, service STT indisponible)
+    // avant coupure automatique du mode vocal. Un silence normal (personne ne parle)
+    // ne compte PAS comme un échec : sinon une pause de conversation couperait le micro.
+    // Miroir de stt.max_consecutive_failures dans config.yaml (pas de dépendance YAML
+    // côté C# pour un seul entier — les deux valeurs doivent rester alignées si modifiées).
+    private const int MaxEchecsVocalConsecutifs = 3;
+    private int _echecsVocalConsecutifs = 0;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -181,10 +190,34 @@ public partial class MainWindow : Window
                         ModelText.Text = $"Modèle: {_currentModel}";
                         AddMessage("Système", $"Modèle changé vers '{_currentModel}'", true, true);
                         break;
-                        
+
+                    case "mobile_info": {
+                        bool allowLan = root.TryGetProperty("allow_lan", out var allowLanEl) && allowLanEl.GetBoolean();
+                        string? lanIp = root.TryGetProperty("lan_ip", out var lanIpEl) ? lanIpEl.GetString() : null;
+                        int mobilePort = root.TryGetProperty("mobile_port", out var mpEl) ? mpEl.GetInt32() : 0;
+                        string token = root.TryGetProperty("token", out var tokEl) ? (tokEl.GetString() ?? "") : "";
+                        AddMobileInfoMessage(allowLan, lanIp, mobilePort, token);
+                        break;
+                    }
+
+                    case "pairing_token_regenerated": {
+                        string nouveauToken = root.GetProperty("token").GetString() ?? "";
+                        AddMessage("Système",
+                            $"Nouveau code de jumelage généré : {nouveauToken}\nLes téléphones déjà connectés devront ressaisir ce nouveau code.",
+                            true, true);
+                        break;
+                    }
+
                     case "system_action":
                         string content = root.GetProperty("content").GetString() ?? "";
                         AddMessage("Système", content, true, true);
+                        break;
+
+                    case "listening":
+                        // Distinct de l'indicateur "réflexion" : l'utilisateur sait qu'il doit
+                        // parler maintenant, pas attendre une réponse.
+                        ShowTypingIndicator("Écoute...", "Je vous écoute, parlez maintenant...", "🎙️");
+                        StopBtn.IsVisible = true;
                         break;
 
                     case "token":
@@ -202,16 +235,63 @@ public partial class MainWindow : Window
                         _isProcessing = false;
                         SendBtn.Content = "GÉNÉRER ▸";
                         SendBtn.IsEnabled = true;
+                        StopBtn.IsVisible = false;
                         HideTypingIndicator();
+                        // Un tour complet a réussi (réponse obtenue) : le compteur d'échecs
+                        // repart de zéro, sinon un échec isolé ancien finirait par couper le
+                        // mode vocal après plusieurs tours pourtant sains.
+                        _echecsVocalConsecutifs = 0;
+                        ContinuerEcouteSiVocalActif();
                         break;
-                        
+
                     case "error":
                         string errorMsg = root.GetProperty("message").GetString() ?? "Erreur";
-                        AddMessage("Erreur", errorMsg, true, true);
+                        string? raisonErreur = root.TryGetProperty("reason", out var raisonEl) ? raisonEl.GetString() : null;
+                        bool estSilenceNormal = raisonErreur == "silence";
+
+                        // Un silence (personne n'a parlé) est normal dans une conversation à
+                        // bâtons rompus : l'afficher comme une "Erreur" en rouge à chaque pause
+                        // serait à la fois faux et anxiogène. On le passe sous silence côté UI.
+                        if (!estSilenceNormal)
+                        {
+                            AddMessage("Erreur", errorMsg, true, true);
+                        }
+
                         _isProcessing = false;
                         SendBtn.Content = "GÉNÉRER ▸";
                         SendBtn.IsEnabled = true;
+                        StopBtn.IsVisible = false;
                         HideTypingIndicator();
+
+                        bool echecVocalReel = raisonErreur == "erreur_micro" || raisonErreur == "modele_indisponible";
+                        if (_isVocalActive && echecVocalReel)
+                        {
+                            _echecsVocalConsecutifs++;
+                            if (_echecsVocalConsecutifs >= MaxEchecsVocalConsecutifs)
+                            {
+                                _echecsVocalConsecutifs = 0;
+                                _isVocalActive = false;
+                                VocalBtn.Content = "🎤 Off";
+                                VocalBtn.Foreground = new SolidColorBrush(Color.Parse("#475569"));
+                                VocalBtn.BorderBrush = new SolidColorBrush(Color.Parse("#94a3b8"));
+                                // Le point central : le bouton reflète TOUJOURS l'état réel. Avant ce
+                                // correctif, le mode vocal s'arrêtait de fonctionner silencieusement en
+                                // gardant l'apparence "🎤 On" — l'utilisateur parlait dans le vide sans
+                                // le savoir. Ici, l'arrêt automatique est explicite et expliqué.
+                                AddMessage("Système",
+                                    $"Mode vocal désactivé automatiquement après {MaxEchecsVocalConsecutifs} échecs d'écoute consécutifs (micro ou service vocal indisponible). Vérifiez votre micro puis réactivez-le.",
+                                    true, true);
+                                break;
+                            }
+                        }
+                        else if (!estSilenceNormal)
+                        {
+                            // Erreur non liée au vocal (ex: aucun modèle sélectionné) : ne pas
+                            // relancer une boucle d'écoute qui échouerait à l'identique indéfiniment.
+                            break;
+                        }
+
+                        ContinuerEcouteSiVocalActif();
                         break;
                         
                     case "action_required":
@@ -234,10 +314,13 @@ public partial class MainWindow : Window
     private StackPanel? _typingContainer = null;
     private CancellationTokenSource? _animationCts = null;
 
-    private void ShowTypingIndicator()
+    private void ShowTypingIndicator(string label = "Calcul en cours...", string message = "Alyx réfléchit...", string icon = "✏")
     {
+        // Réutilisé pour l'indicateur d'écoute vocale (icône/texte différents) afin que
+        // "l'IA réfléchit" et "le micro écoute" restent visuellement distincts : sans
+        // ça, l'utilisateur ne sait pas s'il doit parler ou attendre une réponse.
         if (_typingContainer != null) return;
-        
+
         _typingContainer = new StackPanel
         {
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -262,7 +345,7 @@ public partial class MainWindow : Window
         });
         metaPanel.Children.Add(new TextBlock
         {
-            Text = "Calcul en cours...",
+            Text = label,
             FontFamily = new FontFamily("Monospace"),
             FontSize = 11,
             Foreground = new SolidColorBrush(Color.Parse("#E55934"))
@@ -282,13 +365,13 @@ public partial class MainWindow : Window
         var topRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         topRow.Children.Add(new TextBlock
         {
-            Text = "✏",
+            Text = icon,
             FontSize = 18,
             VerticalAlignment = VerticalAlignment.Center
         });
         topRow.Children.Add(new TextBlock
         {
-            Text = "Alyx réfléchit...",
+            Text = message,
             FontSize = 14,
             Foreground = new SolidColorBrush(Color.Parse("#475569")),
             FontStyle = FontStyle.Italic,
@@ -471,6 +554,105 @@ public partial class MainWindow : Window
         HideTypingIndicator();
     }
 
+    private void AddMobileInfoMessage(bool allowLan, string? lanIp, int mobilePort, string token)
+    {
+        var container = new StackPanel
+        {
+            Margin = new Thickness(0, 0, 0, 10),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            MaxWidth = 650,
+            Spacing = 5
+        };
+
+        var metaPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        metaPanel.Children.Add(new TextBlock
+        {
+            Text = "SYS.MOBILE",
+            FontWeight = FontWeight.Bold,
+            FontFamily = new FontFamily("Monospace"),
+            FontSize = 11,
+            Foreground = new SolidColorBrush(Color.Parse("#1A1A1A"))
+        });
+        container.Children.Add(metaPanel);
+
+        var mainBox = new Border
+        {
+            BorderBrush = new SolidColorBrush(Color.Parse("#1A1A1A")),
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(20),
+            Background = new SolidColorBrush(Color.Parse("#FAFAF8"))
+        };
+
+        var content = new StackPanel { Spacing = 10 };
+
+        if (!allowLan)
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = "L'accès réseau au compagnon mobile est désactivé (allow_lan: false dans config.yaml). Activez-le puis redémarrez Alyx pour connecter un téléphone.",
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+        else if (string.IsNullOrEmpty(lanIp))
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = "Aucune interface réseau locale détectée (Wi-Fi/Ethernet). Connectez le PC au réseau local pour utiliser le compagnon mobile.",
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+        else
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = "Sur le téléphone (même réseau Wi-Fi), ouvrez le compagnon mobile puis saisissez :",
+                TextWrapping = TextWrapping.Wrap
+            });
+
+            var champ = new Func<string, string, StackPanel>((label, valeur) =>
+            {
+                var ligne = new StackPanel { Spacing = 2 };
+                ligne.Children.Add(new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse("#64748b")) });
+                var box = new TextBox
+                {
+                    Text = valeur,
+                    IsReadOnly = true,
+                    FontFamily = new FontFamily("Monospace"),
+                    FontSize = 13,
+                    Background = Brushes.White,
+                    BorderBrush = new SolidColorBrush(Color.Parse("#1A1A1A")),
+                    BorderThickness = new Thickness(1)
+                };
+                ligne.Children.Add(box);
+                return ligne;
+            });
+
+            content.Children.Add(champ("ADRESSE (IP:PORT)", $"{lanIp}:{mobilePort}"));
+            content.Children.Add(champ("CODE DE JUMELAGE", token));
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Margin = new Thickness(0, 5, 0, 0) };
+            var btnRegen = new Button
+            {
+                Content = "🔄 Régénérer le code",
+                Background = new SolidColorBrush(Color.Parse("#D0D0CE")),
+                Padding = new Thickness(15, 8)
+            };
+            btnRegen.Click += async (s, e) =>
+            {
+                btnRegen.IsEnabled = false;
+                await SendWebSocketMessage(new { type = "regenerate_pairing_token" });
+            };
+            buttons.Children.Add(btnRegen);
+            content.Children.Add(buttons);
+        }
+
+        mainBox.Child = content;
+        container.Children.Add(mainBox);
+
+        ChatPanel.Children.Add(container);
+        ChatScrollViewer.ScrollToEnd();
+    }
+
     private (Grid, TextBlock) CreateMessageContainer(string sender, bool isSystem, bool isAction)
     {
         bool isUser = !isSystem;
@@ -604,6 +786,11 @@ public partial class MainWindow : Window
         await SendWebSocketMessage(new { type = "get_models", refresh = true });
     }
 
+    private async void OnMobileInfoClick(object? sender, RoutedEventArgs e)
+    {
+        await SendWebSocketMessage(new { type = "get_mobile_info" });
+    }
+
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
@@ -623,21 +810,48 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnVocalClick(object? sender, RoutedEventArgs e)
+    private async void OnVocalClick(object? sender, RoutedEventArgs e)
     {
         _isVocalActive = !_isVocalActive;
+        // Toute bascule manuelle repart d'un compteur propre : un échec ancien ne doit
+        // pas s'additionner à des échecs futurs après que l'utilisateur soit intervenu.
+        _echecsVocalConsecutifs = 0;
         VocalBtn.Content = _isVocalActive ? "🎤 On" : "🎤 Off";
         VocalBtn.Foreground = new SolidColorBrush(Color.Parse(_isVocalActive ? "#E55934" : "#475569"));
         VocalBtn.BorderBrush = new SolidColorBrush(Color.Parse(_isVocalActive ? "#E55934" : "#94a3b8"));
 
         if (_isVocalActive)
         {
-            AddMessage("Système", "Mode vocal activé. Je vous écoute...", true, true);
+            AddMessage("Système", "Mode vocal activé (continu). Je vous écoute...", true, true);
             _ = SendChatAsync();
         }
         else
         {
             AddMessage("Système", "Mode vocal désactivé.", true, true);
+            if (_isProcessing)
+            {
+                // Coupe une écoute/génération en cours : sans ça, le clic "Off" ne fait
+                // qu'empêcher le PROCHAIN tour, celui en cours continue silencieusement.
+                await SendWebSocketMessage(new { type = "cancel" });
+            }
+        }
+    }
+
+    private async void OnStopClick(object? sender, RoutedEventArgs e)
+    {
+        await SendWebSocketMessage(new { type = "cancel" });
+    }
+
+    /// <summary>
+    /// Relance automatiquement l'écoute si le mode vocal continu est toujours actif.
+    /// Sans ce rebouclage, un seul tour de parole désactivait de fait le micro tout en
+    /// laissant le bouton affiché "🎤 On" — c'était ça, le vrai "auto-mute".
+    /// </summary>
+    private void ContinuerEcouteSiVocalActif()
+    {
+        if (_isVocalActive && !_isProcessing)
+        {
+            _ = SendChatAsync();
         }
     }
 
@@ -653,6 +867,7 @@ public partial class MainWindow : Window
         if (_isProcessing) return;
 
         string text = InputBox.Text?.Trim() ?? "";
+        bool declencheEcouteVocale = string.IsNullOrEmpty(text) && _isVocalActive;
         if (string.IsNullOrEmpty(text) && !_isVocalActive) return;
 
         if (!string.IsNullOrEmpty(text))
@@ -664,8 +879,14 @@ public partial class MainWindow : Window
         _isProcessing = true;
         SendBtn.Content = "...";
         SendBtn.IsEnabled = false;
-        
-        ShowTypingIndicator();
+        StopBtn.IsVisible = true;
+
+        // Si on part écouter le micro, on laisse le message serveur "listening" afficher
+        // l'indicateur dédié (icône micro) plutôt que le "Alyx réfléchit..." générique.
+        if (!declencheEcouteVocale)
+        {
+            ShowTypingIndicator();
+        }
 
         await SendWebSocketMessage(new
         {

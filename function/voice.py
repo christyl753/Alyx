@@ -1,32 +1,42 @@
 # Fichier : function/voice.py
+import json
 import os
 import queue
-import tempfile
 import threading
-import wave
-import numpy as np
+import urllib.error
+import urllib.request
 import sounddevice as sd
 import yaml
-
-# --- CONFIGURATION ---
-SAMPLE_RATE = 16000
-WHISPER_MODEL_SIZE = "base"  # Options: tiny, base, small, medium, large-v3
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _CONFIG_PATH = os.path.join(_PROJECT_ROOT, 'config.yaml')
 
-def _load_voice_config():
+def _load_config():
     if os.path.exists(_CONFIG_PATH):
         with open(_CONFIG_PATH, 'r', encoding='utf-8') as f:
-            return (yaml.safe_load(f) or {}).get('voice', {})
+            return yaml.safe_load(f) or {}
     return {}
 
-_voice_config = _load_voice_config()
+_config = _load_config()
+_voice_config = _config.get('voice', {})
+_stt_config = _config.get('stt', {})
+
+# --- CONFIGURATION TTS ---
 _piper_model_path_config = _voice_config.get('piper_model_path', 'models/piper/fr_FR-siwis-medium.onnx')
 PIPER_MODEL_PATH = (
     _piper_model_path_config if os.path.isabs(_piper_model_path_config)
     else os.path.join(_PROJECT_ROOT, _piper_model_path_config)
 )
+
+# --- CONFIGURATION STT ---
+# Pas de second modèle faster-whisper chargé ici : ce serait une DUPLICATION de
+# stt_server.py, en violation de l'isolation STT documentée (AGENTS.md B.1 — sous-
+# processus figé en Python 3.11/3.12). ecouter() ci-dessous appelle ce même
+# micro-service en HTTP, exactement comme le fait api.py pour le flux WebSocket
+# principal : une seule implémentation STT dans tout le projet, jamais deux qui
+# pourraient diverger silencieusement.
+_STT_PORT = _stt_config.get('port', 5001)
+_STT_TIMEOUT = _stt_config.get('request_timeout', 20)
 
 # --- INITIALISATION TTS (Piper : voix française neuronale, locale) ---
 _tts_queue = queue.Queue()
@@ -71,29 +81,6 @@ def _tts_worker():
 # Démarrage du thread TTS en mode démon (s'arrêtera avec le programme)
 threading.Thread(target=_tts_worker, daemon=True).start()
 
-# --- INITIALISATION STT (faster-whisper) ---
-_whisper_model = None
-
-def _init_whisper():
-    """Charge le modèle Whisper une seule fois (lazy loading)."""
-    global _whisper_model
-    if _whisper_model is None:
-        try:
-            from faster_whisper import WhisperModel
-            print(f"     [Chargement du modèle Whisper '{WHISPER_MODEL_SIZE}'...]")
-            _whisper_model = WhisperModel(
-                WHISPER_MODEL_SIZE,
-                device="cpu",
-                compute_type="int8"
-            )
-            print(f"     [✓ Modèle Whisper chargé avec succès]")
-        except ImportError:
-            print("     [Avertissement: faster-whisper non installé, mode vocal indisponible]")
-        except Exception as e:
-            print(f"     [Erreur chargement Whisper: {e}]")
-    return _whisper_model
-
-
 def faire_parler(texte: str) -> None:
     """Fait parler Alyx à voix haute via synthèse vocale locale (Asynchrone)."""
     texte_propre = texte.replace('*', '').replace('#', '').replace('_', '')
@@ -101,91 +88,31 @@ def faire_parler(texte: str) -> None:
         _tts_queue.put(texte_propre)
 
 
-def ecouter(duree_max_secondes: int = 8) -> str:
-    """Écoute le microphone et retranscrit la parole en texte via faster-whisper."""
-    model = _init_whisper()
-    if model is None:
-        return ""
+def ecouter(duree_max_secondes: int | None = None) -> str:
+    """
+    Écoute le microphone et retranscrit la parole en texte.
 
-    file_audio = queue.Queue()
-
-    def callback(indata, frames, time_info, status):
-        file_audio.put(indata.copy())
-
-    print("\n     [🎙️ Alyx t'écoute... Parle maintenant]")
-
+    Utilisé par le mode CLI autonome (ai.py exécuté directement, sans l'UI C#) :
+    délègue au micro-service STT isolé (stt_server.py) exactement comme le fait
+    l'API WebSocket principale. Si le micro-service n'est pas démarré (CLI lancée
+    seule, sans passer par alyx.sh/alyx.bat), échoue silencieusement — cohérent
+    avec le rôle de la CLI, un outil de test léger, pas le chemin de production.
+    """
     try:
-        # Enregistrement audio
-        with sd.InputStream(
-            samplerate=SAMPLE_RATE,
-            blocksize=8000,
-            dtype='float32',
-            channels=1,
-            callback=callback
-        ):
-            frames_enregistrees = []
-            frames_lus = 0
-            max_frames = int((duree_max_secondes * SAMPLE_RATE) / 8000)
-
-            # Détection de silence pour arrêt anticipé
-            silence_consecutif = 0
-            seuil_silence = 0.01
-            max_silence_frames = 4  # ~2 secondes de silence = stop
-            a_parle = False
-
-            while frames_lus < max_frames:
-                data = file_audio.get()
-                frames_enregistrees.append(data)
-                frames_lus += 1
-
-                # Détection de silence
-                volume = np.abs(data).mean()
-                if volume >= seuil_silence:
-                    a_parle = True
-                    silence_consecutif = 0
-                else:
-                    silence_consecutif += 1
-
-                # Si on a parlé puis silencieux, on arrête
-                if a_parle and silence_consecutif >= max_silence_frames:
-                    break
-
-        if not frames_enregistrees:
-            return ""
-
-        # Conversion en fichier WAV temporaire pour Whisper
-        audio_data = np.concatenate(frames_enregistrees, axis=0)
-        audio_int16 = (audio_data * 32767).astype(np.int16)
-
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp_path = tmp.name
-            with wave.open(tmp_path, 'wb') as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(SAMPLE_RATE)
-                wf.writeframes(audio_int16.tobytes())
-
-        # Transcription
-        segments, info = model.transcribe(
-            tmp_path,
-            language="fr",
-            beam_size=5,
-            vad_filter=True,
-            vad_parameters=dict(
-                min_silence_duration_ms=500,
-                speech_pad_ms=200
-            )
-        )
-
-        texte_final = " ".join(seg.text.strip() for seg in segments).strip()
-
-        # Nettoyage
-        os.unlink(tmp_path)
-
+        req = urllib.request.Request(f"http://127.0.0.1:{_STT_PORT}/listen", method="POST")
+        timeout = _STT_TIMEOUT if duree_max_secondes is None else duree_max_secondes + 5
+        print("\n     [🎙️ Alyx t'écoute... Parle maintenant]")
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            data = json.loads(response.read().decode('utf-8'))
+    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+        print(f"     [Service STT injoignable sur le port {_STT_PORT} ({e}). "
+              f"Lancez stt_server.py séparément pour activer le mode vocal en CLI.]")
+        return ""
     except Exception as e:
         print(f"     [Erreur micro : {e}]")
         return ""
 
+    texte_final = data.get('text', '')
     if texte_final:
         print(f"     [🎙️ Entendu : \"{texte_final}\"]")
     else:

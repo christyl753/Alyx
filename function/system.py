@@ -1,9 +1,15 @@
 import os
-import re
+import socket
 import sys
 import subprocess
 import psutil
-from .scrap import construire_dictionnaire_applications
+from .scrap import (
+    construire_dictionnaire_applications,
+    construire_index_recherche,
+    normaliser_texte,
+    racine,
+    tokeniser,
+)
 from core.logger import get_logger
 
 logger = get_logger('alyx.system')
@@ -11,6 +17,7 @@ logger = get_logger('alyx.system')
 logger.info("Scan des applications installées...")
 print("     [Initialisation : Scan des applications installées...]")
 ALIAS_DYNAMIQUES = construire_dictionnaire_applications()
+INDEX_RECHERCHE = construire_index_recherche()
 logger.info(f"{len(ALIAS_DYNAMIQUES)} alias d'applications générés.")
 print(f"     [Succès : {len(ALIAS_DYNAMIQUES)} alias d'applications générés !]")
 
@@ -20,23 +27,39 @@ print(f"     [Succès : {len(ALIAS_DYNAMIQUES)} alias d'applications générés 
 # et sert AUSSI BIEN à l'ouverture qu'à la fermeture pour que les deux commandes
 # comprennent exactement le même vocabulaire.
 
-# Mots vides : sans valeur discriminante pour identifier une application.
-_MOTS_IGNORES = {'app', 'application', 'appli', 'logiciel', 'programme',
-                 'le', 'la', 'les', 'l', 'de', 'du', 'des', 'to', 'the'}
-
 # Sous Linux, psutil lit le nom via /proc/<pid>/comm, tronqué à 15 caracteres
 # (TASK_COMM_LEN). Une comparaison exacte échoue donc sur tout nom plus long.
 _LONGUEUR_COMM_LINUX = 15
 
+# La tokenisation est partagée avec l'indexation des .desktop : requête et index
+# doivent impérativement subir les mêmes transformations pour se rencontrer.
+_tokeniser = tokeniser
 
-def _tokeniser(nom: str) -> list:
-    """Découpe un nom d'application en mots significatifs, séparateurs normalisés."""
-    nom = nom.lower().strip()
-    nom = re.sub(r'\.(desktop|exe|app)$', '', nom)
-    tokens = [t for t in re.split(r'[\s\-_.]+', nom) if t]
-    significatifs = [t for t in tokens if t not in _MOTS_IGNORES]
-    # Si l'utilisateur n'a tapé que des mots vides, on garde les tokens bruts.
-    return significatifs or tokens
+
+def resoudre_commande(nom_app: str) -> str | None:
+    """Traduit une demande fonctionnelle en commande système.
+
+    « gestionnaire de tâches » -> 'plasma-systemmonitor', en s'appuyant sur les champs
+    Name/GenericName/Keywords (y compris traduits) des fichiers .desktop. On exige que
+    TOUS les mots de la demande soient expliqués par l'application retenue, ce qui
+    évite qu'un mot générique isolé ne déclenche une correspondance hasardeuse.
+    """
+    demande = {racine(t) for t in tokeniser(nom_app)}
+    if not demande:
+        return None
+
+    meilleurs = []
+    for commande, termes, termes_nom in INDEX_RECHERCHE:
+        communs = demande & termes
+        if len(communs) != len(demande):
+            continue  # la demande n'est pas entièrement couverte
+        # Départage : une correspondance sur le nom prime sur un simple mot-clé,
+        # puis on préfère l'application au vocabulaire le plus ciblé.
+        meilleurs.append((len(demande & termes_nom), -len(termes), commande))
+
+    if not meilleurs:
+        return None
+    return max(meilleurs)[2]
 
 
 def _candidats_pour(nom_app: str) -> list:
@@ -70,6 +93,12 @@ def _candidats_pour(nom_app: str) -> list:
         if demande == mots_cle or demande.issubset(mots_cle):
             # La commande peut être un chemin absolu (/usr/bin/nobara-welcome).
             ajouter(os.path.basename(commande))
+
+    # 3. Résolution sémantique (GenericName/Keywords traduits) : permet de fermer
+    #    « le gestionnaire de tâches » sans en connaître le nom de processus.
+    commande_semantique = resoudre_commande(nom_app)
+    if commande_semantique:
+        ajouter(os.path.basename(commande_semantique))
 
     return candidats
 
@@ -158,19 +187,12 @@ def ouvrir_explorateur() -> str:
 def ouvrir_application(nom_commande: str) -> str:
     """Lance une application via son nom système."""
     nom_propre = nom_commande.lower().strip()
-    commande_reelle = ALIAS_DYNAMIQUES.get(nom_propre)
-
-    # Repli sur la résolution tolérante (mêmes règles que fermer_application) :
-    # "nobara welcome app" doit lancer /usr/bin/nobara-welcome.
-    if not commande_reelle:
-        demande = set(_tokeniser(nom_commande))
-        for cle, commande in ALIAS_DYNAMIQUES.items():
-            if demande and demande.issubset(set(_tokeniser(cle))):
-                commande_reelle = commande
-                break
-
-    if not commande_reelle:
-        commande_reelle = nom_propre
+    # 1. Nom exact, 2. résolution sémantique (Name/GenericName/Keywords traduits),
+    # 3. repli : on suppose que l'utilisateur a donné la commande elle-même.
+    commande_reelle = (ALIAS_DYNAMIQUES.get(nom_propre)
+                       or ALIAS_DYNAMIQUES.get(normaliser_texte(nom_commande))
+                       or resoudre_commande(nom_commande)
+                       or nom_propre)
 
     try:
         subprocess.Popen(commande_reelle.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -264,6 +286,54 @@ def fermer_application(nom_app: str) -> str:
         return (f"'{nom_app}' (processus '{nom_propre}') a été fermé avec succès "
                 f"({instances_fermees} instance(s)).")
     return f"Erreur : Impossible de terminer l'application '{nom_app}' (processus '{nom_propre}')."
+
+def verifier_batterie() -> str:
+    """Vérifie l'état de la batterie : niveau, charge en cours, temps restant estimé."""
+    try:
+        batterie = psutil.sensors_battery()
+    except Exception as e:
+        return f"Impossible de lire l'état de la batterie : {e}"
+
+    if batterie is None:
+        return "Aucune batterie détectée (ordinateur de bureau, ou capteur indisponible)."
+
+    etat = "en charge" if batterie.power_plugged else "sur batterie"
+    temps = ""
+    if not batterie.power_plugged and batterie.secsleft not in (
+        psutil.POWER_TIME_UNLIMITED, psutil.POWER_TIME_UNKNOWN
+    ):
+        heures, reste = divmod(int(batterie.secsleft), 3600)
+        minutes = reste // 60
+        temps = f", environ {heures}h{minutes:02d} restantes"
+
+    return f"Batterie à {batterie.percent:.0f}% ({etat}{temps})."
+
+
+def verifier_reseau() -> str:
+    """Vérifie la connectivité réseau : interfaces actives et accès Internet réel."""
+    try:
+        interfaces_actives = [
+            nom for nom, stats in psutil.net_if_stats().items()
+            if stats.isup and nom.lower() not in ('lo', 'loopback pseudo-interface 1')
+        ]
+    except Exception as e:
+        return f"Impossible de lire l'état du réseau : {e}"
+
+    if not interfaces_actives:
+        return "Aucune interface réseau active détectée."
+
+    # Une interface "up" n'implique pas un accès Internet réel (Wi-Fi connecté sans
+    # accès au routeur, câble branché sans DHCP...) : on vérifie une vraie connexion.
+    connecte = False
+    try:
+        with socket.create_connection(("1.1.1.1", 53), timeout=2):
+            connecte = True
+    except OSError:
+        pass
+
+    etat = "Connecté à Internet" if connecte else "Interfaces actives mais aucun accès Internet détecté"
+    return f"{etat}. Interfaces actives : {', '.join(sorted(interfaces_actives))}."
+
 
 def redemarrer_pc() -> str:
     """Redémarre l'ordinateur."""

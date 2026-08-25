@@ -17,5 +17,14 @@ from .system import (
     ouvrir_application,
     lister_apps_actives,
     fermer_application,
-    redemarrer_pc
+    redemarrer_pc,
+    verifier_batterie,
+    verifier_reseau
+)
+from .tasks import (
+    creer_rappel,
+    lister_rappels,
+    terminer_rappel,
+    prendre_note,
+    lister_notes
 )

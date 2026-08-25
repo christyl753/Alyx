@@ -2,6 +2,12 @@
 
 server:
   port: 8765
+  mobile_port: 8766    # sert la page web (PWA) du compagnon mobile
+  # Ouvre l'API au réseau Wi-Fi local pour l'app mobile (voir core/pairing.py).
+  # Toute connexion non locale doit présenter le jeton de jumelage affiché dans l'UI.
+  # Mettre à false pour revenir au comportement 100% local historique (aucune écoute
+  # réseau, équivalent à l'ancien comportement figé sur "localhost").
+  allow_lan: true
 
 llm_provider:
   cache_ttl: 60
@@ -24,3 +30,14 @@ providers:
 voice:
   # Modèle de voix Piper (français), téléchargé une seule fois par install.sh/install.bat.
   piper_model_path: "models/piper/fr_FR-siwis-medium.onnx"
+  language: "fr"
+
+stt:
+  port: 5001
+  language: "fr"              # doit correspondre à voice.language : même locuteur, même langue
+  model_size: "base"           # tiny | base | small | medium | large-v3 (faster-whisper)
+  max_record_seconds: 8        # durée max d'un tour de parole avant coupure forcée
+  silence_threshold: 0.01      # volume RMS en dessous duquel un frame est considéré silencieux
+  max_silence_frames: 4        # frames de silence consécutifs qui terminent l'écoute
+  request_timeout: 20          # secondes : timeout HTTP côté api.py vers le micro-service STT
+  max_consecutive_failures: 3  # échecs (pas silences) consécutifs avant coupure auto du mode vocal continu

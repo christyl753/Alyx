@@ -5,6 +5,7 @@ set "RUNDIR=%~dp0run"
 set "API_PID_FILE=%RUNDIR%\api.pid"
 set "UI_PID_FILE=%RUNDIR%\ui.pid"
 set "STT_PID_FILE=%RUNDIR%\stt.pid"
+set "MOBILE_PID_FILE=%RUNDIR%\mobile.pid"
 
 echo ==========================================
 echo    Arret des processus Alyx
@@ -40,6 +41,20 @@ if exist "%STT_PID_FILE%" (
     echo [Info] Aucun fichier PID trouve pour le STT.
 )
 
+:: Arret du serveur Compagnon Mobile
+if exist "%MOBILE_PID_FILE%" (
+    set /p MOBILE_PID=<"%MOBILE_PID_FILE%"
+    echo [Alyx] Tentative d'arret du Compagnon Mobile (PID: !MOBILE_PID!)...
+    taskkill /PID !MOBILE_PID! /T /F >nul 2>&1
+    if not errorlevel 1 (
+        echo [OK] Compagnon Mobile arrete.
+    ) else (
+        echo [!] Impossible d'arreter le Compagnon Mobile (peut-etre deja arrete).
+    )
+    del "%MOBILE_PID_FILE%"
+) else (
+    echo [Info] Aucun fichier PID trouve pour le Compagnon Mobile.
+)
 
 :: Arret de l'UI (Frontend)
 if exist "%UI_PID_FILE%" (

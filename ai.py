@@ -18,7 +18,14 @@ from function import (
     ouvrir_application,
     lister_apps_actives,
     fermer_application,
-    redemarrer_pc
+    redemarrer_pc,
+    verifier_batterie,
+    verifier_reseau,
+    creer_rappel,
+    lister_rappels,
+    terminer_rappel,
+    prendre_note,
+    lister_notes
 )
 
 from core.llm_provider import (
@@ -41,7 +48,14 @@ outils_disponibles = {
     'lire_fichier_securise': lire_fichier_securise,
     'ecrire_fichier_securise': ecrire_fichier_securise,
     'generer_pdf': generer_pdf,
-    'redemarrer_pc': redemarrer_pc
+    'redemarrer_pc': redemarrer_pc,
+    'verifier_batterie': verifier_batterie,
+    'verifier_reseau': verifier_reseau,
+    'creer_rappel': creer_rappel,
+    'lister_rappels': lister_rappels,
+    'terminer_rappel': terminer_rappel,
+    'prendre_note': prendre_note,
+    'lister_notes': lister_notes
 }
 
 LISTE_FONCTIONS = list(outils_disponibles.values())
@@ -55,8 +69,15 @@ messages = [{'role': 'system', 'content': (
     "IMPORTANT: Quand l'utilisateur te demande de réaliser PLUSIEURS actions dans une même requête "
     "(par exemple 'ferme Firefox et ouvre Discord'), tu DOIS appeler TOUS les outils nécessaires en même temps. "
     "Tu as accès aux outils pour : ouvrir/fermer des applications, lister les processus, gérer les fichiers "
-    "(lister, créer, renommer, déplacer, lire, écrire, et supprimer), générer des PDF, et redémarrer le PC. "
-    "Réponds toujours en français, de façon très concise. Moins tu parles, mieux c'est."
+    "(lister, créer, renommer, déplacer, lire, écrire, et supprimer), générer des PDF, redémarrer le PC, "
+    "vérifier la batterie et le réseau, et gérer des rappels/notes locaux (créer, lister, terminer un rappel ; "
+    "prendre et lister des notes). "
+    "RESTITUTION : quand un outil renvoie une information demandée par l'utilisateur (liste d'applications, "
+    "contenu d'un fichier...), REPRODUIS son résultat dans ta réponse. Ne dis jamais 'j'ai listé' ou 'voici la liste' "
+    "sans afficher réellement le contenu retourné par l'outil. "
+    "NOMS D'APPLICATIONS : n'invente pas de nom de commande système. Transmets à l'outil les mots employés par "
+    "l'utilisateur (ex: 'gestionnaire de tâches') : l'outil sait lui-même les traduire en commande réelle. "
+    "Réponds toujours en français, de façon concise — mais jamais au prix d'une information demandée."
 )}]
 
 # Modèle courant (peut être changé dynamiquement via l'API)

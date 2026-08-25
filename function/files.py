@@ -136,10 +136,19 @@ def supprimer_fichier(chemin: str) -> str:
 def _demander_permission(action: str, cible: str) -> bool:
     """
     Demande la permission d'effectuer une action critique.
-    Lève une PermissionRequiredException interceptée par le handler WebSocket (api.py),
-    qui suspend l'exécution et envoie une demande de validation au frontend C# (Human-in-the-Loop).
+
+    Premier appel (permission_deja_accordee non positionnée) : lève
+    PermissionRequiredException, interceptée par le handler WebSocket (api.py) qui
+    suspend l'exécution et envoie une demande de validation au frontend (C#/mobile),
+    Human-in-the-Loop.
+
+    Appel de reprise, après que l'utilisateur a cliqué "Autoriser" (api.py réexécute
+    alors le même outil dans un contexte où permission_deja_accordee vaut True) :
+    renvoie True sans lever, pour laisser l'action s'exécuter réellement cette fois.
     """
-    from core.exceptions import PermissionRequiredException
+    from core.exceptions import PermissionRequiredException, permission_deja_accordee
+    if permission_deja_accordee.get():
+        return True
     raise PermissionRequiredException(action, cible)
 
 def lire_fichier_securise(chemin: str) -> str:

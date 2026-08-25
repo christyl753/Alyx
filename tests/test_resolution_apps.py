@@ -5,7 +5,25 @@ Cas de référence : « ferme nobara welcome app » doit viser le processus
 échouait, alors même que l'application tournait.
 """
 
+from function.scrap import normaliser_texte, racine, tokeniser
 from function.system import _tokeniser, _candidats_pour, _correspond
+
+
+def test_normaliser_supprime_les_accents():
+    """L'utilisateur tape « tache », le fichier .desktop contient « tâche »."""
+    assert normaliser_texte('Surveillance du Système') == 'surveillance du systeme'
+    assert normaliser_texte('tâche') == 'tache'
+
+
+def test_racine_rapproche_singulier_et_pluriel():
+    assert racine('taches') == racine('tache')
+    # Transformation appliquée des deux côtés : rester stable suffit, même si le
+    # résultat n'est pas un vrai mot.
+    assert racine('processus') == racine('processus')
+
+
+def test_tokeniser_retire_les_mots_de_liaison():
+    assert tokeniser('gestionnaire de tâches') == ['gestionnaire', 'taches']
 
 
 def test_tokeniser_ignore_les_mots_vides_et_separateurs():

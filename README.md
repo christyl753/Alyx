@@ -15,6 +15,7 @@ Téléchargez la dernière version d'Alyx selon votre système (les archives con
 - **Air-Gapped (100% Hors Ligne)** : Aucune télémétrie, aucune API cloud de secours. Confidentialité absolue.
 - **Command Palette & Conscience Contextuelle** : Invocation instantanée via `Alt+Espace`. Lecture automatique du presse-papiers et de la fenêtre active à l'invocation.
 - **Daily Tasks & Agentivité (Human-in-the-Loop)** : Gestion de rappels, prises de notes, vérification matérielle (batterie, réseau), gestion des fichiers. Validation humaine obligatoire pour les actions destructrices.
+- **Compagnon Mobile (Wi-Fi local)** : page web installable sur téléphone (même agent, mêmes outils) reliée au PC par jumelage — jamais par Internet, conforme au principe air-gapped. Voir la section dédiée plus bas.
 - **Mode Focus / Gaming (Nobara)** : Détection d'applications plein écran gourmandes et déchargement intelligent de la VRAM pour un impact FPS nul.
 - **Routage multi-fournisseurs dynamique** : Support d'Ollama, LM Studio et NVIDIA NIM avec basculement automatique (Circuit Breaker).
 - **Communication Zéro-Latence** : Échanges via WebSocket bidirectionnel pour une fluidité d'exécution instantanée.
@@ -112,6 +113,24 @@ alyx-stop
 
 Toutes les configurations clés (ports, TTL de cache, priorités des fournisseurs d'IA, limites de contexte) sont centralisées dans le fichier `config.yaml` à la racine du projet. Vous pouvez le modifier pour changer le comportement de l'assistant sans toucher au code source.
 
+## 📱 Compagnon Mobile
+
+Une page web installable (PWA) donne accès au même agent Alyx — mêmes outils, mêmes fichiers, mêmes rappels — depuis votre téléphone, **uniquement sur votre réseau Wi-Fi local**. Aucune donnée ne transite par Internet : c'est le même principe air-gapped que le reste du projet, juste étendu à un second écran.
+
+**1. Connecter le téléphone**
+1. Sur le PC, dans l'UI Alyx, cliquez sur **📱 Compagnon mobile** : l'adresse (`IP:port`) et le code de jumelage s'affichent.
+2. Sur le téléphone (même Wi-Fi), ouvrez un navigateur vers `http://<IP_DU_PC>:8766`.
+3. Saisissez l'adresse WebSocket et le code de jumelage affichés à l'étape 1. Ils sont mémorisés sur ce téléphone — plus besoin de les ressaisir ensuite.
+4. *(Optionnel)* Dans le menu du navigateur, choisissez **« Ajouter à l'écran d'accueil »** : Alyx Mobile s'installe comme une vraie app (icône, plein écran).
+
+**2. Sécurité**
+- `api.py` n'accepte les connexions **sans jeton** que depuis la machine elle-même (`127.0.0.1`) — c'est ce qui permet à l'UI C# de continuer à fonctionner sans aucun changement.
+- Toute connexion venant du réseau (le téléphone, ou tout autre appareil du même Wi-Fi) doit présenter le code de jumelage, sans quoi elle est rejetée avant même d'atteindre l'agent.
+- Le bouton **🔄 Régénérer le code** invalide immédiatement l'ancien jeton (utile en cas de doute, ou si vous quittez un réseau partagé).
+- Pour désactiver complètement l'accès réseau (revenir au comportement 100% local historique), passez `server.allow_lan` à `false` dans `config.yaml` puis redémarrez Alyx.
+
+**Limite connue** : le mode vocal (micro) n'est pas disponible depuis le compagnon mobile dans cette version — il ferait écouter le microphone du **PC**, pas celui du téléphone, ce qui prêterait à confusion. Toutes les autres fonctionnalités (fichiers, PDF, rappels/notes, batterie/réseau, actions système) sont pleinement accessibles en texte, avec la même validation Human-in-the-Loop pour les actions destructrices.
+
 ## 🏗️ Architecture Technique Fondamentale (V2)
 - **Isolation STT** : Exécuté dans un sous-processus figé (Python 3.11/3.12) avec communication via HTTP local ou gRPC.
 - **Exécution Saine (Windows)** : Jamais d'activation via `activate.bat`, appels directs exclusifs à l'exécutable `.venv\Scripts\python.exe`.
@@ -119,3 +138,6 @@ Toutes les configurations clés (ports, TTL de cache, priorités des fournisseur
 - **WebSockets Avalonia (C#)** : Événements routés de façon asynchrone sur l'UI Thread (`Dispatcher.UIThread.Post`) pour maintenir 60 FPS fluides.
 - **Graceful Shutdown** : Routage dynamique de l'arrêt selon l'OS (SIGTERM/SIGKILL vs Taskkill), capture des PIDs et élimination des processus zombies.
 - **WebSocket basse latence (Windows & Linux)** : `TCP_NODELAY` activé des deux côtés (serveur Python via le socket de connexion, client C# via un `SocketsHttpHandler.ConnectCallback` puisque `ClientWebSocketOptions` ne l'expose pas) pour éviter les délais de l'algorithme de Nagle sur les échanges de petits messages ; compression `permessage-deflate` désactivée côté serveur (coût CPU inutile en local) ; le streaming de tokens passe par une file asyncio alimentée par un unique thread producteur au lieu d'un aller-retour ThreadPool par token, réduisant la latence/gigue perçue pendant la génération.
+- **Mode vocal continu résilient** : après chaque tour, l'écoute redémarre automatiquement tant que le mode vocal est actif (plus de coupure silencieuse laissant le bouton affiché "🎤 On" sans rien écouter réellement) ; un silence normal ne compte jamais comme un échec, seuls des échecs matériels/service réels consécutifs (micro absent, service STT indisponible) désactivent le mode vocal, avec message explicite. L'appel HTTP vers le micro-service STT est non-bloquant (`asyncio.to_thread`) et annulable par le Kill Switch.
+- **Jumelage mobile sécurisé** : `core/pairing.py` génère un jeton local persistant (128 bits) ; `api.py` accepte sans jeton les connexions depuis la machine elle-même, exige le jeton pour toute autre origine (`process_request` de la poignée de main WebSocket, avant même l'upgrade) — voir la section Compagnon Mobile.
+- **Human-in-the-Loop bout en bout** : la reprise après validation (`permission_granted`/`permission_denied`) réexécute l'outil exact avec une bascule de permission scopée par tâche asyncio (`contextvars`, `core/exceptions.py`), sans jamais redemander ni court-circuiter la protection pour un appel ultérieur non lié.

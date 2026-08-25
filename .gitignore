@@ -14,6 +14,9 @@ env/
 # IDE, Agents et Configuration locale
 .agents/
 .claude/
+.claude-flow/
+.swarm/
+.mcp.json
 .idea/
 .vscode/
 *.swp
@@ -25,6 +28,9 @@ run/
 api.log
 document.md
 documentation.txt
+
+# Données locales (rappels, notes) : état propre à cette installation
+data/
 
 # Modèles IA lourds et téléchargés
 models/

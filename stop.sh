@@ -6,6 +6,7 @@ RUNDIR="$DIR/run"
 
 API_PID_FILE="$RUNDIR/api.pid"
 STT_PID_FILE="$RUNDIR/stt.pid"
+MOBILE_PID_FILE="$RUNDIR/mobile.pid"
 UI_PID_FILE="$RUNDIR/ui.pid"
 
 echo "=========================================="
@@ -46,6 +47,7 @@ arreter_processus() {
 
 arreter_processus "Backend API" "$API_PID_FILE"
 arreter_processus "Micro-service STT" "$STT_PID_FILE"
+arreter_processus "Serveur Compagnon Mobile" "$MOBILE_PID_FILE"
 arreter_processus "Frontend UI" "$UI_PID_FILE"
 
 echo ""

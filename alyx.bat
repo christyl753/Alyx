@@ -14,6 +14,10 @@ echo [Alyx] Demarrage du Micro-service STT...
 start "Alyx STT" /B "%~dp0.venv\Scripts\python.exe" "%~dp0stt_server.py" >"%LOGDIR%\stt.log" 2>&1
 for /f %%I in ('powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'Name=''python.exe'' AND CommandLine LIKE ''%%stt_server.py%%''').ProcessId"') do echo %%I > "%RUNDIR%\stt.pid"
 
+echo [Alyx] Demarrage du serveur Compagnon Mobile...
+start "Alyx Mobile" /B "%~dp0.venv\Scripts\python.exe" "%~dp0mobile_server.py" >"%LOGDIR%\mobile.log" 2>&1
+for /f %%I in ('powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'Name=''python.exe'' AND CommandLine LIKE ''%%mobile_server.py%%''').ProcessId"') do echo %%I > "%RUNDIR%\mobile.pid"
+
 timeout /t 2 /nobreak >nul
 
 echo [Alyx] Demarrage du Frontend (Avalonia)...

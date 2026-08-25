@@ -25,6 +25,12 @@ STT_PID=$!
 echo $STT_PID > "$RUNDIR/stt.pid"
 echo "Micro-service STT demarre (PID: $STT_PID)"
 
+echo "[Alyx] Demarrage du serveur Compagnon Mobile..."
+nohup "$DIR/.venv/bin/python" "$DIR/mobile_server.py" > "$LOGDIR/mobile.log" 2>&1 &
+MOBILE_PID=$!
+echo $MOBILE_PID > "$RUNDIR/mobile.pid"
+echo "Serveur Compagnon Mobile demarre (PID: $MOBILE_PID)"
+
 echo "[Alyx] Demarrage du Frontend UI (C#)..."
 cd "$DIR/AlyxDesktop"
 nohup dotnet run > "$LOGDIR/ui.log" 2>&1 &

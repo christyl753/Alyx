@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Alyx Mobile</title>
+  <meta name="theme-color" content="#1A1A1A">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Écran de jumelage : saisi une seule fois, mémorisé sur ce téléphone (localStorage) -->
+  <div id="pairing-screen">
+    <h1>ALYX <span class="accent">MOBILE</span></h1>
+    <p>
+      Compagnon mobile d'Alyx. Fonctionne uniquement sur le même réseau Wi-Fi que le PC —
+      aucune donnée ne transite par Internet. Le code de jumelage est affiché dans
+      l'application de bureau (bouton « 📱 Mobile »).
+    </p>
+    <div class="field">
+      <label for="input-host">Adresse du PC (IP:port)</label>
+      <input type="text" id="input-host" placeholder="192.168.1.42:8765" autocapitalize="off" autocorrect="off">
+    </div>
+    <div class="field">
+      <label for="input-token">Code de jumelage</label>
+      <input type="password" id="input-token" placeholder="Collé depuis l'UI du PC" autocapitalize="off" autocorrect="off">
+    </div>
+    <button id="btn-connect">Se connecter</button>
+    <div id="pairing-error"></div>
+  </div>
+
+  <!-- Écran de chat -->
+  <div id="chat-screen">
+    <div id="topbar">
+      <div class="title">ALYX <span class="accent">MOBILE</span></div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <select id="models-select" class="mono"></select>
+        <button id="forget-btn" class="secondary" style="padding:6px 10px; font-size:12px;" title="Oublier ce PC (changer d'adresse ou de code)">⏏</button>
+      </div>
+    </div>
+    <div id="status-line" class="mono" style="padding: 4px 16px; border-bottom: 1px solid #1A1A1A; background: white;"></div>
+    <div id="chat-list"></div>
+    <div id="composer">
+      <button id="stop-btn" title="Interrompt l'écoute ou la génération en cours">✕</button>
+      <textarea id="input-text" rows="1" placeholder="Écrire à Alyx..."></textarea>
+      <button id="send-btn">▸</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
