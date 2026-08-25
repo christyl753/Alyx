@@ -4,7 +4,6 @@ import queue
 import tempfile
 import wave
 import numpy as np
-import pyttsx3
 import sounddevice as sd
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler

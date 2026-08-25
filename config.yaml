@@ -20,3 +20,7 @@ providers:
   - name: "nvidia"
     api_base: "http://127.0.0.1:8000"
     priority: 3
+
+voice:
+  # Modèle de voix Piper (français), téléchargé une seule fois par install.sh/install.bat.
+  piper_model_path: "models/piper/fr_FR-siwis-medium.onnx"

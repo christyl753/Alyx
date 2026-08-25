@@ -4,6 +4,13 @@ Alyx est un assistant virtuel local **100% Air-Gapped**. Pensé pour la confiden
 
 Il prend en charge nativement **Windows** et **Linux** (Fedora/Nobara) et s'intègre comme un véritable "sysadmin" virtuel sur votre système.
 
+## 📥 Télécharger Alyx
+
+Téléchargez la dernière version d'Alyx selon votre système (les archives contiennent uniquement les fichiers utiles pour chaque OS) :
+
+- [🐧 Télécharger pour Linux](https://github.com/christyl753/Alyx/releases/latest/download/Alyx-Linux.zip)
+- [🪟 Télécharger pour Windows](https://github.com/christyl753/Alyx/releases/latest/download/Alyx-Windows.zip)
+
 ## 🚀 Fonctionnalités (V2)
 - **Air-Gapped (100% Hors Ligne)** : Aucune télémétrie, aucune API cloud de secours. Confidentialité absolue.
 - **Command Palette & Conscience Contextuelle** : Invocation instantanée via `Alt+Espace`. Lecture automatique du presse-papiers et de la fenêtre active à l'invocation.
@@ -79,18 +86,27 @@ Le choix du modèle dépend fortement de votre ordinateur. Les modèles d'IA con
 ```bash
 ./install.sh
 ```
-*(Assurez-vous d'avoir les paquets audio comme `portaudio-devel` et `alsa-plugins-pulseaudio` installés. Le script crée aussi un lien `alyx` dans `~/.local/bin`).*
+*(Assurez-vous d'avoir les paquets audio comme `portaudio-devel` et `alsa-plugins-pulseaudio` installés. Le script nettoie les anciens exécutables de test (comme `alyz` ou d'anciens dossiers) et configure les commandes globales `alyx` et `alyx-stop` dans `~/.local/bin`).*
 
-**2. Lancement**
-Après avoir **rouvert un terminal** (pour recharger le PATH) :
+**2. Vérification de l'accès global (PATH)**
+Si `~/.local/bin` n'est pas encore présent dans votre variable `PATH`, ajoutez-le dans votre fichier d'environnement (ex: `~/.bashrc` ou `~/.zshrc`) puis rechargez votre terminal :
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**3. Lancement**
+Lancez l'assistant depuis n'importe quel répertoire dans le terminal :
 ```bash
 alyx
 ```
 
-**3. Arrêt**
+**4. Arrêt**
+Pour arrêter tous les processus d'Alyx (API Backend, micro-service STT, UI C# Avalonia) :
 ```bash
-./stop.sh
+alyx-stop
 ```
+*(Ou exécutez `./stop.sh` depuis le répertoire du projet).*
 
 ## 🔧 Configuration Avancée
 

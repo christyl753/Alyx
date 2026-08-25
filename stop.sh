@@ -1,7 +1,7 @@
 #!/bin/bash
 # Script d'arrêt pour Linux (Fedora/Nobara)
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+DIR="$( cd "$( dirname "$(readlink -f "${BASH_SOURCE[0]}")" )" &> /dev/null && pwd )"
 RUNDIR="$DIR/run"
 
 API_PID_FILE="$RUNDIR/api.pid"

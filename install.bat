@@ -7,7 +7,7 @@ echo ==========================================
 echo.
 
 :: 1. Verification de Python
-echo [1/5] Verification de Python...
+echo [1/6] Verification de Python...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo [X] Python n'est pas installe ou n'est pas dans le PATH.
@@ -16,10 +16,19 @@ if errorlevel 1 (
     exit /b 1
 )
 echo [OK] Python est installe.
+for /f %%v in ('python -c "import sys; print(sys.version_info[1])"') do set "PY_MINOR=%%v"
+if %PY_MINOR% LSS 11 (
+    echo [!] Python 3.%PY_MINOR% detecte : seules les versions 3.11 et 3.12 sont supportees.
+    echo     Le module STT ^(faster-whisper^) sera indisponible.
+) else if %PY_MINOR% GEQ 14 (
+    echo [!] Python 3.%PY_MINOR% detecte : seules les versions 3.11 et 3.12 sont supportees.
+    echo     Au-dela ^(3.14+^), le module STT ^(faster-whisper^) est indisponible ^(dependances C absentes/incompatibles^)
+    echo     et sera silencieusement desactive. Installez Python 3.11 ou 3.12 pour beneficier de la reconnaissance vocale.
+)
 
 :: 2. Verification de .NET SDK
 echo.
-echo [2/5] Verification de .NET 8.0 SDK...
+echo [2/6] Verification de .NET 8.0 SDK...
 dotnet --list-sdks | findstr /C:"8.0" >nul 2>&1
 if errorlevel 1 (
     echo [X] .NET 8.0 SDK n'est pas installe.
@@ -31,7 +40,7 @@ echo [OK] .NET 8.0 SDK est installe.
 
 :: 3. Verification des fournisseurs IA (Ollama / LM Studio)
 echo.
-echo [3/5] Verification des moteurs d'IA (Ollama ou LM Studio)...
+echo [3/6] Verification des moteurs d'IA (Ollama ou LM Studio)...
 set "IA_DETECTED=0"
 
 ollama --version >nul 2>&1
@@ -54,7 +63,7 @@ if "!IA_DETECTED!"=="0" (
 
 :: 4. Installation des dependances Python
 echo.
-echo [4/5] Configuration de l'environnement virtuel et des dependances...
+echo [4/6] Configuration de l'environnement virtuel et des dependances...
 if not exist .venv (
     echo Creation de l'environnement virtuel .venv...
     python -m venv .venv
@@ -64,9 +73,26 @@ echo Installation des librairies Python requises...
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 
-:: 5. Creation de la commande globale 'alyx'
+:: 5. Telechargement du modele de voix Piper (une seule fois, ensuite 100% local)
 echo.
-echo [5/5] Creation de la commande globale 'alyx'...
+echo [5/6] Telechargement de la voix francaise Piper (TTS)...
+set "PIPER_DIR=%~dp0models\piper"
+set "PIPER_MODEL=%PIPER_DIR%\fr_FR-siwis-medium.onnx"
+set "PIPER_CONFIG=%PIPER_DIR%\fr_FR-siwis-medium.onnx.json"
+set "PIPER_BASE_URL=https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium"
+
+if not exist "%PIPER_DIR%" mkdir "%PIPER_DIR%"
+
+if exist "%PIPER_MODEL%" if exist "%PIPER_CONFIG%" (
+    echo [OK] Voix Piper deja presente.
+) else (
+    powershell -NoProfile -Command ^
+        "try { Invoke-WebRequest -Uri '%PIPER_BASE_URL%/fr_FR-siwis-medium.onnx' -OutFile '%PIPER_MODEL%' -UseBasicParsing; Invoke-WebRequest -Uri '%PIPER_BASE_URL%/fr_FR-siwis-medium.onnx.json' -OutFile '%PIPER_CONFIG%' -UseBasicParsing; Write-Host '[OK] Voix Piper telechargee.' } catch { Write-Host '[!] Echec du telechargement de la voix Piper. Le mode vocal (parole) sera indisponible.' }"
+)
+
+:: 6. Creation de la commande globale 'alyx'
+echo.
+echo [6/6] Creation de la commande globale 'alyx'...
 set "PROJECT_DIR=%~dp0"
 if "%PROJECT_DIR:~-1%"=="\" set "PROJECT_DIR=%PROJECT_DIR:~0,-1%"
 

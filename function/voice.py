@@ -1,35 +1,70 @@
 # Fichier : function/voice.py
 import os
-import json
 import queue
 import tempfile
+import threading
 import wave
 import numpy as np
-import pyttsx3
 import sounddevice as sd
+import yaml
 
 # --- CONFIGURATION ---
 SAMPLE_RATE = 16000
 WHISPER_MODEL_SIZE = "base"  # Options: tiny, base, small, medium, large-v3
 
-import threading
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_CONFIG_PATH = os.path.join(_PROJECT_ROOT, 'config.yaml')
 
-# --- INITIALISATION TTS (Voix d'Alyx) ---
+def _load_voice_config():
+    if os.path.exists(_CONFIG_PATH):
+        with open(_CONFIG_PATH, 'r', encoding='utf-8') as f:
+            return (yaml.safe_load(f) or {}).get('voice', {})
+    return {}
+
+_voice_config = _load_voice_config()
+_piper_model_path_config = _voice_config.get('piper_model_path', 'models/piper/fr_FR-siwis-medium.onnx')
+PIPER_MODEL_PATH = (
+    _piper_model_path_config if os.path.isabs(_piper_model_path_config)
+    else os.path.join(_PROJECT_ROOT, _piper_model_path_config)
+)
+
+# --- INITIALISATION TTS (Piper : voix française neuronale, locale) ---
 _tts_queue = queue.Queue()
+_piper_voice = None
+
+def _init_piper():
+    """Charge le modèle Piper une seule fois (lazy loading)."""
+    global _piper_voice
+    if _piper_voice is None:
+        if not os.path.exists(PIPER_MODEL_PATH):
+            print(f"     [Avertissement: modèle vocal Piper introuvable ({PIPER_MODEL_PATH}). "
+                  f"Relancez install.sh/install.bat pour le télécharger. Mode vocal (voix) indisponible.]")
+            return None
+        try:
+            from piper import PiperVoice
+            print(f"     [Chargement de la voix Piper '{os.path.basename(PIPER_MODEL_PATH)}'...]")
+            _piper_voice = PiperVoice.load(PIPER_MODEL_PATH)
+            print(f"     [✓ Voix Piper chargée avec succès]")
+        except ImportError:
+            print("     [Avertissement: piper-tts non installé, mode vocal (voix) indisponible]")
+        except Exception as e:
+            print(f"     [Erreur chargement Piper: {e}]")
+    return _piper_voice
 
 def _tts_worker():
     """Worker thread dédié à la synthèse vocale pour ne pas bloquer l'API."""
-    moteur = pyttsx3.init()
-    moteur.setProperty('rate', 170)
     while True:
         texte = _tts_queue.get()
         if texte is None:
             break
         try:
-            moteur.say(texte)
-            moteur.runAndWait()
+            voice = _init_piper()
+            if voice is not None:
+                for chunk in voice.synthesize(texte):
+                    sd.play(chunk.audio_float_array, samplerate=chunk.sample_rate)
+                    sd.wait()
         except Exception as e:
-            pass
+            print(f"     [Erreur TTS: {e}]")
         finally:
             _tts_queue.task_done()
 

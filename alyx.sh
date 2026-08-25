@@ -2,7 +2,7 @@
 # Script de lancement pour Linux (Fedora/Nobara)
 set -e
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+DIR="$( cd "$( dirname "$(readlink -f "${BASH_SOURCE[0]}")" )" &> /dev/null && pwd )"
 RUNDIR="$DIR/run"
 LOGDIR="$DIR/logs"
 
