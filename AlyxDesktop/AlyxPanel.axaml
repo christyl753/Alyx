@@ -1,0 +1,675 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="using:AlyxDesktop.Controls"
+             xmlns:m="using:AlyxDesktop.Models"
+             x:Class="AlyxDesktop.AlyxPanel"
+             FontFamily="{StaticResource UiFont}"
+             Foreground="{StaticResource Ink}">
+
+  <UserControl.Styles>
+    <Style Selector="TextBlock.key">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="9.5" />
+      <Setter Property="LetterSpacing" Value="0.76" />
+      <Setter Property="Foreground" Value="{StaticResource Faint}" />
+    </Style>
+    <Style Selector="TextBlock.val">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="TextBlock.label10">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="LetterSpacing" Value="1" />
+      <Setter Property="Foreground" Value="{StaticResource Faint}" />
+    </Style>
+    <Style Selector="TextBlock.sub">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="10.5" />
+      <Setter Property="Foreground" Value="{StaticResource Faint}" />
+    </Style>
+    <Style Selector="TextBlock.big">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="22" />
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Padding" Value="14" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Background" Value="{StaticResource Fill035}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Hair6}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <!-- Onglets -->
+    <Style Selector="Button.tab">
+      <Setter Property="Padding" Value="0,0,0,10" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0,0,0,2" />
+    </Style>
+    <Style Selector="Button.tab:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    </Style>
+    <Style Selector="Button.tab.active">
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+    </Style>
+    <!-- Puces de suggestion -->
+    <Style Selector="Button.chip">
+      <Setter Property="Padding" Value="11,6" />
+      <Setter Property="CornerRadius" Value="999" />
+      <Setter Property="BorderBrush" Value="{StaticResource Hair10}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{StaticResource Ink2}" />
+    </Style>
+    <Style Selector="Button.chip.on">
+      <Setter Property="Background" Value="{StaticResource AccentTint}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBorder}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentDeep}" />
+    </Style>
+    <Style Selector="Button.voice">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.voice:pointerover">
+      <Setter Property="Background" Value="{StaticResource Fill04}" />
+    </Style>
+    <Style Selector="Button.voice.selected">
+      <Setter Property="Background" Value="{StaticResource AccentTint05}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBorder35}" />
+    </Style>
+    <!-- Tuiles de réglages rapides -->
+    <Style Selector="Button.tile">
+      <Setter Property="Padding" Value="12" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background" Value="{StaticResource Fill035}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Hair6}" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.16" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.tile.on">
+      <Setter Property="Background" Value="{StaticResource AccentTint}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBorder}" />
+    </Style>
+    <Style Selector="Button.tile TextBlock.tl">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    </Style>
+    <Style Selector="Button.tile.on TextBlock.tl">
+      <Setter Property="Foreground" Value="{StaticResource AccentDeep}" />
+    </Style>
+    <Style Selector="Button.tile TextBlock.ts">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{StaticResource Faint}" />
+    </Style>
+    <Style Selector="Button.tile.on TextBlock.ts">
+      <Setter Property="Foreground" Value="{StaticResource AccentText}" />
+    </Style>
+    <!-- Interrupteurs des préférences -->
+    <Style Selector="Border.track">
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Background" Value="{StaticResource Hair14}" />
+    </Style>
+    <Style Selector="Border.track.on">
+      <Setter Property="Background" Value="{StaticResource Accent}" />
+    </Style>
+    <Style Selector="Border.knob">
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Background" Value="White" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="Margin" Value="2,0,0,0" />
+      <Setter Property="RenderTransform" Value="translateX(0px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.track.on Border.knob">
+      <Setter Property="RenderTransform" Value="translateX(14px)" />
+    </Style>
+    <!-- Boutons secondaires -->
+    <Style Selector="Button.outline">
+      <Setter Property="Padding" Value="12,6" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{StaticResource Hair12}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{StaticResource Ink2}" />
+    </Style>
+    <Style Selector="Button.outline:pointerover">
+      <Setter Property="BorderBrush" Value="#4D16181A" />
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    </Style>
+    <Style Selector="Button.solid">
+      <Setter Property="Padding" Value="12,6" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Background" Value="{StaticResource Fill07}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinWidth" Value="64" />
+    </Style>
+    <Style Selector="Border.row:pointerover">
+      <Setter Property="Background" Value="{StaticResource Fill04}" />
+    </Style>
+    <Style Selector="ScrollViewer">
+      <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+
+    <!-- 1. En-tête -->
+    <Grid x:Name="HeaderSection" Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto" Margin="16,16,14,12">
+      <c:AlyxEye x:Name="HeaderEye" Width="42" Height="42" VerticalAlignment="Center" />
+      <StackPanel Grid.Column="1" Margin="12,0" Spacing="3" VerticalAlignment="Center">
+        <TextBlock Text="Alyx" FontFamily="{StaticResource DisplayFont}" FontSize="26" FontWeight="SemiBold" LetterSpacing="0.8" LineHeight="26" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Ellipse x:Name="ModelDot" Width="6" Height="6" Fill="{StaticResource Faint}" VerticalAlignment="Center" />
+          <TextBlock x:Name="ModelLine" Text="Connexion au moteur…" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" MaxWidth="170" />
+        </StackPanel>
+      </StackPanel>
+      <StackPanel Grid.Column="2" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <TextBlock x:Name="ClockText" Text="00:00" FontFamily="{StaticResource DisplayFont}" FontSize="30" FontWeight="Medium" HorizontalAlignment="Right" LineHeight="27" />
+        <TextBlock x:Name="DateText" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      </StackPanel>
+      <Button Grid.Column="3" Classes="flat hover-fill" Width="28" Height="28" CornerRadius="8" Margin="10,0,0,0" VerticalAlignment="Top"
+              Foreground="{StaticResource Muted}" ToolTip.Tip="Fermer (Échap)" AutomationProperties.Name="Fermer" Click="OnCloseClick">
+        <TextBlock Text="×" FontSize="18" LineHeight="18" />
+      </Button>
+    </Grid>
+
+    <!-- 2. Bande de stats -->
+    <StackPanel x:Name="StatsSection" Grid.Row="1">
+      <Border Margin="12,0" BorderBrush="{StaticResource Hair7}" BorderThickness="1" CornerRadius="10">
+        <Grid ColumnDefinitions="*,*,*,1.35*,*">
+          <StackPanel Grid.Column="0" Margin="10,8" Spacing="2">
+            <TextBlock Classes="key" Text="CPU" />
+            <TextBlock Classes="val" x:Name="StripCpu" Text="—" />
+          </StackPanel>
+          <Border Grid.Column="1" BorderBrush="{StaticResource Hair7}" BorderThickness="1,0,0,0">
+            <StackPanel Margin="10,8" Spacing="2">
+              <TextBlock Classes="key" Text="RAM" />
+              <TextBlock Classes="val" x:Name="StripRam" Text="—" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="2" BorderBrush="{StaticResource Hair7}" BorderThickness="1,0,0,0">
+            <StackPanel Margin="10,8" Spacing="2">
+              <TextBlock Classes="key" Text="GPU" />
+              <TextBlock Classes="val" x:Name="StripGpu" Text="—" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="3" BorderBrush="{StaticResource Hair7}" BorderThickness="1,0,0,0">
+            <StackPanel Margin="10,8" Spacing="2">
+              <TextBlock Classes="key" Text="NET" />
+              <TextBlock Classes="val" x:Name="StripNet" Text="—" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="4" BorderBrush="{StaticResource Hair7}" BorderThickness="1,0,0,0">
+            <StackPanel Margin="10,8" Spacing="2">
+              <TextBlock Classes="key" Text="BAT" />
+              <TextBlock Classes="val" x:Name="StripBat" Text="—" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
+
+      <!-- 3. Onglets -->
+      <Border BorderBrush="{StaticResource Hair7}" BorderThickness="0,0,0,1">
+        <StackPanel x:Name="TabBar" Orientation="Horizontal" Spacing="18" Margin="18,14,18,0">
+          <Button Classes="flat tab active" Tag="chat" Content="Chat" Click="OnTabClick" />
+          <Button Classes="flat tab" Tag="system" Content="Système" Click="OnTabClick" />
+          <Button Classes="flat tab" Tag="tasks" Content="Tâches" Click="OnTabClick" />
+          <Button Classes="flat tab" Tag="models" Content="Modèles" Click="OnTabClick" />
+          <Button Classes="flat tab" Tag="settings" Content="Réglages" Click="OnTabClick" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <!-- 4. Corps -->
+    <Panel x:Name="BodySection" Grid.Row="3">
+
+      <!-- Chat -->
+      <Grid x:Name="ChatView" RowDefinitions="*,Auto,Auto">
+        <ScrollViewer x:Name="ChatScroll">
+          <StackPanel Spacing="16" Margin="18,18,18,8">
+            <ItemsControl x:Name="MessageList">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Spacing="16" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.DataTemplates>
+                <DataTemplate DataType="m:UserMessage">
+                  <Border HorizontalAlignment="Right" MaxWidth="298" Padding="13,9" CornerRadius="14,14,4,14" Background="{StaticResource Fill07}">
+                    <SelectableTextBlock Text="{Binding Text}" FontSize="13.5" LineHeight="20" TextWrapping="Wrap" />
+                  </Border>
+                </DataTemplate>
+                <DataTemplate DataType="m:AlyxMessage">
+                  <StackPanel Spacing="5" HorizontalAlignment="Stretch">
+                    <TextBlock Text="ALYX" FontFamily="{StaticResource MonoFont}" FontSize="10" LetterSpacing="1.2" Foreground="{StaticResource AccentText}" />
+                    <c:MarkdownView Markdown="{Binding Text}" />
+                  </StackPanel>
+                </DataTemplate>
+                <DataTemplate DataType="m:ActionMessage">
+                  <TextBlock Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Faint}" TextWrapping="Wrap" />
+                </DataTemplate>
+                <DataTemplate DataType="m:ErrorMessage">
+                  <TextBlock Text="{Binding Text}" FontSize="12.5" Foreground="{StaticResource Danger}" TextWrapping="Wrap" />
+                </DataTemplate>
+                <DataTemplate DataType="m:PermissionRequest">
+                  <Border Padding="14" CornerRadius="14" BorderThickness="1" BorderBrush="{StaticResource AccentBorder35}" Background="{StaticResource AccentTint05}">
+                    <StackPanel Spacing="8">
+                      <TextBlock Text="VALIDATION REQUISE" FontFamily="{StaticResource MonoFont}" FontSize="10" LetterSpacing="1" Foreground="{StaticResource AccentText}" />
+                      <TextBlock Text="{Binding Action}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding Target}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                      <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding Pending}">
+                        <Button Classes="flat" Padding="14,7" CornerRadius="8" Background="{StaticResource Ink}" Foreground="White" FontSize="12" FontWeight="SemiBold"
+                                Content="Autoriser" Click="OnPermissionAccept" />
+                        <Button Classes="flat outline" Content="Refuser" Click="OnPermissionReject" />
+                      </StackPanel>
+                      <TextBlock Text="{Binding Decision}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Faint}"
+                                 IsVisible="{Binding !Pending}" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.DataTemplates>
+            </ItemsControl>
+            <StackPanel x:Name="ThinkingRow" Orientation="Horizontal" Spacing="8" IsVisible="False">
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <Ellipse Classes="jdot" />
+                <Ellipse Classes="jdot d2" />
+                <Ellipse Classes="jdot d3" />
+              </StackPanel>
+              <TextBlock x:Name="ThinkingText" Text="Alyx réfléchit" FontSize="12" Foreground="{StaticResource Muted}" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+
+        <WrapPanel x:Name="Suggestions" Grid.Row="1" Margin="18,4,18,4">
+          <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Qu'est-ce qui mange ma RAM ?" Click="OnSuggestionClick" />
+          <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Pourquoi mon PC rame ?" Click="OnSuggestionClick" />
+          <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Mets la musique en pause" Click="OnSuggestionClick" />
+          <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Un modèle plus léger ?" Click="OnSuggestionClick" />
+        </WrapPanel>
+
+        <Border Grid.Row="2" Padding="14,10,14,12" BorderBrush="{StaticResource Hair6}" BorderThickness="0,1,0,0">
+          <StackPanel Spacing="6">
+            <Border x:Name="Composer" CornerRadius="12" Padding="12,8,8,8" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
+              <Border.Transitions>
+                <Transitions><BrushTransition Property="BorderBrush" Duration="0:0:0.16" /></Transitions>
+              </Border.Transitions>
+              <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBox x:Name="Input" Classes="bare" Watermark="Demande à Alyx…" FontSize="13.5" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="96" VerticalAlignment="Center" />
+                <Button x:Name="MicButton" Grid.Column="1" Classes="flat hover-fill" Width="30" Height="30" CornerRadius="9" Margin="6,0,0,0" VerticalAlignment="Bottom"
+                        Foreground="{StaticResource Muted}" ToolTip.Tip="Parler à Alyx" AutomationProperties.Name="Parler à Alyx" Click="OnMicClick">
+                  <Path Data="M6 1.5a2 2 0 0 1 2 2v3a2 2 0 0 1-4 0v-3a2 2 0 0 1 2-2zM2.5 6.2a3.5 3.5 0 0 0 7 0M6 9.7v1.8" Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.3" StrokeLineCap="Round" Width="12" Height="13" Stretch="Uniform" />
+                </Button>
+                <Button x:Name="SendButton" Grid.Column="2" Classes="flat" Width="30" Height="30" CornerRadius="9" Margin="6,0,0,0" VerticalAlignment="Bottom"
+                        Background="{StaticResource Fill12}" ToolTip.Tip="Envoyer" AutomationProperties.Name="Envoyer" Click="OnSendClick">
+                  <Panel>
+                    <TextBlock x:Name="SendGlyph" Text="↑" FontSize="15" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <Rectangle x:Name="StopGlyph" Width="9" Height="9" RadiusX="2" RadiusY="2" Fill="{StaticResource Ink}" IsVisible="False" />
+                  </Panel>
+                </Button>
+              </Grid>
+            </Border>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock x:Name="RuntimeLine" Text="Local" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Faint}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="1" Text="Entrée pour envoyer" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Faint}" />
+            </Grid>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- Système -->
+      <ScrollViewer x:Name="SystemView" IsVisible="False">
+        <StackPanel Spacing="10" Margin="16">
+          <Border Classes="card">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="CPU" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
+                <TextBlock Grid.Column="1" Classes="big" x:Name="CpuValue" Text="—" />
+              </Grid>
+              <c:BarHistory x:Name="CpuBars" Height="38" BarBrush="{StaticResource Accent}" />
+              <TextBlock Classes="sub" x:Name="CpuSub" />
+            </StackPanel>
+          </Border>
+          <Border Classes="card">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Mémoire" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
+                <TextBlock Grid.Column="1" Classes="big" x:Name="RamValue" Text="—" />
+              </Grid>
+              <c:BarHistory x:Name="RamBars" Height="38" BarBrush="{StaticResource Ink}" />
+              <TextBlock Classes="sub" x:Name="RamSub" />
+            </StackPanel>
+          </Border>
+          <Border Classes="card">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="GPU" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
+                <TextBlock Grid.Column="1" Classes="big" x:Name="GpuValue" Text="—" />
+              </Grid>
+              <c:BarHistory x:Name="GpuBars" Height="38" BarBrush="{StaticResource GpuChart}" />
+              <TextBlock Classes="sub" x:Name="GpuSub" Text="Aucun GPU NVIDIA détecté" />
+            </StackPanel>
+          </Border>
+          <Border Classes="card">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Réseau" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" />
+                <TextBlock Grid.Column="1" x:Name="NetName" FontSize="11" Foreground="{StaticResource Muted}" />
+              </Grid>
+              <Grid ColumnDefinitions="*,*">
+                <StackPanel Spacing="2">
+                  <TextBlock Classes="label10" Text="DESCENDANT" LetterSpacing="0" />
+                  <TextBlock x:Name="NetDown" Text="—" FontFamily="{StaticResource MonoFont}" FontSize="18" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <TextBlock Classes="label10" Text="MONTANT" LetterSpacing="0" />
+                  <TextBlock x:Name="NetUp" Text="—" FontFamily="{StaticResource MonoFont}" FontSize="18" />
+                </StackPanel>
+              </Grid>
+              <TextBlock Classes="sub" x:Name="NetSub" />
+            </StackPanel>
+          </Border>
+          <Border Classes="card">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Batterie" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
+                <TextBlock Grid.Column="1" Classes="big" x:Name="BatValue" Text="—" />
+              </Grid>
+              <Border Height="8" CornerRadius="4" Background="{StaticResource Fill08}" ClipToBounds="True">
+                <Border x:Name="BatFill" HorizontalAlignment="Left" Width="0" CornerRadius="4" Background="{StaticResource Ink}">
+                  <Border.Transitions>
+                    <Transitions><DoubleTransition Property="Width" Duration="0:0:0.6" /></Transitions>
+                  </Border.Transitions>
+                </Border>
+              </Border>
+              <TextBlock Classes="sub" x:Name="BatSub" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Tâches -->
+      <Grid x:Name="TasksView" IsVisible="False" RowDefinitions="Auto,*">
+        <Grid ColumnDefinitions="*,Auto" Margin="18,12,18,8">
+          <TextBlock x:Name="ProcCount" FontSize="11" Foreground="{StaticResource Muted}" />
+          <TextBlock Grid.Column="1" Text="TRIÉ PAR CPU" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Muted}" />
+        </Grid>
+        <ScrollViewer Grid.Row="1">
+          <ItemsControl x:Name="ProcessList" Margin="10,0,10,10">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="m:ProcessItem">
+                <Border Classes="row" Padding="8,9" CornerRadius="8" Background="Transparent">
+                  <Grid ColumnDefinitions="*,94,74,62">
+                    <StackPanel Spacing="1" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" Classes.alyx="{Binding IsAlyx}">
+                        <TextBlock.Styles>
+                          <Style Selector="TextBlock.alyx"><Setter Property="Foreground" Value="{StaticResource AccentText}" /></Style>
+                        </TextBlock.Styles>
+                      </TextBlock>
+                      <TextBlock Text="{Binding PidText}" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Faint}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0" VerticalAlignment="Center">
+                      <Border Width="42" Height="4" CornerRadius="2" Background="{StaticResource Fill08}" ClipToBounds="True">
+                        <Border HorizontalAlignment="Left" Width="{Binding BarWidth}" Background="{StaticResource Accent}" />
+                      </Border>
+                      <TextBlock Text="{Binding CpuText}" Width="36" TextAlignment="Right" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" Margin="10,0,0,0" Text="{Binding MemText}" TextAlignment="Right" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Ink2}" />
+                    <Button Grid.Column="3" Margin="10,0,0,0" Classes="flat hover-danger" Padding="0,4" CornerRadius="6" HorizontalAlignment="Stretch" FontSize="11"
+                            Foreground="{StaticResource Muted}" Content="Fin" ToolTip.Tip="Terminer le processus" Click="OnKillClick" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+
+      <!-- Modèles -->
+      <ScrollViewer x:Name="ModelsView" IsVisible="False">
+        <StackPanel Spacing="14" Margin="16">
+          <Border x:Name="LoadedCard" Padding="16" CornerRadius="14" BorderThickness="1" BorderBrush="{StaticResource AccentBorder35}" Background="{StaticResource AccentTint05}">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="3">
+                  <TextBlock x:Name="LoadedLabel" Text="ACTIF" FontFamily="{StaticResource MonoFont}" FontSize="10" LetterSpacing="1" Foreground="{StaticResource AccentText}" />
+                  <TextBlock x:Name="LoadedName" Text="—" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock x:Name="LoadedMeta" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Muted}" />
+                </StackPanel>
+                <Button x:Name="UnloadButton" Grid.Column="1" Classes="flat outline" VerticalAlignment="Top" Content="Décharger" Click="OnUnloadClick" />
+              </Grid>
+              <Grid ColumnDefinitions="*,*,*">
+                <StackPanel Spacing="2">
+                  <TextBlock Classes="label10" Text="VITESSE" LetterSpacing="0" />
+                  <TextBlock x:Name="LoadedTps" Text="—" FontFamily="{StaticResource MonoFont}" FontSize="14" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <TextBlock Classes="label10" Text="VRAM" LetterSpacing="0" />
+                  <TextBlock x:Name="LoadedVram" Text="—" FontFamily="{StaticResource MonoFont}" FontSize="14" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="2">
+                  <TextBlock Classes="label10" Text="CONTEXTE" LetterSpacing="0" />
+                  <TextBlock x:Name="LoadedCtx" Text="—" FontFamily="{StaticResource MonoFont}" FontSize="14" />
+                </StackPanel>
+              </Grid>
+              <Border x:Name="VramTrack" Height="6" CornerRadius="3" Background="{StaticResource Fill08}" ClipToBounds="True">
+                <Border x:Name="VramFill" HorizontalAlignment="Left" Width="0" Background="{StaticResource Accent}" />
+              </Border>
+            </StackPanel>
+          </Border>
+          <StackPanel Spacing="4">
+            <TextBlock Classes="label10" Text="BIBLIOTHÈQUE LOCALE · OLLAMA / LM STUDIO" Margin="4,0,4,4" />
+            <ItemsControl x:Name="ModelList">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="m:ModelItem">
+                  <Border Classes="row" Padding="10" CornerRadius="10" Background="Transparent">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Meta}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Faint}" />
+                      </StackPanel>
+                      <Button Grid.Column="1" Margin="12,0,0,0" Classes="flat solid" Content="{Binding ButtonText}" IsEnabled="{Binding !Loading}" Click="OnLoadModelClick" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock x:Name="NoModels" IsVisible="False" Margin="4,8" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap"
+                       Text="Aucun autre modèle trouvé. Installez-en avec « ollama pull » ou depuis LM Studio." />
+            <Button Classes="flat hover-accent" Margin="0,6,0,0" Padding="12" CornerRadius="10" HorizontalAlignment="Stretch"
+                    BorderBrush="{StaticResource Hair14}" BorderThickness="1" FontSize="12" Foreground="{StaticResource Muted}"
+                    Content="Actualiser la liste des modèles" Click="OnRefreshModelsClick" />
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Réglages -->
+      <ScrollViewer x:Name="SettingsView" IsVisible="False">
+        <StackPanel Spacing="18" Margin="16">
+          <UniformGrid x:Name="TileGrid" Columns="3" Margin="0,0,-8,-8" />
+          <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="80,*,46">
+              <TextBlock Text="Volume" FontSize="12" Foreground="{StaticResource Ink2}" VerticalAlignment="Center" />
+              <Slider x:Name="VolumeSlider" Grid.Column="1" Margin="10,0,0,0" Minimum="0" Maximum="100" VerticalAlignment="Center" />
+              <TextBlock x:Name="VolumeText" Grid.Column="2" Text="—" FontFamily="{StaticResource MonoFont}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+            <Grid ColumnDefinitions="80,*,46">
+              <TextBlock Text="Luminosité" FontSize="12" Foreground="{StaticResource Ink2}" VerticalAlignment="Center" />
+              <Slider x:Name="BrightnessSlider" Grid.Column="1" Margin="10,0,0,0" Minimum="0" Maximum="100" VerticalAlignment="Center" />
+              <TextBlock x:Name="BrightnessText" Grid.Column="2" Text="—" FontFamily="{StaticResource MonoFont}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+          </StackPanel>
+          <!-- Voix et langue -->
+          <Border BorderBrush="{StaticResource Hair7}" BorderThickness="0,1,0,0" Padding="0,6,0,0">
+            <StackPanel Spacing="12">
+              <TextBlock Classes="label10" Text="VOIX ET LANGUE" Margin="0,8,0,0" />
+              <StackPanel Spacing="6">
+                <TextBlock Text="Langue des réponses" FontSize="12" Foreground="{StaticResource Ink2}" />
+                <WrapPanel x:Name="LanguageChips" />
+              </StackPanel>
+              <StackPanel Spacing="4">
+                <TextBlock Text="Voix d'Alyx" FontSize="12" Foreground="{StaticResource Ink2}" />
+                <Border x:Name="NoLanguageVoice" IsVisible="False" Padding="12,10" CornerRadius="10" BorderThickness="1"
+                        BorderBrush="{StaticResource AccentBorder35}" Background="{StaticResource AccentTint05}" Margin="0,2,0,4">
+                  <StackPanel Spacing="8">
+                    <TextBlock x:Name="NoLanguageVoiceText" FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource Ink2}" />
+                    <Button x:Name="InstallVoicesButton" Classes="flat outline" HorizontalAlignment="Left" Content="Installer des voix…" Click="OnInstallVoicesClick" />
+                  </StackPanel>
+                </Border>
+                <ItemsControl x:Name="VoiceList">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="m:VoiceItem">
+                      <Button Classes="flat voice" Classes.selected="{Binding Selected}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                              Padding="10,8" CornerRadius="10" BorderThickness="1" Margin="0,0,0,4"
+                              AutomationProperties.Name="{Binding Name}" Click="OnVoiceClick">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <StackPanel Spacing="2">
+                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Meta}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Faint}" />
+                          </StackPanel>
+                          <Ellipse Grid.Column="1" Width="8" Height="8" Fill="{StaticResource Accent}" VerticalAlignment="Center" IsVisible="{Binding Selected}" />
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+              <Grid ColumnDefinitions="80,*,46">
+                <TextBlock Text="Vitesse" FontSize="12" Foreground="{StaticResource Ink2}" VerticalAlignment="Center" />
+                <Slider x:Name="RateSlider" Grid.Column="1" Margin="10,0,0,0" Minimum="-10" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                <TextBlock x:Name="RateText" Grid.Column="2" Text="×1.0" FontFamily="{StaticResource MonoFont}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center" />
+              </Grid>
+              <Button x:Name="SpeakAllPref" AutomationProperties.Name="Lire toutes les réponses à voix haute" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,4" Click="OnSpeakAllClick">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="Lire toutes les réponses à voix haute" FontSize="13" />
+                    <TextBlock Text="Sinon, Alyx ne parle qu'en mode vocal (micro)" FontSize="11" Foreground="{StaticResource Faint}" />
+                  </StackPanel>
+                  <Border x:Name="SpeakAllTrack" Grid.Column="1" Classes="track" VerticalAlignment="Center"><Border Classes="knob" /></Border>
+                </Grid>
+              </Button>
+              <Button Classes="flat outline" HorizontalAlignment="Left" Content="▶  Écouter la voix" Click="OnTestVoiceClick" />
+              <StackPanel Spacing="4" Margin="0,6,0,0">
+                <TextBlock Text="Micro" FontSize="12" Foreground="{StaticResource Ink2}" />
+                <Border x:Name="MicHint" IsVisible="False" Padding="12,10" CornerRadius="10" BorderThickness="1"
+                        BorderBrush="{StaticResource AccentBorder35}" Background="{StaticResource AccentTint05}" Margin="0,2,0,4">
+                  <TextBlock x:Name="MicHintText" FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource Ink2}" />
+                </Border>
+                <ItemsControl x:Name="MicList">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="m:VoiceItem">
+                      <Button Classes="flat voice" Classes.selected="{Binding Selected}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                              Padding="10,8" CornerRadius="10" BorderThickness="1" Margin="0,0,0,4"
+                              AutomationProperties.Name="{Binding Name}" Click="OnMicrophoneClick">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <StackPanel Spacing="2">
+                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Meta}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Faint}" />
+                          </StackPanel>
+                          <Ellipse Grid.Column="1" Width="8" Height="8" Fill="{StaticResource Accent}" VerticalAlignment="Center" IsVisible="{Binding Selected}" />
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,0">
+                  <Button x:Name="MicTestButton" Classes="flat outline" Content="🎙  Tester le micro" Click="OnTestMicrophoneClick" />
+                  <Border x:Name="MicLevel" Width="90" Height="4" CornerRadius="2" Background="{StaticResource Fill12}" VerticalAlignment="Center" IsVisible="False">
+                    <Border x:Name="MicLevelFill" Width="0" CornerRadius="2" Background="{StaticResource Accent}" HorizontalAlignment="Left" />
+                  </Border>
+                </StackPanel>
+                <TextBlock x:Name="MicTestText" FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource Ink2}" IsVisible="False" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+          <Border BorderBrush="{StaticResource Hair7}" BorderThickness="0,1,0,0" Padding="0,6,0,0">
+            <StackPanel>
+              <TextBlock Classes="label10" Text="ALYX" Margin="0,8" />
+              <Button x:Name="FollowPref" AutomationProperties.Name="L'œil suit le curseur" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,9" Click="OnFollowPrefClick">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="L'œil suit le curseur" FontSize="13" VerticalAlignment="Center" />
+                  <Border x:Name="FollowTrack" Grid.Column="1" Classes="track"><Border Classes="knob" /></Border>
+                </Grid>
+              </Button>
+              <Button x:Name="StartupPref" AutomationProperties.Name="Démarrage automatique" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,9" Click="OnStartupPrefClick">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock x:Name="StartupLabel" Text="Démarrer avec Windows" FontSize="13" VerticalAlignment="Center" />
+                  <Border x:Name="StartupTrack" Grid.Column="1" Classes="track"><Border Classes="knob" /></Border>
+                </Grid>
+              </Button>
+              <Grid ColumnDefinitions="*,Auto" Margin="0,9">
+                <TextBlock Text="Raccourci d'ouverture" FontSize="13" VerticalAlignment="Center" />
+                <Border Grid.Column="1" Padding="8,3" CornerRadius="6" BorderBrush="{StaticResource Hair12}" BorderThickness="1">
+                  <TextBlock x:Name="ShortcutText" Text="Alt + J" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Ink2}" />
+                </Border>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Panel>
+
+    <!-- 5. Barre média -->
+    <Border x:Name="MediaSection" Grid.Row="4" Padding="14,10" Background="{StaticResource Fill025}" BorderBrush="{StaticResource Hair7}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="38,*,Auto">
+        <Border Width="38" Height="38" CornerRadius="8" ClipToBounds="True">
+          <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="5.66,5.66" SpreadMethod="Repeat">
+              <LinearGradientBrush.Transform><RotateTransform Angle="0" /></LinearGradientBrush.Transform>
+              <GradientStop Offset="0" Color="#0F16181A" />
+              <GradientStop Offset="0.5" Color="#0F16181A" />
+              <GradientStop Offset="0.5" Color="#0516181A" />
+              <GradientStop Offset="1" Color="#0516181A" />
+            </LinearGradientBrush>
+          </Border.Background>
+          <Panel>
+            <TextBlock x:Name="ArtPlaceholder" Text="ART" FontFamily="{StaticResource MonoFont}" FontSize="7" Foreground="{StaticResource Faint}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <Image x:Name="ArtImage" Stretch="UniformToFill" />
+          </Panel>
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="5" Margin="12,0" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock x:Name="TrackTitle" Text="Aucun média" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="150" />
+            <TextBlock x:Name="TrackArtist" FontSize="12" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" MaxWidth="110" />
+          </StackPanel>
+          <Border x:Name="TrackBar" Height="3" CornerRadius="2" Background="{StaticResource Fill10}" ClipToBounds="True">
+            <Border x:Name="TrackFill" HorizontalAlignment="Left" Width="0" Background="{StaticResource Ink}">
+              <Border.Transitions>
+                <Transitions><DoubleTransition Property="Width" Duration="0:0:1" /></Transitions>
+              </Border.Transitions>
+            </Border>
+          </Border>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+          <Button Classes="flat hover-fill" Width="28" Height="28" CornerRadius="7" Foreground="{StaticResource Ink2}" ToolTip.Tip="Précédent" AutomationProperties.Name="Piste précédente" Click="OnPrevClick">
+            <Path Data="M1 1.5h1.6v9H1zM11 1.5v9L3.5 6z" Fill="{Binding $parent[Button].Foreground}" Width="12" Height="12" />
+          </Button>
+          <Button x:Name="PlayButton" Classes="flat" Width="32" Height="32" CornerRadius="16" Background="{StaticResource Ink}" Foreground="White" ToolTip.Tip="Lecture / pause" AutomationProperties.Name="Lecture ou pause" Click="OnPlayClick">
+            <Panel>
+              <Path x:Name="PauseGlyph" Data="M2 1.5h2.6v9H2zM7.4 1.5H10v9H7.4z" Fill="White" Width="12" Height="12" IsVisible="False" />
+              <Path x:Name="PlayGlyph" Data="M3 1.5v9L10.5 6z" Fill="White" Width="12" Height="12" />
+            </Panel>
+          </Button>
+          <Button Classes="flat hover-fill" Width="28" Height="28" CornerRadius="7" Foreground="{StaticResource Ink2}" ToolTip.Tip="Suivant" AutomationProperties.Name="Piste suivante" Click="OnNextClick">
+            <Path Data="M1 1.5v9L8.5 6zM9.4 1.5H11v9H9.4z" Fill="{Binding $parent[Button].Foreground}" Width="12" Height="12" />
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

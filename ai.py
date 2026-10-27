@@ -1,6 +1,5 @@
-import threading
-import sys
 from core.logger import get_logger
+from core.exceptions import PermissionRequiredException
 
 logger = get_logger('alyx.ai')
 from function import (
@@ -13,21 +12,20 @@ from function import (
     lire_fichier_securise,
     ecrire_fichier_securise,
     generer_pdf,
+    executer_avec_permission,
     faire_parler,
     ecouter,
     ouvrir_explorateur,
     ouvrir_application,
     lister_apps_actives,
     fermer_application,
+    controler_media,
     redemarrer_pc
 )
 
 from core.llm_provider import (
     chat_with_provider,
     preload_models,
-    lister_modeles_disponibles,
-    is_models_ready,
-    get_default_model
 )
 
 # --- 1. DÉFINITION DES OUTILS LOCAUX ---
@@ -45,13 +43,14 @@ outils_disponibles = {
     'lire_fichier_securise': lire_fichier_securise,
     'ecrire_fichier_securise': ecrire_fichier_securise,
     'generer_pdf': generer_pdf,
+    'controler_media': controler_media,
     'redemarrer_pc': redemarrer_pc
 }
 
 LISTE_FONCTIONS = list(outils_disponibles.values())
 
 # --- 2. INITIALISATION DE L'AGENT ---
-messages = [{'role': 'system', 'content': (
+PROMPT_BASE = (
     "Tu es Alyx, un assistant système intelligent et efficace. "
     "RÈGLE ABSOLUE : Si l'utilisateur te demande d'effectuer une action système (ouvrir/fermer une application, créer un fichier, etc.), "
     "tu DOIS IMPÉRATIVEMENT utiliser l'outil/la fonction JSON correspondant. "
@@ -59,27 +58,44 @@ messages = [{'role': 'system', 'content': (
     "IMPORTANT: Quand l'utilisateur te demande de réaliser PLUSIEURS actions dans une même requête "
     "(par exemple 'ferme Firefox et ouvre Discord'), tu DOIS appeler TOUS les outils nécessaires en même temps. "
     "Tu as accès aux outils pour : ouvrir/fermer des applications, lister les processus, gérer les fichiers "
-    "(lister, créer, renommer, déplacer, lire, écrire, et supprimer), générer des PDF, et redémarrer le PC. "
-    "Réponds toujours en français, de façon très concise. Moins tu parles, mieux c'est."
-)}]
+    "(lister, créer, renommer, déplacer, lire, écrire, et supprimer), générer des PDF, contrôler la musique (lecture/pause, suivant, précédent) et redémarrer le PC. Un état du système en direct (CPU, RAM, GPU, processus) t'est fourni : utilise-le pour répondre aux questions sur la machine. "
+    "Réponds de façon très concise. Moins tu parles, mieux c'est. "
+    "Mets en forme tes réponses en Markdown quand c'est utile (titres ##, listes, **gras**, `code`, tableaux) ; "
+    "écris les formules en LaTeX entre $...$, ou $$...$$ pour une formule seule sur sa ligne."
+)
 
-# Modèle courant (peut être changé dynamiquement via l'API)
+
+def prompt_systeme(langue: str = 'fr') -> str:
+    """Prompt système complet pour la langue de réponse choisie dans les réglages."""
+    from core.preferences import consigne_langue
+    return f"{PROMPT_BASE} {consigne_langue(langue)}"
+
+
+messages: list[dict] = [{'role': 'system', 'content': prompt_systeme('fr')}]
+
+# Modèle courant (peut être changé dynamiquement via l'API).
+# Le pré-chargement est lancé par le point d'entrée (api.py ou lancer_cli), pas à l'import.
 MODEL = 'Aucun modèle'
-_preload_thread = None
 
-# --- PRÉ-CHARGEMENT ASYNCHRONE AU DÉMARRAGE ---
-def _preload_and_set():
-    global MODEL
-    MODEL = preload_models()
 
-_preload_thread = threading.Thread(target=_preload_and_set, daemon=True)
-_preload_thread.start()
+def _executer_outil_cli(nom_fonction, arguments):
+    fonction = outils_disponibles.get(nom_fonction)
+    if fonction is None:
+        return f"Erreur: Outil {nom_fonction} introuvable."
+    try:
+        return fonction(**arguments)
+    except PermissionRequiredException as e:
+        reponse = input(f"     [Permission requise : {e.action} -> {e.cible}. Autoriser ? (o/N)] ").strip().lower()
+        if reponse not in ('o', 'oui', 'y', 'yes'):
+            return "L'utilisateur a refusé cette action."
+        return executer_avec_permission(fonction, arguments)
+    except TypeError as e:
+        return f"Erreur: arguments invalides pour {nom_fonction} ({e})."
 
 
 def lancer_cli():
-    global messages, MODEL
-    # Attendre que le pré-chargement des modèles soit terminé
-    _preload_thread.join(timeout=10)
+    global MODEL
+    MODEL = preload_models()
     logger.info("Alyx (Local): Agent Système en ligne.")
     print("---> Alyx (Local): Bonjour Maître Christ, l'Agent Système est en ligne.")
     print("     (Tape 'bye' pour quitter, ou 'vocal' pour activer/désactiver le micro)")
@@ -112,18 +128,14 @@ def lancer_cli():
         if not user_input_lower:
             continue
 
+        if MODEL == 'Aucun modèle':
+            print("\n---> Alyx: Aucun modèle n'est sélectionné ou disponible. Lancez Ollama ou LM Studio.")
+            continue
+
         messages.append({'role': 'user', 'content': user_input})
 
         try:
-            if MODEL == 'Aucun modèle':
-                print("\n---> Alyx: Aucun modèle n'est sélectionné ou disponible. Lancez Ollama ou LM Studio.")
-                continue
-
-            response = chat_with_provider(
-                model_name=MODEL,
-                messages_list=messages,
-                tools=LISTE_FONCTIONS
-            )
+            response = chat_with_provider(model_name=MODEL, messages_list=messages, tools=LISTE_FONCTIONS)
             message_ia = response['message']
             messages.append(message_ia)
 
@@ -133,28 +145,24 @@ def lancer_cli():
             while message_ia.get('tool_calls') and iteration < max_iterations:
                 for tool_call in message_ia['tool_calls']:
                     nom_fonction = tool_call['function']['name']
-                    arguments = tool_call['function'].get('arguments', {})
+                    arguments = tool_call['function'].get('arguments') or {}
                     logger.info(f"Action système détectée : exécution de {nom_fonction}({arguments})...")
                     print(f"     [Action système détectée : exécution de {nom_fonction}({arguments})...]")
 
-                    if nom_fonction in outils_disponibles:
-                        try:
-                            resultat_execution = outils_disponibles[nom_fonction](**arguments)
-                        except TypeError:
-                            resultat_execution = outils_disponibles[nom_fonction]()
-                    else:
-                        resultat_execution = f"Erreur: Outil {nom_fonction} introuvable."
-
+                    resultat_execution = _executer_outil_cli(nom_fonction, arguments)
                     messages.append({
                         'role': 'tool',
-                        'content': resultat_execution,
-                        'name': nom_fonction
+                        'content': str(resultat_execution),
+                        'name': nom_fonction,
+                        'tool_name': nom_fonction,
+                        'tool_call_id': tool_call['id']
                     })
 
-                response = chat_with_provider(model_name=MODEL, messages_list=messages, tools=LISTE_FONCTIONS)
+                iteration += 1
+                outils = LISTE_FONCTIONS if iteration < max_iterations else None
+                response = chat_with_provider(model_name=MODEL, messages_list=messages, tools=outils)
                 message_ia = response['message']
                 messages.append(message_ia)
-                iteration += 1
 
             print(f"\n---> Alyx: {message_ia['content']}")
             faire_parler(message_ia['content'])

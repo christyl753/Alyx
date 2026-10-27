@@ -1,30 +1,94 @@
 # Fichier : function/files.py
 import os
 import shutil
-from datetime import datetime
-import tkinter as tk
-from tkinter import messagebox
+import threading
 from fpdf import FPDF
 from core.logger import get_logger
+from core.exceptions import PermissionRequiredException
 
 logger = get_logger('alyx.files')
 
-def _resoudre_chemin(chemin: str) -> str:
+# Taille maximale lue par lire_fichier_securise (le contenu part dans le contexte du LLM)
+TAILLE_MAX_LECTURE = 100 * 1024
+
+# Permission accordée par l'utilisateur pour l'appel d'outil en cours (par thread)
+_permission_ctx = threading.local()
+
+# Nombre maximal d'entrées renvoyées par lister_fichiers (le résultat part dans le contexte du LLM)
+MAX_ENTREES_LISTE = 200
+
+def _normaliser(chemin: str) -> str:
+    return os.path.normcase(os.path.realpath(chemin))
+
+def _est_dans(chemin_reel: str, dossier_reel: str) -> bool:
+    try:
+        return os.path.commonpath([chemin_reel, dossier_reel]) == dossier_reel
+    except ValueError:  # lecteurs différents sous Windows
+        return False
+
+def _zones_sensibles() -> list:
+    """Emplacements où une écriture permettrait d'exécuter du code ou de voler des clés."""
+    home = os.path.expanduser("~")
+    zones = [
+        os.path.join(home, '.ssh'),
+        os.path.join(home, '.gnupg'),
+        os.path.join(home, '.config', 'autostart'),
+        os.path.join(home, '.config', 'systemd'),
+        os.path.join(home, '.bashrc'),
+        os.path.join(home, '.bash_profile'),
+        os.path.join(home, '.profile'),
+        os.path.join(home, '.zshrc'),
+    ]
+    appdata = os.environ.get('APPDATA')
+    if appdata:
+        zones.append(os.path.join(appdata, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup'))
+    return [_normaliser(z) for z in zones]
+
+def _resoudre_chemin(chemin: str, ecriture: bool = False) -> str:
     """Résout un chemin utilisateur (~, relatif) en chemin absolu propre et applique le sandboxing."""
-    chemin_absolu = os.path.abspath(os.path.expanduser(chemin.strip()))
-    home_dir = os.path.abspath(os.path.expanduser("~"))
-    
-    # Sandboxing: on vérifie que le chemin final est bien dans le dossier utilisateur
-    if not chemin_absolu.startswith(home_dir):
+    chemin_absolu = os.path.abspath(os.path.expanduser(str(chemin).strip()))
+    home_dir = _normaliser(os.path.expanduser("~"))
+
+    # Sandboxing: le chemin réel (liens symboliques résolus) doit être dans le dossier utilisateur
+    chemin_reel = _normaliser(chemin_absolu)
+    if not _est_dans(chemin_reel, home_dir):
         logger.warning(f"Tentative d'accès hors sandbox bloquée: {chemin_absolu}")
         raise PermissionError(f"Accès refusé : Le chemin '{chemin_absolu}' est en dehors de votre répertoire utilisateur autorisé.")
-    
+
+    if ecriture and any(_est_dans(chemin_reel, zone) for zone in _zones_sensibles()):
+        logger.warning(f"Écriture dans une zone sensible bloquée: {chemin_absolu}")
+        raise PermissionError(f"Accès refusé : '{chemin_absolu}' est un emplacement système sensible (démarrage automatique, clés...).")
+
     return chemin_absolu
 
-def creer_fichier(chemin: str) -> str:
-    """Crée un fichier texte vide au chemin spécifié (ex: '~/Bureau/note.txt')."""
+def executer_avec_permission(fonction, arguments: dict):
+    """Exécute un outil après validation explicite de l'utilisateur (Human-in-the-Loop)."""
+    _permission_ctx.accordee = True
     try:
-        chemin_absolu = _resoudre_chemin(chemin)
+        return fonction(**arguments)
+    finally:
+        _permission_ctx.accordee = False
+
+def _demander_permission(action: str, cible: str) -> bool:
+    """
+    Demande la permission d'effectuer une action critique.
+    Si l'utilisateur ne l'a pas encore accordée pour cet appel, lève une PermissionRequiredException
+    interceptée par le handler WebSocket (api.py), qui suspend l'exécution et envoie une demande
+    de validation au frontend C# (Human-in-the-Loop). L'outil est ré-exécuté via
+    executer_avec_permission() une fois l'action autorisée.
+    """
+    if getattr(_permission_ctx, 'accordee', False):
+        return True
+    raise PermissionRequiredException(action, cible)
+
+def creer_fichier(chemin: str) -> str:
+    """Crée un fichier texte vide.
+
+    Args:
+        chemin: Chemin du fichier à créer (ex: '~/Bureau/note.txt').
+    """
+    try:
+        chemin_absolu = _resoudre_chemin(chemin, ecriture=True)
     except PermissionError as e:
         return str(e)
     try:
@@ -38,9 +102,13 @@ def creer_fichier(chemin: str) -> str:
         return f"Erreur lors de la création du fichier '{chemin}': {str(e)}"
 
 def creer_dossier(chemin: str) -> str:
-    """Crée un nouveau dossier au chemin spécifié (ex: '~/Documents/Projet')."""
+    """Crée un nouveau dossier.
+
+    Args:
+        chemin: Chemin du dossier à créer (ex: '~/Documents/Projet').
+    """
     try:
-        chemin_absolu = _resoudre_chemin(chemin)
+        chemin_absolu = _resoudre_chemin(chemin, ecriture=True)
     except PermissionError as e:
         return str(e)
     try:
@@ -50,7 +118,11 @@ def creer_dossier(chemin: str) -> str:
         return f"Erreur lors de la création du dossier '{chemin}': {str(e)}"
 
 def lister_fichiers(dossier: str = "~") -> str:
-    """Liste les fichiers et dossiers présents dans un répertoire donné."""
+    """Liste les fichiers et dossiers présents dans un répertoire.
+
+    Args:
+        dossier: Chemin du dossier à lister (ex: '~/Documents'). Par défaut le dossier utilisateur.
+    """
     try:
         chemin = _resoudre_chemin(dossier)
     except PermissionError as e:
@@ -58,44 +130,66 @@ def lister_fichiers(dossier: str = "~") -> str:
     if not os.path.isdir(chemin):
         return f"Erreur: '{chemin}' n'est pas un dossier valide ou n'existe pas."
     try:
-        elements = os.listdir(chemin)
+        with os.scandir(chemin) as it:
+            elements = sorted(it, key=lambda e: e.name)
         if not elements:
             return f"Le dossier '{chemin}' est vide."
-        resultat = f"Contenu de '{chemin}':\n"
-        for e in sorted(elements):
-            chemin_complet = os.path.join(chemin, e)
-            type_e = "📁" if os.path.isdir(chemin_complet) else "📄"
-            resultat += f"{type_e} {e}\n"
-        return resultat
+        lignes = [f"Contenu de '{chemin}' ({len(elements)} éléments):"]
+        for e in elements[:MAX_ENTREES_LISTE]:
+            try:
+                type_e = "📁" if e.is_dir() else "📄"
+            except OSError:
+                type_e = "📄"
+            lignes.append(f"{type_e} {e.name}")
+        if len(elements) > MAX_ENTREES_LISTE:
+            lignes.append(f"[... {len(elements) - MAX_ENTREES_LISTE} éléments non affichés]")
+        return "\n".join(lignes) + "\n"
     except PermissionError:
         return f"Erreur: permission refusée pour lire '{chemin}'."
 
 def renommer_fichier(chemin_actuel: str, nouveau_nom: str) -> str:
-    """Renomme un fichier ou dossier."""
+    """Renomme un fichier ou dossier (sans le déplacer).
+
+    Args:
+        chemin_actuel: Chemin actuel du fichier ou dossier (ex: '~/Bureau/note.txt').
+        nouveau_nom: Nouveau nom seul, sans chemin (ex: 'notes.txt').
+    """
     try:
-        source = _resoudre_chemin(chemin_actuel)
+        source = _resoudre_chemin(chemin_actuel, ecriture=True)
     except PermissionError as e:
         return str(e)
     if not os.path.exists(source):
         return f"Erreur: '{source}' n'existe pas."
 
-    dossier_parent = os.path.dirname(source)
-    destination = os.path.join(dossier_parent, nouveau_nom.strip())
+    nom = str(nouveau_nom).strip()
+    if not nom or nom in ('.', '..') or os.path.basename(nom) != nom or '/' in nom or '\\' in nom:
+        return "Erreur: le nouveau nom doit être un simple nom de fichier, sans chemin."
+
+    destination = os.path.join(os.path.dirname(source), nom)
+    try:
+        _resoudre_chemin(destination, ecriture=True)
+    except PermissionError as e:
+        return str(e)
 
     if os.path.exists(destination):
-        return f"Erreur: un fichier nommé '{nouveau_nom}' existe déjà dans ce dossier."
+        return f"Erreur: un fichier nommé '{nom}' existe déjà dans ce dossier."
 
     try:
         os.rename(source, destination)
-        return f"'{os.path.basename(source)}' a été renommé en '{nouveau_nom}' avec succès."
+        return f"'{os.path.basename(source)}' a été renommé en '{nom}' avec succès."
     except Exception as e:
         return f"Erreur lors du renommage : {str(e)}"
 
 def deplacer_fichier(chemin_source: str, dossier_destination: str) -> str:
-    """Déplace un fichier ou dossier vers un autre dossier."""
+    """Déplace un fichier ou dossier vers un autre dossier.
+
+    Args:
+        chemin_source: Chemin du fichier ou dossier à déplacer.
+        dossier_destination: Dossier de destination existant.
+    """
     try:
-        source = _resoudre_chemin(chemin_source)
-        destination_dossier = _resoudre_chemin(dossier_destination)
+        source = _resoudre_chemin(chemin_source, ecriture=True)
+        destination_dossier = _resoudre_chemin(dossier_destination, ecriture=True)
     except PermissionError as e:
         return str(e)
 
@@ -114,7 +208,11 @@ def deplacer_fichier(chemin_source: str, dossier_destination: str) -> str:
         return f"Erreur lors du déplacement : {str(e)}"
 
 def supprimer_fichier(chemin: str) -> str:
-    """Déplace un fichier vers la corbeille système de l'OS (XDG/Windows/Mac)."""
+    """Déplace un fichier ou dossier vers la corbeille du système (permission requise).
+
+    Args:
+        chemin: Chemin du fichier ou dossier à supprimer.
+    """
     try:
         chemin_absolu = _resoudre_chemin(chemin)
     except PermissionError as e:
@@ -123,12 +221,11 @@ def supprimer_fichier(chemin: str) -> str:
     if not os.path.exists(chemin_absolu):
         return f"Erreur : L'élément '{chemin}' est introuvable."
 
-    dossiers_proteges = ["/", os.path.expanduser("~"), "/home", "/usr", "/etc", "/bin", "/boot", "C:\\", "C:\\Windows", "C:\\Program Files"]
-    if chemin_absolu in dossiers_proteges:
-        return f"Erreur : '{chemin_absolu}' est un dossier système protégé, action refusée."
+    if _normaliser(chemin_absolu) == _normaliser(os.path.expanduser("~")):
+        return f"Erreur : '{chemin_absolu}' est un dossier protégé, action refusée."
 
     _demander_permission("SUPPRIMER un fichier", chemin_absolu)
-    
+
     try:
         from send2trash import send2trash
         send2trash(chemin_absolu)
@@ -136,80 +233,95 @@ def supprimer_fichier(chemin: str) -> str:
     except Exception as e:
         return f"Erreur lors de la mise en corbeille : {str(e)}"
 
-def _demander_permission(action: str, cible: str) -> bool:
-    """
-    Demande la permission d'effectuer une action critique.
-    Lève une PermissionRequiredException interceptée par le handler WebSocket (api.py),
-    qui suspend l'exécution et envoie une demande de validation au frontend C# (Human-in-the-Loop).
-    """
-    from core.exceptions import PermissionRequiredException
-    raise PermissionRequiredException(action, cible)
-
 def lire_fichier_securise(chemin: str) -> str:
-    """Lit le contenu d'un fichier après avoir demandé la permission."""
+    """Lit le contenu d'un fichier texte (permission requise).
+
+    Args:
+        chemin: Chemin du fichier à lire.
+    """
     try:
         chemin_absolu = _resoudre_chemin(chemin)
     except PermissionError as e:
         return str(e)
     if not os.path.isfile(chemin_absolu):
         return f"Erreur : Le fichier '{chemin}' n'existe pas."
-    
-    if _demander_permission("LIRE un fichier", chemin_absolu):
-        try:
-            with open(chemin_absolu, 'r', encoding='utf-8') as f:
-                contenu = f.read()
-            return f"Contenu de {chemin} :\n{contenu}"
-        except Exception as e:
-            return f"Erreur lors de la lecture : {str(e)}"
-    else:
-        return "Erreur : L'utilisateur a refusé la permission de lire ce fichier."
+
+    _demander_permission("LIRE un fichier", chemin_absolu)
+    try:
+        taille = os.path.getsize(chemin_absolu)
+        with open(chemin_absolu, 'rb') as f:
+            brut = f.read(TAILLE_MAX_LECTURE)
+        if b'\x00' in brut[:8192]:
+            return f"Erreur : '{chemin}' semble être un fichier binaire, lecture refusée."
+        contenu = brut.decode('utf-8', errors='replace')
+        if taille > TAILLE_MAX_LECTURE:
+            contenu += f"\n[... contenu tronqué : {TAILLE_MAX_LECTURE // 1024} Ko lus sur {taille // 1024} Ko]"
+        return f"Contenu de {chemin} :\n{contenu}"
+    except Exception as e:
+        return f"Erreur lors de la lecture : {str(e)}"
 
 def ecrire_fichier_securise(chemin: str, contenu: str) -> str:
-    """Écrit du contenu dans un fichier après avoir demandé la permission."""
+    """Écrit du texte dans un fichier, en le créant ou en l'écrasant (permission requise).
+
+    Args:
+        chemin: Chemin du fichier à écrire.
+        contenu: Texte à écrire dans le fichier.
+    """
     try:
-        chemin_absolu = _resoudre_chemin(chemin)
+        chemin_absolu = _resoudre_chemin(chemin, ecriture=True)
     except PermissionError as e:
         return str(e)
-    
-    if _demander_permission("ECRIRE dans un fichier (ou le créer)", chemin_absolu):
-        try:
-            dossier_parent = os.path.dirname(chemin_absolu)
-            if dossier_parent:
-                os.makedirs(dossier_parent, exist_ok=True)
-            with open(chemin_absolu, 'w', encoding='utf-8') as f:
-                f.write(contenu)
-            return f"Succès : Le contenu a été écrit dans '{chemin}'."
-        except Exception as e:
-            return f"Erreur lors de l'écriture : {str(e)}"
-    else:
-        return "Erreur : L'utilisateur a refusé la permission d'écrire dans ce fichier."
+
+    _demander_permission("ECRIRE dans un fichier (ou le créer)", chemin_absolu)
+    try:
+        dossier_parent = os.path.dirname(chemin_absolu)
+        if dossier_parent:
+            os.makedirs(dossier_parent, exist_ok=True)
+        with open(chemin_absolu, 'w', encoding='utf-8') as f:
+            f.write(contenu)
+        return f"Succès : Le contenu a été écrit dans '{chemin}'."
+    except Exception as e:
+        return f"Erreur lors de l'écriture : {str(e)}"
+
+# Les polices PDF standard (Helvetica) ne couvrent que le Latin-1
+_REMPLACEMENTS_PDF = str.maketrans({
+    '‘': "'", '’': "'", '“': '"', '”': '"', '«': '"', '»': '"',
+    '–': '-', '—': '-', '…': '...', '•': '-', ' ': ' ', ' ': ' ',
+    'œ': 'oe', 'Œ': 'OE',
+})
+
+def _texte_latin1(texte: str) -> str:
+    return str(texte).translate(_REMPLACEMENTS_PDF).encode('latin-1', errors='replace').decode('latin-1')
 
 def generer_pdf(chemin: str, contenu: str) -> str:
-    """Génère un fichier PDF avec le contenu spécifié (permission requise)."""
+    """Génère un fichier PDF contenant le texte donné (permission requise).
+
+    Args:
+        chemin: Chemin du PDF à créer (ex: '~/Documents/rapport.pdf').
+        contenu: Texte à écrire dans le PDF.
+    """
     if not chemin.lower().endswith(".pdf"):
         chemin += ".pdf"
-    
+
     try:
-        chemin_absolu = _resoudre_chemin(chemin)
+        chemin_absolu = _resoudre_chemin(chemin, ecriture=True)
     except PermissionError as e:
         return str(e)
-    
-    if _demander_permission("GENERER UN PDF", chemin_absolu):
-        try:
-            dossier_parent = os.path.dirname(chemin_absolu)
-            if dossier_parent:
-                os.makedirs(dossier_parent, exist_ok=True)
-                
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Helvetica", size=12)
-            
-            # Gestion du texte multi-lignes pour fpdf2
-            pdf.multi_cell(0, 10, txt=contenu)
-            
-            pdf.output(chemin_absolu)
-            return f"Succès : Le PDF a été généré dans '{chemin}'."
-        except Exception as e:
-            return f"Erreur lors de la génération du PDF : {str(e)}"
-    else:
-        return "Erreur : L'utilisateur a refusé la génération de ce PDF."
+
+    _demander_permission("GENERER UN PDF", chemin_absolu)
+    try:
+        dossier_parent = os.path.dirname(chemin_absolu)
+        if dossier_parent:
+            os.makedirs(dossier_parent, exist_ok=True)
+
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Helvetica", size=12)
+
+        # Gestion du texte multi-lignes pour fpdf2
+        pdf.multi_cell(0, 10, _texte_latin1(contenu))
+
+        pdf.output(chemin_absolu)
+        return f"Succès : Le PDF a été généré dans '{chemin}'."
+    except Exception as e:
+        return f"Erreur lors de la génération du PDF : {str(e)}"

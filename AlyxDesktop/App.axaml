@@ -2,9 +2,190 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="AlyxDesktop.App"
              RequestedThemeVariant="Light">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
-    <Application.Styles>
-        <FluentTheme />
-    </Application.Styles>
+  <Application.Resources>
+    <!-- Typographie : Manrope (UI), JetBrains Mono (données), Fredoka (affichage, remplace Yellow Banana) -->
+    <FontFamily x:Key="UiFont">avares://AlyxDesktop/Assets/Fonts#Manrope</FontFamily>
+    <FontFamily x:Key="MonoFont">avares://AlyxDesktop/Assets/Fonts#JetBrains Mono</FontFamily>
+    <FontFamily x:Key="DisplayFont">avares://AlyxDesktop/Assets/Fonts#Fredoka</FontFamily>
+
+    <!-- Tokens du thème clair « fresh minimalist » -->
+    <SolidColorBrush x:Key="Bg" Color="#F5F6F2" />
+    <SolidColorBrush x:Key="Surface" Color="#FFFFFF" />
+    <!-- Le design prévoit blanc 90 % + flou ; sans flou par élément sous Avalonia, 97 % garde le texte lisible -->
+    <SolidColorBrush x:Key="PanelSurface" Color="#F7FFFFFF" />
+    <SolidColorBrush x:Key="NodeSurface" Color="#F5FFFFFF" />
+    <SolidColorBrush x:Key="Ink" Color="#16181A" />
+    <SolidColorBrush x:Key="Ink2" Color="#3C4043" />
+    <SolidColorBrush x:Key="TextBody" Color="#26292C" />
+    <SolidColorBrush x:Key="Muted" Color="#61676B" />
+    <SolidColorBrush x:Key="Faint" Color="#80868A" />
+    <SolidColorBrush x:Key="Accent" Color="#F4CE23" />
+    <SolidColorBrush x:Key="AccentText" Color="#7A6400" />
+    <SolidColorBrush x:Key="AccentDeep" Color="#3D3300" />
+    <SolidColorBrush x:Key="AccentTint" Color="#24E8C81E" />
+    <SolidColorBrush x:Key="AccentTint05" Color="#0DE8C81E" />
+    <SolidColorBrush x:Key="AccentTint08" Color="#14E8C81E" />
+    <SolidColorBrush x:Key="AccentBorder" Color="#66E8C81E" />
+    <SolidColorBrush x:Key="AccentBorder28" Color="#47E8C81E" />
+    <SolidColorBrush x:Key="AccentBorder35" Color="#59E8C81E" />
+    <SolidColorBrush x:Key="AccentFocus" Color="#73E8C81E" />
+    <SolidColorBrush x:Key="GpuChart" Color="#62D0A4" />
+    <SolidColorBrush x:Key="Success" Color="#3E9A63" />
+    <SolidColorBrush x:Key="Danger" Color="#B4384E" />
+    <SolidColorBrush x:Key="DangerTint" Color="#14C83C50" />
+    <SolidColorBrush x:Key="Hair6" Color="#0F16181A" />
+    <SolidColorBrush x:Key="Hair7" Color="#1216181A" />
+    <SolidColorBrush x:Key="Hair8" Color="#1416181A" />
+    <SolidColorBrush x:Key="Hair9" Color="#1716181A" />
+    <SolidColorBrush x:Key="Hair10" Color="#1A16181A" />
+    <SolidColorBrush x:Key="Hair12" Color="#1F16181A" />
+    <SolidColorBrush x:Key="Hair14" Color="#2416181A" />
+    <SolidColorBrush x:Key="Fill025" Color="#0616181A" />
+    <SolidColorBrush x:Key="Fill035" Color="#0916181A" />
+    <SolidColorBrush x:Key="Fill04" Color="#0A16181A" />
+    <SolidColorBrush x:Key="Fill07" Color="#1216181A" />
+    <SolidColorBrush x:Key="Fill08" Color="#1416181A" />
+    <SolidColorBrush x:Key="Fill10" Color="#1A16181A" />
+    <SolidColorBrush x:Key="Fill12" Color="#1F16181A" />
+
+    <!-- Curseurs (volume / luminosité) aux couleurs de l'accent -->
+    <SolidColorBrush x:Key="SliderTrackValueFill" Color="#F4CE23" />
+    <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#F4CE23" />
+    <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#E0BC17" />
+    <SolidColorBrush x:Key="SliderThumbBackground" Color="#F4CE23" />
+    <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#F4CE23" />
+    <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="#E0BC17" />
+    <SolidColorBrush x:Key="SliderTrackFill" Color="#1F16181A" />
+    <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#2916181A" />
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+
+    <!-- Bouton « nu » (équivalent de all:unset) : aucun habillage Fluent -->
+    <Style Selector="Button.flat">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <ContentPresenter Name="PART_Flat"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Foreground="{TemplateBinding Foreground}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button.flat:disabled">
+      <Setter Property="Opacity" Value=".45" />
+    </Style>
+    <Style Selector="Button.flat.hover-fill:pointerover">
+      <Setter Property="Background" Value="{StaticResource Fill07}" />
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    </Style>
+    <Style Selector="Button.flat.hover-accent:pointerover">
+      <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    </Style>
+    <Style Selector="Button.flat.hover-danger:pointerover">
+      <Setter Property="Background" Value="{StaticResource DangerTint}" />
+      <Setter Property="Foreground" Value="{StaticResource Danger}" />
+    </Style>
+    <Style Selector="Button.flat.hover-ink:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    </Style>
+
+    <!-- Champ de saisie sans habillage (le cadre est porté par le parent) -->
+    <Style Selector="TextBox.bare">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0,3" />
+      <Setter Property="MinHeight" Value="21" />
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="CaretBrush" Value="{StaticResource Ink}" />
+      <Setter Property="SelectionBrush" Value="{StaticResource AccentBorder}" />
+    </Style>
+    <Style Selector="TextBox.bare:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.bare:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.bare /template/ TextBlock#PART_Watermark">
+      <Setter Property="Foreground" Value="{StaticResource Faint}" />
+    </Style>
+
+    <!-- Texte sélectionnable des messages -->
+    <Style Selector="SelectableTextBlock">
+      <Setter Property="SelectionBrush" Value="{StaticResource AccentBorder}" />
+    </Style>
+
+    <!-- « Alyx réfléchit » : trois points pulsés -->
+    <Style Selector="Ellipse.jdot">
+      <Setter Property="Width" Value="5" />
+      <Setter Property="Height" Value="5" />
+      <Setter Property="Fill" Value="{StaticResource Accent}" />
+      <Style.Animations>
+        <Animation Duration="0:0:1.2" IterationCount="Infinite">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value=".2" /></KeyFrame>
+          <KeyFrame Cue="40%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="80%"><Setter Property="Opacity" Value=".2" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value=".2" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Ellipse.jdot.d2">
+      <Style.Animations>
+        <Animation Duration="0:0:1.2" Delay="0:0:0.15" IterationCount="Infinite">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value=".2" /></KeyFrame>
+          <KeyFrame Cue="40%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="80%"><Setter Property="Opacity" Value=".2" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value=".2" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Ellipse.jdot.d3">
+      <Style.Animations>
+        <Animation Duration="0:0:1.2" Delay="0:0:0.3" IterationCount="Infinite">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value=".2" /></KeyFrame>
+          <KeyFrame Cue="40%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="80%"><Setter Property="Opacity" Value=".2" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value=".2" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <Style Selector="TextBlock.mono">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+    </Style>
+  </Application.Styles>
+
+  <TrayIcon.Icons>
+    <TrayIcons>
+      <TrayIcon Icon="/Assets/logo.ico" ToolTipText="Alyx — Alt+J" Clicked="OnTrayClicked">
+        <TrayIcon.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="Ouvrir Alyx (Alt+J)" Click="OnTrayOpen" />
+            <NativeMenuItem Header="Recentrer l'orbe" Click="OnTrayRecenter" />
+            <NativeMenuItemSeparator />
+            <NativeMenuItem Header="Quitter Alyx" Click="OnTrayQuit" />
+          </NativeMenu>
+        </TrayIcon.Menu>
+      </TrayIcon>
+    </TrayIcons>
+  </TrayIcon.Icons>
 </Application>

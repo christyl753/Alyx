@@ -1,0 +1,85 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="using:AlyxDesktop.Controls"
+        xmlns:local="using:AlyxDesktop"
+        x:Class="AlyxDesktop.WidgetWindow"
+        Title="Alyx"
+        Icon="/Assets/logo.ico"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        SystemDecorations="None"
+        Topmost="True"
+        ShowInTaskbar="False"
+        CanResize="False"
+        WindowStartupLocation="Manual"
+        Width="144" Height="144"
+        Opacity="0"
+        FontFamily="{StaticResource UiFont}"
+        Foreground="{StaticResource Ink}">
+
+  <Window.Styles>
+    <!-- Orbe -->
+    <Style Selector="Border#Orb">
+      <Setter Property="BoxShadow" Value="0 0 0 1 #2EE8C81E, 0 12 40 0 #2414201A" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.4" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border#Orb:pointerover">
+      <Setter Property="BoxShadow" Value="0 0 0 1 #66E8C81E, 0 12 40 0 #2414201A, 0 0 36 0 #59E8C81E" />
+    </Style>
+    <Style Selector="Border#Orb.busy">
+      <Setter Property="BoxShadow" Value="0 0 0 1 #66E8C81E, 0 12 40 0 #2414201A, 0 0 40 0 #47E8C81E" />
+    </Style>
+    <!-- Bulles du menu radial -->
+    <Style Selector="Button.node">
+      <Setter Property="Width" Value="72" />
+      <Setter Property="Height" Value="72" />
+      <Setter Property="CornerRadius" Value="36" />
+      <Setter Property="Background" Value="{StaticResource NodeSurface}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBorder28}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.16" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.node:pointerover">
+      <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+    </Style>
+  </Window.Styles>
+
+  <Canvas x:Name="Viewport" ClipToBounds="True">
+    <Canvas x:Name="Stage">
+
+      <!-- Indice de premier lancement -->
+      <StackPanel x:Name="Hint" Spacing="2" IsHitTestVisible="False" IsVisible="False">
+        <TextBlock Text="Clique pour ouvrir Alyx" FontSize="13" HorizontalAlignment="Right" />
+        <TextBlock Text="glisser pour déplacer · Alt+J" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      </StackPanel>
+
+      <!-- Bulles du menu radial (créées dans le code) -->
+      <Canvas x:Name="NodeLayer" />
+
+      <!-- Panneau (révélé en cercle depuis l'orbe) -->
+      <Panel x:Name="PanelHost" IsVisible="False">
+        <Border x:Name="PanelCard" CornerRadius="24" Background="{StaticResource PanelSurface}"
+                BorderBrush="{StaticResource Hair9}" BorderThickness="1" ClipToBounds="True"
+                BoxShadow="0 30 90 0 #2914201A">
+          <local:AlyxPanel x:Name="Panel" />
+        </Border>
+      </Panel>
+
+      <!-- Orbe -->
+      <Border x:Name="Orb" Width="84" Height="84" CornerRadius="42" Background="White" Cursor="Hand" ToolTip.Tip="Alyx (Alt+J)" AutomationProperties.Name="Ouvrir Alyx">
+        <Border.RenderTransform>
+          <ScaleTransform ScaleX="1" ScaleY="1" />
+        </Border.RenderTransform>
+        <c:AlyxEye x:Name="OrbEye" Width="72" Height="72" IsHitTestVisible="False" />
+      </Border>
+    </Canvas>
+  </Canvas>
+</Window>

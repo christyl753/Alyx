@@ -2,10 +2,12 @@
 
 server:
   port: 8765
+  stt_port: 5001
 
 llm_provider:
   cache_ttl: 60
   scan_timeout: 1.5
+  chat_timeout: 120
   circuit_breaker_max_failures: 3
   circuit_breaker_cooldown: 30
   max_context_messages: 40

@@ -19,9 +19,24 @@ API_PID=$!
 echo $API_PID > "$RUNDIR/api.pid"
 echo "Backend API demarre (PID: $API_PID)"
 
+echo "[Alyx] Demarrage du Micro-service STT..."
+nohup "$DIR/.venv/bin/python" "$DIR/stt_server.py" > "$LOGDIR/stt.log" 2>&1 &
+STT_PID=$!
+echo $STT_PID > "$RUNDIR/stt.pid"
+echo "STT demarre (PID: $STT_PID)"
+
+sleep 2
+
 echo "[Alyx] Demarrage du Frontend UI (C#)..."
-cd "$DIR/AlyxDesktop"
-nohup dotnet run > "$LOGDIR/ui.log" 2>&1 &
+# Executable precompile (install.sh) : demarrage immediat, sans passe de build "dotnet run"
+UI_EXE="$DIR/AlyxDesktop/bin/Release/net8.0/AlyxDesktop"
+if [ -x "$UI_EXE" ]; then
+    nohup "$UI_EXE" > "$LOGDIR/ui.log" 2>&1 &
+else
+    echo "Executable introuvable, compilation via dotnet run (lancez ./install.sh pour accelerer le demarrage)..."
+    cd "$DIR/AlyxDesktop"
+    nohup dotnet run -c Release > "$LOGDIR/ui.log" 2>&1 &
+fi
 UI_PID=$!
 echo $UI_PID > "$RUNDIR/ui.pid"
 echo "Frontend UI demarre (PID: $UI_PID)"

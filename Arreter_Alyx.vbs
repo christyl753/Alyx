@@ -1,11 +1,11 @@
-' Script d'arrÃªt pour Alyx (Mode Silencieux)
-' Ce script arrÃªte les services d'Alyx en arriÃ¨re-plan et affiche un message de confirmation.
+' Script d'arrêt pour Alyx (Mode Silencieux)
+' Ce script arrête les services d'Alyx en arrière-plan et affiche un message de confirmation.
 
 Set WshShell = CreateObject("WScript.Shell")
 scriptDir = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
 
-' Lance le fichier stop.bat de faÃ§on cachÃ©e (0)
+' Lance le fichier stop.bat de façon cachée (0)
 WshShell.Run chr(34) & scriptDir & "\stop.bat" & chr(34), 0, True
 
-MsgBox "Les services Alyx ont Ã©tÃ© arrÃªtÃ©s avec succÃ¨s.", 64, "Alyx"
+MsgBox "Les services Alyx ont été arrêtés avec succès.", 64, "Alyx"
 Set WshShell = Nothing

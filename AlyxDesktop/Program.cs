@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Media;
 using System;
 
 namespace AlyxDesktop;
@@ -16,7 +17,9 @@ class Program
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
-
-            .WithInterFont()
+            .With(new FontManagerOptions
+            {
+                DefaultFamilyName = "avares://AlyxDesktop/Assets/Fonts#Manrope"
+            })
             .LogToTrace();
 }

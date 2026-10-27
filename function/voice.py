@@ -1,40 +1,14 @@
 # Fichier : function/voice.py
-import os
-import json
 import queue
-import tempfile
-import wave
 import numpy as np
-import pyttsx3
 import sounddevice as sd
 
 # --- CONFIGURATION ---
 SAMPLE_RATE = 16000
 WHISPER_MODEL_SIZE = "base"  # Options: tiny, base, small, medium, large-v3
 
-import threading
-
-# --- INITIALISATION TTS (Voix d'Alyx) ---
-_tts_queue = queue.Queue()
-
-def _tts_worker():
-    """Worker thread dédié à la synthèse vocale pour ne pas bloquer l'API."""
-    moteur = pyttsx3.init()
-    moteur.setProperty('rate', 170)
-    while True:
-        texte = _tts_queue.get()
-        if texte is None:
-            break
-        try:
-            moteur.say(texte)
-            moteur.runAndWait()
-        except Exception as e:
-            pass
-        finally:
-            _tts_queue.task_done()
-
-# Démarrage du thread TTS en mode démon (s'arrêtera avec le programme)
-threading.Thread(target=_tts_worker, daemon=True).start()
+# --- SYNTHÈSE VOCALE : voir function/tts.py (choix de la voix, arrêt immédiat) ---
+from .tts import faire_parler, arreter_parole  # noqa: F401 (réexport)
 
 # --- INITIALISATION STT (faster-whisper) ---
 _whisper_model = None
@@ -57,13 +31,6 @@ def _init_whisper():
         except Exception as e:
             print(f"     [Erreur chargement Whisper: {e}]")
     return _whisper_model
-
-
-def faire_parler(texte: str) -> None:
-    """Fait parler Alyx à voix haute via synthèse vocale locale (Asynchrone)."""
-    texte_propre = texte.replace('*', '').replace('#', '').replace('_', '')
-    if texte_propre.strip():
-        _tts_queue.put(texte_propre)
 
 
 def ecouter(duree_max_secondes: int = 8) -> str:
@@ -99,7 +66,10 @@ def ecouter(duree_max_secondes: int = 8) -> str:
             a_parle = False
 
             while frames_lus < max_frames:
-                data = file_audio.get()
+                try:
+                    data = file_audio.get(timeout=2)
+                except queue.Empty:
+                    break  # le périphérique audio ne délivre plus rien
                 frames_enregistrees.append(data)
                 frames_lus += 1
 
@@ -118,21 +88,12 @@ def ecouter(duree_max_secondes: int = 8) -> str:
         if not frames_enregistrees:
             return ""
 
-        # Conversion en fichier WAV temporaire pour Whisper
-        audio_data = np.concatenate(frames_enregistrees, axis=0)
-        audio_int16 = (audio_data * 32767).astype(np.int16)
-
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp_path = tmp.name
-            with wave.open(tmp_path, 'wb') as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(SAMPLE_RATE)
-                wf.writeframes(audio_int16.tobytes())
+        # Whisper accepte directement un tableau float32 mono 16 kHz (pas de fichier temporaire)
+        audio_data = np.concatenate(frames_enregistrees, axis=0).flatten()
 
         # Transcription
         segments, info = model.transcribe(
-            tmp_path,
+            audio_data,
             language="fr",
             beam_size=5,
             vad_filter=True,
@@ -143,9 +104,6 @@ def ecouter(duree_max_secondes: int = 8) -> str:
         )
 
         texte_final = " ".join(seg.text.strip() for seg in segments).strip()
-
-        # Nettoyage
-        os.unlink(tmp_path)
 
     except Exception as e:
         print(f"     [Erreur micro : {e}]")

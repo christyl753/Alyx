@@ -2,6 +2,9 @@
 import os
 import sys
 
+# Raccourcis jamais exposés au LLM (désinstalleurs, etc.)
+MOTS_EXCLUS = ('uninstall', 'désinstaller', 'desinstaller', 'unins000')
+
 def construire_dictionnaire_applications() -> dict:
     """
     Scanne les répertoires Linux standards pour trouver les applications installées
@@ -20,13 +23,16 @@ def construire_dictionnaire_applications() -> dict:
                 continue
             for root, _, files in os.walk(p):
                 for f in files:
-                    if f.endswith('.lnk') or f.endswith('.exe'):
+                    if f.lower().endswith(('.lnk', '.exe')):
                         app_name = os.path.splitext(f)[0].lower()
-                        # Sur Windows, utiliser os.startfile sur le raccourci fonctionne bien
-                        app_dict[app_name] = f'start "" "{os.path.join(root, f)}"'
+                        if any(m in app_name for m in MOTS_EXCLUS):
+                            continue
+                        # Sur Windows, la valeur est le chemin du raccourci, lancé via os.startfile
+                        chemin = os.path.join(root, f)
+                        app_dict[app_name] = chemin
                         mot_cle = app_name.split()[0]
                         if mot_cle not in app_dict:
-                            app_dict[mot_cle] = f'start "" "{os.path.join(root, f)}"'
+                            app_dict[mot_cle] = chemin
         return app_dict
 
     # Les dossiers où Linux (et Flatpak) stockent les raccourcis d'applications (.desktop)
@@ -55,7 +61,8 @@ def construire_dictionnaire_applications() -> dict:
 
                             elif ligne.startswith("Exec=") and not commande_exec:
                                 raw_exec = ligne.split("=", 1)[1].strip()
-                                commande_exec = raw_exec.split()[0].replace('"', '').replace("'", "")
+                                # Commande complète (ex: 'flatpak run org.app.Id'), sans les codes %U, %f...
+                                commande_exec = " ".join(t for t in raw_exec.split() if not t.startswith('%'))
 
                     if nom_gui and commande_exec:
                         # Sauvegarde le nom complet (ex: "brave web browser")
