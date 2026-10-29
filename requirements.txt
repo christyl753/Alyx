@@ -20,7 +20,7 @@ typing-inspection==0.4.2
 typing_extensions==4.16.0
 urllib3==2.7.0
 websockets==16.1.1
-faster-whisper==1.2.1
+faster-whisper==1.2.1; python_version < "3.14"
 fpdf2==2.7.9
 psutil
 send2trash

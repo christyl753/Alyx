@@ -5,6 +5,8 @@ import json
 import yaml
 import os
 import re
+import shutil
+import subprocess
 import uuid
 import socket
 import inspect
@@ -32,13 +34,15 @@ SCAN_TIMEOUT = llm_config.get('scan_timeout', 1.5)
 CHAT_TIMEOUT = llm_config.get('chat_timeout', 120)
 CB_MAX_FAILURES = llm_config.get('circuit_breaker_max_failures', 3)
 CB_COOLDOWN = llm_config.get('circuit_breaker_cooldown', 30)
+PROVIDER_STARTUP_TIMEOUT = llm_config.get('provider_startup_timeout', 10)
+CONTEXT_LENGTH = llm_config.get('context_length', 8192)
 
 PROVIDERS = {p['name']: p for p in config.get('providers', [])}
 if not PROVIDERS:
     PROVIDERS = {
-        'ollama': {'name': 'ollama', 'api_base': 'http://127.0.0.1:11434', 'priority': 1},
-        'lmstudio': {'name': 'lmstudio', 'api_base': 'http://127.0.0.1:1234', 'priority': 2},
-        'nvidia': {'name': 'nvidia', 'api_base': 'http://127.0.0.1:8000', 'priority': 3}
+        'ollama': {'name': 'ollama', 'api_base': 'http://127.0.0.1:11434', 'priority': 1, 'auto_start': True},
+        'lmstudio': {'name': 'lmstudio', 'api_base': 'http://127.0.0.1:1234', 'priority': 2, 'auto_start': True},
+        'nvidia': {'name': 'nvidia', 'api_base': 'http://127.0.0.1:8000', 'priority': 3, 'auto_start': False}
     }
 
 # --- CLIENTS HTTP PARTAGÉS (keep-alive, pas de reconnexion à chaque requête) ---
@@ -384,7 +388,8 @@ def _stream_ollama(model_name, messages_list, tools, enregistrer_fermeture=None)
         "model": model_name,
         "messages": _to_ollama_messages(messages_list),
         "stream": True,
-        "keep_alive": "1h"
+        "keep_alive": "1h",
+        "options": {"num_ctx": CONTEXT_LENGTH},
     }
     schemas = _tools_to_schemas(tools)
     if schemas:
@@ -521,7 +526,7 @@ def charger_modele(model_name: str) -> bool:
     if get_model_provider(model_name) != 'ollama':
         return False
     resp = _http.post(f"{PROVIDERS['ollama']['api_base']}/api/generate",
-                      json={"model": model_name, "keep_alive": "1h", "stream": False},
+                      json={"model": model_name, "keep_alive": "1h", "stream": False, "options": {"num_ctx": CONTEXT_LENGTH}},
                       timeout=(SCAN_TIMEOUT * 2, max(CHAT_TIMEOUT, 300)))
     if resp.status_code >= 400:
         raise Exception(f"Erreur ollama (HTTP {resp.status_code}): {resp.text[:200]}")
@@ -537,10 +542,114 @@ def decharger_modele(model_name: str):
     if resp.status_code >= 400:
         raise Exception(f"Erreur ollama (HTTP {resp.status_code}): {resp.text[:200]}")
 
+def _spawn_detached(cmd: list) -> bool:
+    """Lance un processus fournisseur en arrière-plan sans fenêtre console (Windows/Linux)."""
+    try:
+        kwargs = {
+            'stdin': subprocess.DEVNULL,
+            'stdout': subprocess.DEVNULL,
+            'stderr': subprocess.DEVNULL,
+        }
+        if os.name == 'nt':
+            kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+        else:
+            kwargs['start_new_session'] = True
+        subprocess.Popen(cmd, **kwargs)
+        return True
+    except Exception as e:
+        logger.warning(f"Impossible de lancer {' '.join(cmd)}: {e}")
+        return False
+
+def _start_provider_process(provider_name: str) -> bool:
+    """Démarre le serveur local du fournisseur IA s'il est installé sur la machine."""
+    if provider_name == 'ollama':
+        exe = shutil.which('ollama')
+        if not exe and os.name == 'nt':
+            candidate = os.path.expandvars(r'%LOCALAPPDATA%\Programs\Ollama\ollama.exe')
+            if os.path.isfile(candidate):
+                exe = candidate
+        if exe:
+            logger.info(f"Démarrage automatique d'Ollama ({exe} serve)...")
+            return _spawn_detached([exe, 'serve'])
+        return False
+
+    if provider_name == 'lmstudio':
+        lms_exe = shutil.which('lms')
+        if not lms_exe:
+            candidate = os.path.expanduser(r'~\.lmstudio\bin\lms.exe' if os.name == 'nt' else '~/.lmstudio/bin/lms')
+            if os.path.isfile(candidate):
+                lms_exe = candidate
+        if lms_exe:
+            logger.info(f"Démarrage automatique du serveur LM Studio ({lms_exe} server start)...")
+            flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+            run_kw = {
+                'stdin': subprocess.DEVNULL,
+                'stdout': subprocess.DEVNULL,
+                'stderr': subprocess.DEVNULL,
+                'timeout': 5,
+                'creationflags': flags,
+            }
+            try:
+                res = subprocess.run([lms_exe, 'server', 'start'], **run_kw)
+                if res.returncode == 0:
+                    return True
+            except Exception as e:
+                logger.debug(f"lms server start a échoué: {e}")
+            try:
+                subprocess.run([lms_exe, 'daemon', 'up'], **run_kw)
+                res2 = subprocess.run([lms_exe, 'server', 'start'], **run_kw)
+                if res2.returncode == 0:
+                    return True
+            except Exception as e:
+                logger.debug(f"lms daemon up + server start a échoué: {e}")
+        if os.name == 'nt':
+            gui_exe = os.path.expandvars(r'%LOCALAPPDATA%\Programs\LM Studio\LM Studio.exe')
+            if os.path.isfile(gui_exe):
+                logger.info(f"Démarrage automatique de LM Studio ({gui_exe})...")
+                return _spawn_detached([gui_exe])
+        return False
+
+    return False
+
+def _is_endpoint_reachable(provider_name: str) -> bool:
+    """Vérifie rapidement si le serveur HTTP du fournisseur répond."""
+    api_base = PROVIDERS[provider_name]['api_base']
+    endpoint = '/api/tags' if provider_name == 'ollama' else '/v1/models'
+    try:
+        resp = _http.get(f"{api_base}{endpoint}", timeout=SCAN_TIMEOUT)
+        return resp.status_code in (200, 401)
+    except Exception:
+        return False
+
+def _ensure_providers_started():
+    """Démarre les fournisseurs configurés avec auto_start=True s'ils ne répondent pas encore."""
+    started = []
+    for name, cfg in PROVIDERS.items():
+        if not cfg.get('auto_start', False):
+            continue
+        if not _is_endpoint_reachable(name):
+            if _start_provider_process(name):
+                started.append(name)
+
+    if not started:
+        return
+
+    deadline = time.time() + PROVIDER_STARTUP_TIMEOUT
+    pending = set(started)
+    while pending and time.time() < deadline:
+        time.sleep(0.5)
+        for name in list(pending):
+            if _is_endpoint_reachable(name):
+                logger.info(f"Fournisseur {name} prêt.")
+                pending.remove(name)
+    if pending:
+        logger.warning(f"Délai d'attente dépassé pour le démarrage de : {', '.join(sorted(pending))}")
+
 def preload_models():
-    """Thread de pré-chargement : scan les modèles puis sélectionne le défaut."""
+    """Thread de pré-chargement : démarre les fournisseurs locaux si nécessaire, scanne les modèles puis sélectionne le défaut."""
     logger.info("Détection des modèles IA en cours...")
-    _refresh_models_cache()
+    _ensure_providers_started()
+    lister_modeles_disponibles(force_refresh=True)
     model = get_default_model()
     with _cache_lock:
         total = sum(len(v) for v in _models_cache.values())

@@ -19,5 +19,14 @@ from .system import (
     lister_apps_actives,
     fermer_application,
     controler_media,
-    redemarrer_pc
+    redemarrer_pc,
+    rechercher_processus,
+    lister_services,
+    gerer_service,
+    lister_taches_planifiees,
+    gerer_tache_planifiee,
+    lister_apps_demarrage,
+    gerer_app_demarrage,
+    desactiver_telemetrie_pc,
+    executer_commande_systeme,
 )

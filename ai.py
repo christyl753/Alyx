@@ -20,11 +20,21 @@ from function import (
     lister_apps_actives,
     fermer_application,
     controler_media,
-    redemarrer_pc
+    redemarrer_pc,
+    rechercher_processus,
+    lister_services,
+    gerer_service,
+    lister_taches_planifiees,
+    gerer_tache_planifiee,
+    lister_apps_demarrage,
+    gerer_app_demarrage,
+    desactiver_telemetrie_pc,
+    executer_commande_systeme,
 )
 
 from core.llm_provider import (
     chat_with_provider,
+    load_config,
     preload_models,
 )
 
@@ -34,6 +44,15 @@ outils_disponibles = {
     'ouvrir_application': ouvrir_application,
     'lister_apps_actives': lister_apps_actives,
     'fermer_application': fermer_application,
+    'rechercher_processus': rechercher_processus,
+    'lister_services': lister_services,
+    'gerer_service': gerer_service,
+    'lister_taches_planifiees': lister_taches_planifiees,
+    'gerer_tache_planifiee': gerer_tache_planifiee,
+    'lister_apps_demarrage': lister_apps_demarrage,
+    'gerer_app_demarrage': gerer_app_demarrage,
+    'desactiver_telemetrie_pc': desactiver_telemetrie_pc,
+    'executer_commande_systeme': executer_commande_systeme,
     'creer_fichier': creer_fichier,
     'creer_dossier': creer_dossier,
     'lister_fichiers': lister_fichiers,
@@ -57,7 +76,11 @@ PROMPT_BASE = (
     "Ne réponds JAMAIS par du texte comme 'Ouverture en cours...' ou 'Je ferme l'application' sans avoir appelé l'outil. "
     "IMPORTANT: Quand l'utilisateur te demande de réaliser PLUSIEURS actions dans une même requête "
     "(par exemple 'ferme Firefox et ouvre Discord'), tu DOIS appeler TOUS les outils nécessaires en même temps. "
-    "Tu as accès aux outils pour : ouvrir/fermer des applications, lister les processus, gérer les fichiers "
+    "Tu as accès aux outils pour : ouvrir/fermer des applications, rechercher et lister tous les processus actifs, "
+    "lister et gérer les services système (arrêter, démarrer, désactiver), lister et gérer les tâches planifiées, "
+    "lister et gérer les applications au démarrage automatique, désactiver intégralement la télémétrie du PC "
+    "(utilise `desactiver_telemetrie_pc` dès qu'on te demande de couper ou désactiver la télémétrie partout), "
+    "exécuter des commandes système PowerShell/Bash (`executer_commande_systeme`), gérer les fichiers "
     "(lister, créer, renommer, déplacer, lire, écrire, et supprimer), générer des PDF, contrôler la musique (lecture/pause, suivant, précédent) et redémarrer le PC. Un état du système en direct (CPU, RAM, GPU, processus) t'est fourni : utilise-le pour répondre aux questions sur la machine. "
     "Réponds de façon très concise. Moins tu parles, mieux c'est. "
     "Mets en forme tes réponses en Markdown quand c'est utile (titres ##, listes, **gras**, `code`, tableaux) ; "
@@ -140,7 +163,7 @@ def lancer_cli():
             messages.append(message_ia)
 
             # Boucle multi-tool : continuer tant que le modèle demande des outils
-            max_iterations = 5
+            max_iterations = load_config().get('llm_provider', {}).get('max_tool_iterations', 10)
             iteration = 0
             while message_ia.get('tool_calls') and iteration < max_iterations:
                 for tool_call in message_ia['tool_calls']:

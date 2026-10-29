@@ -87,7 +87,7 @@ def _ssid():
     ssid = None
     try:
         if sys.platform == 'win32':
-            sortie = subprocess.run(['netsh', 'wlan', 'show', 'interfaces'], capture_output=True, text=True,
+            sortie = subprocess.run(['netsh', 'wlan', 'show', 'interfaces'], capture_output=True, text=True, errors='replace',
                                     timeout=3, creationflags=subprocess.CREATE_NO_WINDOW).stdout
             for ligne in sortie.splitlines():
                 cle, _, valeur = ligne.partition(':')

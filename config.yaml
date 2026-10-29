@@ -11,14 +11,20 @@ llm_provider:
   circuit_breaker_max_failures: 3
   circuit_breaker_cooldown: 30
   max_context_messages: 40
+  provider_startup_timeout: 10
+  max_tool_iterations: 10
+  context_length: 8192
 
 providers:
   - name: "ollama"
     api_base: "http://127.0.0.1:11434"
     priority: 1
+    auto_start: true
   - name: "lmstudio"
     api_base: "http://127.0.0.1:1234"
     priority: 2
+    auto_start: true
   - name: "nvidia"
     api_base: "http://127.0.0.1:8000"
     priority: 3
+    auto_start: false

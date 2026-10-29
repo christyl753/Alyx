@@ -46,6 +46,8 @@ def _zones_sensibles() -> list:
 
 def _resoudre_chemin(chemin: str, ecriture: bool = False) -> str:
     """Résout un chemin utilisateur (~, relatif) en chemin absolu propre et applique le sandboxing."""
+    if chemin is None or not str(chemin).strip():
+        raise PermissionError("Erreur : chemin de fichier manquant.")
     chemin_absolu = os.path.abspath(os.path.expanduser(str(chemin).strip()))
     home_dir = _normaliser(os.path.expanduser("~"))
 
@@ -123,6 +125,8 @@ def lister_fichiers(dossier: str = "~") -> str:
     Args:
         dossier: Chemin du dossier à lister (ex: '~/Documents'). Par défaut le dossier utilisateur.
     """
+    if dossier is None or not str(dossier).strip():
+        dossier = "~"
     try:
         chemin = _resoudre_chemin(dossier)
     except PermissionError as e:
@@ -300,6 +304,9 @@ def generer_pdf(chemin: str, contenu: str) -> str:
         chemin: Chemin du PDF à créer (ex: '~/Documents/rapport.pdf').
         contenu: Texte à écrire dans le PDF.
     """
+    if chemin is None or not str(chemin).strip():
+        return "Erreur : chemin de fichier manquant."
+    chemin = str(chemin).strip()
     if not chemin.lower().endswith(".pdf"):
         chemin += ".pdf"
 

@@ -38,7 +38,7 @@ config = load_config()
 MAX_CONTEXT_MESSAGES = config.get('llm_provider', {}).get('max_context_messages', 40)
 PORT = config.get('server', {}).get('port', 8765)
 STT_URL = f"http://127.0.0.1:{config.get('server', {}).get('stt_port', 5001)}"
-MAX_ITERATIONS_OUTILS = 5
+MAX_ITERATIONS_OUTILS = config.get('llm_provider', {}).get('max_tool_iterations', 10)
 
 # Fin de phrase pour le TTS : ponctuation suivie d'un blanc (évite "3.5" ou "note.txt")
 FIN_DE_PHRASE = re.compile(r'[.!?…]+(?=\s)|\n')

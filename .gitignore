@@ -39,3 +39,5 @@ AlyxDesktop/avalonia.log
 .agents/
 design_handoff_jane/
 AUDIT.md
+
+dist/
