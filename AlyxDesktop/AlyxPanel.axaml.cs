@@ -49,6 +49,7 @@ public partial class AlyxPanel : UserControl
     private string _currentModel = "";
     private string? _loadingModel;
     private double? _tps;
+    private double? _lastBatteryPercent;
     private readonly Dictionary<string, string> _modelProviders = new();
     private Dictionary<string, (double Vram, int? Ctx)> _loaded = new();
     private double _vramTotal;
@@ -66,10 +67,16 @@ public partial class AlyxPanel : UserControl
     public int ProcessTotal { get; private set; }
     public MediaState Media { get; private set; } = MediaService.None;
     public string CurrentModel => _currentModel;
+    public string ActiveTab => _tab;
     public EyeMode EyeMode { get; private set; } = EyeMode.Idle;
 
     public event Action? CloseRequested;
     public event Action? StateChanged;
+    public event Action<PanelLayoutMode>? LayoutRequested;
+    public event Action<OpenEntryMode>? EntryModeRequested;
+    public event Action<IdlePresenceMode>? IdleModeRequested;
+    public event Action<WidgetSettings>? StyleSettingsChanged;
+    public event Action<EdgeDockSide>? DockSideRequested;
 
     public AlyxPanel()
     {
@@ -98,12 +105,14 @@ public partial class AlyxPanel : UserControl
 
         VolumeSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) OnVolumeChanged(); };
         BrightnessSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) OnBrightnessChanged(); };
+        SizeChanged += OnPanelSizeChanged;
 
         _clockTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => UpdateClock());
         _pollTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, async (_, _) => await PollAsync());
         UpdateClock();
         _clockTimer.Start();
         BuildTiles();
+        BuildWidgetModeChips();
         RefreshComposer();
     }
 
@@ -116,8 +125,166 @@ public partial class AlyxPanel : UserControl
         StartupTrack.Classes.Set("on", StartupService.IsEnabled());
         StartupLabel.Text = OperatingSystem.IsWindows() ? "Démarrer avec Windows" : "Démarrer avec la session";
         if (!OperatingSystem.IsWindows()) ShortcutText.Text = "Non disponible";
+        OpacitySlider.Value = _settings.WidgetOpacityPercent;
+        OpacityValueText.Text = $"{_settings.WidgetOpacityPercent}%";
+        OpacitySlider.PropertyChanged += (s, e) =>
+        {
+            if (e.Property.Name == nameof(Slider.Value))
+            {
+                int val = (int)Math.Round(OpacitySlider.Value);
+                _settings.WidgetOpacityPercent = val;
+                OpacityValueText.Text = $"{val}%";
+                _settings.Save();
+                App.ApplyStyleSettings(_settings);
+                StyleSettingsChanged?.Invoke(_settings);
+            }
+        };
+        SyncStyleTabUI();
+        SyncWidgetModeUI();
+        ApplyResponsiveLayout(Bounds.Width);
         backend.MessageReceived += OnBackendMessage;
         backend.ConnectionChanged += OnConnectionChanged;
+    }
+
+    // ================= Responsive & Modes du widget =================
+
+    private static readonly (OpenEntryMode Mode, string Label)[] EntryModeDefs =
+    {
+        (OpenEntryMode.Radial, "Radial"),
+        (OpenEntryMode.Card, "Carte"),
+        (OpenEntryMode.Side, "Panneau latéral"),
+        (OpenEntryMode.Overlay, "Overlay"),
+    };
+
+    private static readonly (IdlePresenceMode Mode, string Label)[] IdleModeDefs =
+    {
+        (IdlePresenceMode.EdgeTab, "Languette"),
+        (IdlePresenceMode.Stealth, "Furtif (Systray)"),
+        (IdlePresenceMode.MiniOrb, "Mini-orbe"),
+        (IdlePresenceMode.Orb, "Orbe"),
+    };
+
+    private void BuildWidgetModeChips()
+    {
+        EntryModeChips.Children.Clear();
+        foreach (var (mode, label) in EntryModeDefs)
+        {
+            var chip = new Button
+            {
+                Classes = { "flat", "chip", "hover-accent" },
+                Content = label,
+                Tag = mode,
+                Margin = new Thickness(0, 0, 6, 6),
+            };
+            Avalonia.Automation.AutomationProperties.SetName(chip, $"Style d'ouverture : {label}");
+            chip.Click += OnEntryModeChipClick;
+            EntryModeChips.Children.Add(chip);
+        }
+
+        IdleModeChips.Children.Clear();
+        foreach (var (mode, label) in IdleModeDefs)
+        {
+            var chip = new Button
+            {
+                Classes = { "flat", "chip", "hover-accent" },
+                Content = label,
+                Tag = mode,
+                Margin = new Thickness(0, 0, 6, 6),
+            };
+            Avalonia.Automation.AutomationProperties.SetName(chip, $"Présence sur le bureau : {label}");
+            chip.Click += OnIdleModeChipClick;
+            IdleModeChips.Children.Add(chip);
+        }
+    }
+
+    public void SyncWidgetModeUI()
+    {
+        LayoutCardBtn.Classes.Set("active", _settings.PanelLayout == PanelLayoutMode.Card);
+        LayoutSideBtn.Classes.Set("active", _settings.PanelLayout == PanelLayoutMode.Side);
+        LayoutOverlayBtn.Classes.Set("active", _settings.PanelLayout == PanelLayoutMode.Overlay);
+
+        foreach (var chip in EntryModeChips.Children.OfType<Button>())
+            chip.Classes.Set("on", chip.Tag is OpenEntryMode m && m == _settings.EntryMode);
+
+        foreach (var chip in IdleModeChips.Children.OfType<Button>())
+            chip.Classes.Set("on", chip.Tag is IdlePresenceMode m && m == _settings.IdleMode);
+
+        UpdateClock();
+    }
+
+    private void OnLayoutPillClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string tag }) return;
+        var target = tag switch
+        {
+            "side" => PanelLayoutMode.Side,
+            "overlay" => PanelLayoutMode.Overlay,
+            _ => PanelLayoutMode.Card,
+        };
+        LayoutRequested?.Invoke(target);
+    }
+
+    private void OnEntryModeChipClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: OpenEntryMode mode })
+            EntryModeRequested?.Invoke(mode);
+    }
+
+    private void OnIdleModeChipClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: IdlePresenceMode mode })
+            IdleModeRequested?.Invoke(mode);
+    }
+
+    private void OnPanelSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        ApplyResponsiveLayout(e.NewSize.Width);
+        Dispatcher.UIThread.Post(RefreshGauges, DispatcherPriority.Render);
+    }
+
+    private void ApplyResponsiveLayout(double width)
+    {
+        double w = width > 0 ? width : _settings.PanelLayout switch
+        {
+            PanelLayoutMode.Overlay => 1000,
+            PanelLayoutMode.Side => 440,
+            _ => 400,
+        };
+
+        SystemGrid.Columns = w >= 760 ? 3 : w >= 500 ? 2 : 1;
+        TileGrid.Columns = w >= 680 ? 6 : 3;
+        TrackTitle.MaxWidth = Math.Max(150, (w - 150) * 0.55);
+        TrackArtist.MaxWidth = Math.Max(110, (w - 150) * 0.40);
+        UpdateClock();
+        CpuBars.InvalidateVisual();
+        RamBars.InvalidateVisual();
+        GpuBars.InvalidateVisual();
+    }
+
+    private void RefreshGauges()
+    {
+        if (_lastBatteryPercent is { } bp)
+        {
+            double batTrack = BatTrack.Bounds.Width > 0 ? BatTrack.Bounds.Width : 340;
+            BatFill.Width = batTrack * Math.Clamp(bp, 0, 100) / 100;
+        }
+        else
+        {
+            BatFill.Width = 0;
+        }
+
+        if (!string.IsNullOrEmpty(_currentModel) && _loaded.TryGetValue(_currentModel, out var info) && _vramTotal > 0)
+        {
+            double vramTrack = VramTrack.Bounds.Width > 0 ? VramTrack.Bounds.Width : 334;
+            VramFill.Width = vramTrack * Math.Min(1, info.Vram / _vramTotal);
+        }
+        else
+        {
+            VramFill.Width = 0;
+        }
+
+        double mediaTrack = TrackBar.Bounds.Width > 0 ? TrackBar.Bounds.Width : 200;
+        TrackFill.Width = Media.DurationSec > 0 ? mediaTrack * Math.Clamp(Media.PositionSec / Media.DurationSec, 0, 1) : 0;
     }
 
     // ================= Cycle de vie du menu =================
@@ -153,6 +320,7 @@ public partial class AlyxPanel : UserControl
         TasksView.IsVisible = tab == "tasks";
         ModelsView.IsVisible = tab == "models";
         SettingsView.IsVisible = tab == "settings";
+        StyleView.IsVisible = tab == "style";
 
         switch (tab)
         {
@@ -166,10 +334,15 @@ public partial class AlyxPanel : UserControl
                 _ = Send(new { type = "get_models", refresh = false });
                 break;
             case "settings":
+                SyncWidgetModeUI();
                 _ = RefreshSettingsAsync();
                 _ = Send(new { type = "get_voice_settings" });
                 break;
+            case "style":
+                SyncStyleTabUI();
+                break;
         }
+        Dispatcher.UIThread.Post(RefreshGauges, DispatcherPriority.Render);
     }
 
     private Task Send(object payload) => _backend?.SendAsync(payload) ?? Task.CompletedTask;
@@ -421,7 +594,8 @@ public partial class AlyxPanel : UserControl
     {
         var now = DateTime.Now;
         ClockText.Text = now.ToString("HH:mm", Fr);
-        DateText.Text = now.ToString("dddd d MMMM", Fr);
+        bool compact = Bounds.Width > 0 ? Bounds.Width < 430 : _settings.PanelLayout == PanelLayoutMode.Card;
+        DateText.Text = now.ToString(compact ? "ddd d MMM" : "dddd d MMMM", Fr);
     }
 
     private string ProviderLabel(string model) => _modelProviders.TryGetValue(model, out var p) ? p switch
@@ -498,18 +672,21 @@ public partial class AlyxPanel : UserControl
         if (Obj(root, "battery") is { } bat)
         {
             double p = Num(bat, "percent") ?? 0;
+            _lastBatteryPercent = p;
             bool plugged = bat.TryGetProperty("plugged", out var pl) && pl.ValueKind == JsonValueKind.True;
             StripBat.Text = BatValue.Text = $"{p:0}%";
             var color = App.Res<IBrush>(p < 20 && !plugged ? "Danger" : "Ink");
             StripBat.Foreground = color;
-            double track = (BatFill.Parent as Control)?.Bounds.Width is > 0 and var w ? w : 340;
-            BatFill.Width = track * p / 100;
+            double track = BatTrack.Bounds.Width > 0 ? BatTrack.Bounds.Width : 340;
+            BatFill.Width = track * Math.Clamp(p, 0, 100) / 100;
             if (plugged) BatSub.Text = p >= 100 ? "Secteur · chargée" : "Secteur · en charge";
             else if (Num(bat, "secs_left") is { } s) BatSub.Text = $"{(int)(s / 3600)} h {(int)(s % 3600 / 60)} min restantes · sur batterie";
             else BatSub.Text = "Sur batterie";
         }
         else
         {
+            _lastBatteryPercent = null;
+            BatFill.Width = 0;
             StripBat.Text = BatValue.Text = "—";
             BatSub.Text = "Pas de batterie (poste fixe)";
         }
@@ -939,5 +1116,86 @@ public partial class AlyxPanel : UserControl
         await _media.PreviousAsync();
         await Task.Delay(400);
         await PollMediaAsync();
+    }
+
+    // ================= Onglet Style & Apparence Aquarelle =================
+
+    public void SyncStyleTabUI()
+    {
+        PalDuoBtn.Classes.Set("active", _settings.WatercolorPalette == "watercolor-duo");
+        PalBlueBtn.Classes.Set("active", _settings.WatercolorPalette == "watercolor-blue");
+        PalRoseBtn.Classes.Set("active", _settings.WatercolorPalette == "watercolor-rose");
+        PalInkBtn.Classes.Set("active", _settings.WatercolorPalette == "ink-minimal");
+
+        ThemeLightBtn.Classes.Set("active", _settings.ThemeMode == "light");
+        ThemeDarkBtn.Classes.Set("active", _settings.ThemeMode == "dark");
+        ThemeAutoBtn.Classes.Set("active", _settings.ThemeMode == "auto");
+
+        PresenceEdgeBtn.Classes.Set("active", _settings.IdleMode == IdlePresenceMode.EdgeTab);
+        PresenceStealthBtn.Classes.Set("active", _settings.IdleMode == IdlePresenceMode.Stealth);
+        PresenceMiniBtn.Classes.Set("active", _settings.IdleMode == IdlePresenceMode.MiniOrb);
+        PresenceOrbBtn.Classes.Set("active", _settings.IdleMode == IdlePresenceMode.Orb);
+
+        DockRightBtn.Classes.Set("active", _settings.DockSide == EdgeDockSide.Right);
+        DockLeftBtn.Classes.Set("active", _settings.DockSide == EdgeDockSide.Left);
+
+        EcoModeTrack.Classes.Set("on", _settings.LowRamEcoMode);
+    }
+
+    private void OnPaletteDuoClick(object? sender, RoutedEventArgs e) => SetPalette("watercolor-duo");
+    private void OnPaletteBlueClick(object? sender, RoutedEventArgs e) => SetPalette("watercolor-blue");
+    private void OnPaletteRoseClick(object? sender, RoutedEventArgs e) => SetPalette("watercolor-rose");
+    private void OnPaletteInkClick(object? sender, RoutedEventArgs e) => SetPalette("ink-minimal");
+
+    private void SetPalette(string id)
+    {
+        _settings.WatercolorPalette = id;
+        _settings.Save();
+        App.ApplyStyleSettings(_settings);
+        SyncStyleTabUI();
+        StyleSettingsChanged?.Invoke(_settings);
+    }
+
+    private void OnThemeModeClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string mode })
+        {
+            _settings.ThemeMode = mode;
+            _settings.Save();
+            App.ApplyStyleSettings(_settings);
+            SyncStyleTabUI();
+            StyleSettingsChanged?.Invoke(_settings);
+        }
+    }
+
+    private void OnPresenceModeClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string tag } && Enum.TryParse<IdlePresenceMode>(tag, out var mode))
+        {
+            _settings.IdleMode = mode;
+            _settings.Save();
+            SyncStyleTabUI();
+            SyncWidgetModeUI();
+            IdleModeRequested?.Invoke(mode);
+        }
+    }
+
+    private void OnDockSideClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string tag } && Enum.TryParse<EdgeDockSide>(tag, out var side))
+        {
+            _settings.DockSide = side;
+            _settings.Save();
+            SyncStyleTabUI();
+            DockSideRequested?.Invoke(side);
+        }
+    }
+
+    private void OnEcoModePrefClick(object? sender, RoutedEventArgs e)
+    {
+        _settings.LowRamEcoMode = !_settings.LowRamEcoMode;
+        _settings.Save();
+        SyncStyleTabUI();
+        StyleSettingsChanged?.Invoke(_settings);
     }
 }

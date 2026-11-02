@@ -20,10 +20,21 @@ logger = get_logger('alyx.llm_provider')
 # --- CONFIGURATION ---
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.yaml')
 
+_config_cache = (0.0, {})
+
 def load_config():
+    global _config_cache
     if os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f) or {}
+        try:
+            mtime = os.path.getmtime(CONFIG_PATH)
+            if mtime == _config_cache[0] and _config_cache[1]:
+                return _config_cache[1]
+            with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f) or {}
+            _config_cache = (mtime, data)
+            return data
+        except OSError:
+            pass
     return {}
 
 config = load_config()
@@ -35,7 +46,8 @@ CHAT_TIMEOUT = llm_config.get('chat_timeout', 120)
 CB_MAX_FAILURES = llm_config.get('circuit_breaker_max_failures', 3)
 CB_COOLDOWN = llm_config.get('circuit_breaker_cooldown', 30)
 PROVIDER_STARTUP_TIMEOUT = llm_config.get('provider_startup_timeout', 10)
-CONTEXT_LENGTH = llm_config.get('context_length', 8192)
+CONTEXT_LENGTH = llm_config.get('context_length', 4096)
+ENABLE_THINKING = bool(llm_config.get('enable_thinking', False))
 
 PROVIDERS = {p['name']: p for p in config.get('providers', [])}
 if not PROVIDERS:
@@ -389,13 +401,23 @@ def _stream_ollama(model_name, messages_list, tools, enregistrer_fermeture=None)
         "messages": _to_ollama_messages(messages_list),
         "stream": True,
         "keep_alive": "1h",
+        "think": ENABLE_THINKING,
         "options": {"num_ctx": CONTEXT_LENGTH},
     }
     schemas = _tools_to_schemas(tools)
     if schemas:
         payload['tools'] = schemas
 
-    resp = _post_stream('ollama', f"{PROVIDERS['ollama']['api_base']}/api/chat", payload, enregistrer_fermeture)
+    url = f"{PROVIDERS['ollama']['api_base']}/api/chat"
+    try:
+        resp = _post_stream('ollama', url, payload, enregistrer_fermeture)
+    except Exception as e:
+        if "HTTP 400" in str(e) and "think" in payload:
+            logger.debug(f"Repli Ollama sans le paramètre 'think' pour {model_name}: {e}")
+            payload_compat = {k: v for k, v in payload.items() if k != "think"}
+            resp = _post_stream('ollama', url, payload_compat, enregistrer_fermeture)
+        else:
+            raise
     tool_calls = []
     try:
         for line in resp.iter_lines():

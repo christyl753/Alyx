@@ -83,7 +83,7 @@ def _messages_avec_fenetre(etat_systeme=None):
     # Prompt système reconstruit à chaque tour : langue choisie dans les réglages + état du système
     contenu = ai.prompt_systeme(preferences.charger()['language'])
     if etat_systeme:
-        contenu += "\n\n" + etat_systeme
+        pass  # system_prompt reste 100% statique pour préserver le KV-Cache d'Ollama/LM Studio
     system_prompt = {'role': 'system', 'content': contenu}
     if len(messages) <= 1:
         return [system_prompt]
@@ -102,7 +102,10 @@ def _messages_avec_fenetre(etat_systeme=None):
             if msg.get('role') in ['user', 'assistant'] and msg.get('content'):
                 optimized.append({'role': msg['role'], 'content': msg['content']})
         else:
-            optimized.append(msg)
+            if i == last_user_idx and etat_systeme and msg.get('role') == 'user':
+                optimized.append({'role': 'user', 'content': f"{msg.get('content', '')}\n\n[Contexte matériel actuel : {etat_systeme}]"})
+            else:
+                optimized.append(msg)
 
     return optimized
 
@@ -297,9 +300,12 @@ async def _etat_systeme():
 async def _executer_tour(session, vocal, iteration=0):
     """Un seul appel LLM streamé par étape : tokens relayés en direct, outils exécutés s'il y en a."""
     model = ai.MODEL
+    dernier_user = next((m.get('content', '') for m in reversed(messages) if m.get('role') == 'user'), '')
+    outils_tour = ai.selectionner_outils_pertinents(dernier_user)
+    etat_tour = await _etat_systeme() if ai.besoin_etat_systeme(dernier_user) else None
     while True:
-        tools = LISTE_FONCTIONS if iteration < MAX_ITERATIONS_OUTILS else None
-        contexte = _messages_avec_fenetre(await _etat_systeme())
+        tools = outils_tour if iteration < MAX_ITERATIONS_OUTILS else None
+        contexte = _messages_avec_fenetre(etat_tour)
         contenu, tool_calls, annule = await _stream_llm(session, model, contexte, tools, vocal)
 
         if annule:

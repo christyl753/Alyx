@@ -33,6 +33,28 @@
     <Style Selector="Border#Orb.busy">
       <Setter Property="BoxShadow" Value="0 0 0 1 #66E8C81E, 0 12 40 0 #2414201A, 0 0 40 0 #47E8C81E" />
     </Style>
+
+    <!-- Languette de bord (présence discrète) -->
+    <Style Selector="Border#EdgeTab">
+      <Setter Property="Background" Value="{StaticResource PanelSurface}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBorder28}" />
+      <Setter Property="BoxShadow" Value="0 6 20 0 #2214201A" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.16" />
+          <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.3" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border#EdgeTab:pointerover">
+      <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+      <Setter Property="BoxShadow" Value="0 8 24 0 #2614201A, 0 0 24 0 #47E8C81E" />
+    </Style>
+    <Style Selector="Border#EdgeTab.busy">
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBorder}" />
+      <Setter Property="BoxShadow" Value="0 8 24 0 #2614201A, 0 0 28 0 #47E8C81E" />
+    </Style>
+
     <!-- Bulles du menu radial -->
     <Style Selector="Button.node">
       <Setter Property="Width" Value="72" />
@@ -55,26 +77,41 @@
   <Canvas x:Name="Viewport" ClipToBounds="True">
     <Canvas x:Name="Stage">
 
+      <!-- Voile d'arrière-plan pour le mode Overlay centré -->
+      <Border x:Name="Scrim" Background="{StaticResource OverlayScrim}" Opacity="0" IsVisible="False" IsHitTestVisible="False" />
+
       <!-- Indice de premier lancement -->
       <StackPanel x:Name="Hint" Spacing="2" IsHitTestVisible="False" IsVisible="False">
-        <TextBlock Text="Clique pour ouvrir Alyx" FontSize="13" HorizontalAlignment="Right" />
-        <TextBlock Text="glisser pour déplacer · Alt+J" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+        <TextBlock x:Name="HintTitle" Text="Clique pour ouvrir Alyx" FontSize="13" HorizontalAlignment="Right" />
+        <TextBlock x:Name="HintSub" Text="glisser pour déplacer · Alt+J" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
       </StackPanel>
 
       <!-- Bulles du menu radial (créées dans le code) -->
       <Canvas x:Name="NodeLayer" />
 
-      <!-- Panneau (révélé en cercle depuis l'orbe) -->
+      <!-- Panneau (Card / Side / Overlay) -->
       <Panel x:Name="PanelHost" IsVisible="False">
-        <Border x:Name="PanelCard" CornerRadius="24" Background="{StaticResource PanelSurface}"
+        <Border x:Name="PanelCard" CornerRadius="28" Background="{StaticResource PanelSurface}"
                 BorderBrush="{StaticResource Hair9}" BorderThickness="1" ClipToBounds="True"
-                BoxShadow="0 30 90 0 #2914201A">
+                BoxShadow="0 20 60 -10 #1E0284C7, 0 10 30 -5 #18EC4899">
           <local:AlyxPanel x:Name="Panel" />
         </Border>
       </Panel>
 
-      <!-- Orbe -->
-      <Border x:Name="Orb" Width="84" Height="84" CornerRadius="42" Background="White" Cursor="Hand" ToolTip.Tip="Alyx (Alt+J)" AutomationProperties.Name="Ouvrir Alyx">
+      <!-- Languette de bord galet aquarelle (10×56 au repos, 36×56 au survol) -->
+      <Border x:Name="EdgeTab" Width="10" Height="56" CornerRadius="16,0,0,16" BorderThickness="1,1,0,1"
+              Cursor="Hand" IsVisible="False" ToolTip.Tip="Alyx (Alt+J)" AutomationProperties.Name="Ouvrir Alyx">
+        <Panel>
+          <Border x:Name="EdgeTabBar" Width="3" Height="22" CornerRadius="1.5" Background="{StaticResource Accent}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+          <c:AlyxEye x:Name="EdgeTabEye" Width="26" Height="26" Opacity="0" IsVisible="False"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+        </Panel>
+      </Border>
+
+      <!-- Orbe (classique 84×84 ou mini 48×48) -->
+      <Border x:Name="Orb" Width="84" Height="84" CornerRadius="42" Background="White" Cursor="Hand"
+              ToolTip.Tip="Alyx (Alt+J)" AutomationProperties.Name="Ouvrir Alyx">
         <Border.RenderTransform>
           <ScaleTransform ScaleX="1" ScaleY="1" />
         </Border.RenderTransform>

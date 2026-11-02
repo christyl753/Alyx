@@ -13,7 +13,9 @@ llm_provider:
   max_context_messages: 40
   provider_startup_timeout: 10
   max_tool_iterations: 10
-  context_length: 8192
+  context_length: 4096
+  enable_thinking: false
+  dynamic_tool_routing: true
 
 providers:
   - name: "ollama"

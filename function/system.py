@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import urllib.parse
 import psutil
 from .scrap import construire_dictionnaire_applications
 from .files import _demander_permission
@@ -988,4 +989,148 @@ def executer_commande_systeme(commande: str, admin: bool = False) -> str:
     if not sortie:
         sortie = f"Commande exécutée (code retour: {code}, aucune sortie texte)."
     return sortie
+
+
+# --- RECHERCHE MÉDIA (SPOTIFY / YOUTUBE) & PRESSE-PAPIERS ---
+def _ouvrir_cible_os(cible: str):
+    """Délègue à l'OS l'ouverture d'un URI local (ex: spotify:search:...) ou d'une URL dans le navigateur."""
+    if sys.platform == "win32":
+        os.startfile(cible)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", cible], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        subprocess.Popen(["xdg-open", cible], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def _spotify_desktop_installe() -> bool:
+    """Détecte si le client Spotify Desktop est installé sur la machine (Windows ou Linux)."""
+    alias = _get_alias()
+    if 'spotify' in alias or 'com.spotify.client' in alias:
+        return True
+    if sys.platform == "win32":
+        appdata = os.environ.get('APPDATA', '')
+        localappdata = os.environ.get('LOCALAPPDATA', '')
+        if appdata and os.path.isfile(os.path.join(appdata, 'Spotify', 'Spotify.exe')):
+            return True
+        if localappdata and os.path.isfile(os.path.join(localappdata, 'Microsoft', 'WindowsApps', 'Spotify.exe')):
+            return True
+        packages_dir = os.path.join(localappdata, 'Packages') if localappdata else ''
+        if packages_dir and os.path.isdir(packages_dir):
+            try:
+                if any(d.lower().startswith('spotifyab.spotifymusic_') for d in os.listdir(packages_dir)):
+                    return True
+            except OSError:
+                pass
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, "spotify"):
+                return True
+        except OSError:
+            pass
+        return False
+    else:
+        if shutil.which('spotify'):
+            return True
+        for fp in ('/var/lib/flatpak/app/com.spotify.Client', os.path.expanduser('~/.local/share/flatpak/app/com.spotify.Client')):
+            if os.path.isdir(fp):
+                return True
+        return False
+
+
+def rechercher_ou_jouer_media(recherche: str, application: str = "spotify") -> str:
+    """Ouvre Spotify, YouTube ou une application média directement sur la recherche d'un titre, artiste ou album.
+
+    Args:
+        recherche: Titre, artiste, album ou sujet à rechercher (ex: 'Daft Punk Harder Better', 'lofi hip hop').
+        application: Application cible : 'spotify' (par défaut), 'youtube', 'youtube music' ou autre application installée.
+    """
+    terme = str(recherche or "").strip()
+    app_clean = str(application or "spotify").lower().strip()
+    if not terme:
+        return ouvrir_application(app_clean or "spotify")
+
+    if app_clean in ('spotify', 'spotify.exe', ''):
+        terme_quote = urllib.parse.quote(terme)
+        if _spotify_desktop_installe():
+            try:
+                _ouvrir_cible_os(f"spotify:search:{terme_quote}")
+                return (
+                    f"Spotify a été ouvert directement sur la recherche '{terme}'. "
+                    "Note importante pour ta réponse : Alyx ne peut pas lancer automatiquement un titre précis sans clic dans Spotify ; "
+                    "dis-le honnêtement et brièvement à l'utilisateur."
+                )
+            except OSError:
+                pass
+        try:
+            _ouvrir_cible_os(f"https://open.spotify.com/search/{terme_quote}")
+            return (
+                f"Spotify Desktop n'est pas installé sur ce PC : la recherche '{terme}' a été ouverte sur Spotify Web dans le navigateur. "
+                "Note importante pour ta réponse : précise honnêtement que Spotify Desktop n'est pas installé et qu'un clic est nécessaire pour lancer le titre."
+            )
+        except OSError as e:
+            return f"Erreur lors de l'ouverture de la recherche Spotify pour '{terme}' : {e}"
+
+    if app_clean in ('youtube', 'yt', 'youtube music', 'ytmusic', 'youtube_music'):
+        q = urllib.parse.quote_plus(terme)
+        if 'music' in app_clean:
+            url = f"https://music.youtube.com/search?q={q}"
+            label = "YouTube Music"
+        else:
+            url = f"https://www.youtube.com/results?search_query={q}"
+            label = "YouTube"
+        try:
+            _ouvrir_cible_os(url)
+            return (
+                f"{label} a été ouvert dans le navigateur sur la recherche '{terme}'. "
+                f"Note importante pour ta réponse : Alyx ne peut pas lancer la lecture automatique d'un résultat précis sans clic dans {label} ; "
+                "dis-le honnêtement et brièvement à l'utilisateur."
+            )
+        except OSError as e:
+            return f"Erreur lors de l'ouverture de {label} : {e}"
+
+    res_app = ouvrir_application(app_clean)
+    if res_app.startswith("Erreur"):
+        return f"{res_app} Impossible de rechercher '{terme}' dans '{application}'."
+    return (
+        f"L'application '{application}' a été ouverte, mais Alyx ne peut pas y lancer '{terme}' automatiquement : "
+        "informe clairement l'utilisateur de cette limite."
+    )
+
+
+def lire_presse_papiers() -> str:
+    """Lit le texte actuellement copié dans le presse-papiers du système (permission requise)."""
+    _demander_permission("LIRE LE PRESSE-PAPIERS", "Contenu copié")
+
+    texte = ""
+    if sys.platform == "win32":
+        code, sortie = _run_ps("Get-Clipboard -Raw", timeout=5)
+        if code != 0:
+            return f"Erreur lors de la lecture du presse-papiers : {sortie}"
+        texte = sortie
+    else:
+        commandes = []
+        if os.environ.get('WAYLAND_DISPLAY') and shutil.which('wl-paste'):
+            commandes.append(['wl-paste', '--no-newline'])
+        if shutil.which('xclip'):
+            commandes.append(['xclip', '-o', '-selection', 'clipboard'])
+        if shutil.which('xsel'):
+            commandes.append(['xsel', '-ob'])
+        if shutil.which('wl-paste') and ['wl-paste', '--no-newline'] not in commandes:
+            commandes.append(['wl-paste', '--no-newline'])
+        if not commandes:
+            return "Erreur : Aucun utilitaire de presse-papiers trouvé (installez wl-clipboard ou xclip)."
+        for cmd in commandes:
+            try:
+                res = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=5)
+                if res.returncode == 0:
+                    texte = (res.stdout or "").strip()
+                    break
+            except Exception:
+                continue
+
+    if not texte:
+        return "Le presse-papiers est vide (ou ne contient pas de texte)."
+    if len(texte) > 8000:
+        texte = texte[:8000] + "\n...[Contenu du presse-papiers tronqué à 8000 caractères]"
+    return f"Contenu du presse-papiers :\n{texte}"
 

@@ -1,6 +1,8 @@
 """Préférences utilisateur du moteur (voix, langue), persistées dans %APPDATA%/Alyx/preferences.json."""
 import json
+import locale
 import os
+import sys
 import threading
 
 from core.logger import get_logger
@@ -15,12 +17,50 @@ LANGUES = {
     'de': ('Deutsch', "Antworte immer auf Deutsch.", "Hallo, ich bin Alyx. Das ist meine Stimme."),
 }
 
+
+def _detecter_langue_os() -> str:
+    """Détecte la langue de l'interface du système d'exploitation ('fr', 'en', 'es', 'de'), repli sur 'fr'."""
+    if sys.platform == 'win32':
+        try:
+            import ctypes
+            lang_id = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+            code_win = locale.windows_locale.get(lang_id, '')[:2].lower()
+            if code_win in LANGUES:
+                return code_win
+            primaire = {0x0C: 'fr', 0x09: 'en', 0x0A: 'es', 0x07: 'de'}.get(lang_id & 0xFF)
+            if primaire in LANGUES:
+                return primaire
+        except Exception:
+            pass
+
+    for var in ('LC_ALL', 'LC_MESSAGES', 'LANG'):
+        val = (os.environ.get(var) or '').strip()
+        if val and val.upper() not in ('C', 'POSIX') and not val.upper().startswith('C.'):
+            code_env = val.split('.')[0].split('_')[0].split('-')[0].lower()
+            if code_env in LANGUES:
+                return code_env
+
+    try:
+        loc = (locale.getlocale()[0] or '').lower()
+        if loc:
+            for prefixe, code in (('french', 'fr'), ('english', 'en'), ('spanish', 'es'), ('german', 'de')):
+                if loc.startswith(prefixe):
+                    return code
+            code_loc = loc.split('_')[0].split('-')[0]
+            if code_loc in LANGUES:
+                return code_loc
+    except Exception:
+        pass
+
+    return 'fr'
+
+
 _DEFAUTS = {
     'voice_id': None,    # None = première voix correspondant à la langue
     'rate': 0,           # -10 (lent) … 10 (rapide)
     'volume': 100,       # 0 … 100
     'speak_all': False,  # lire toutes les réponses, pas seulement en mode vocal
-    'language': 'fr',
+    'language': _detecter_langue_os(),
     'model': None,       # dernier modèle choisi (restauré au démarrage)
     'microphone': None,  # nom du micro ; None = micro par défaut du système
 }
@@ -42,7 +82,7 @@ def _valider(prefs: dict) -> dict:
     except (TypeError, ValueError):
         pass
     propre['speak_all'] = bool(prefs.get('speak_all', False))
-    langue = prefs.get('language', 'fr')
+    langue = prefs.get('language', _DEFAUTS['language'])
     propre['language'] = langue if langue in LANGUES else 'fr'
     modele = prefs.get('model')
     propre['model'] = modele if isinstance(modele, str) and modele else None

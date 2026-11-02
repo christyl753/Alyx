@@ -27,12 +27,57 @@ public sealed class AlyxEye : Control
     public EyeMode Mode { get => GetValue(ModeProperty); set => SetValue(ModeProperty, value); }
     public bool FollowCursor { get => GetValue(FollowCursorProperty); set => SetValue(FollowCursorProperty, value); }
 
-    private static readonly IBrush Ink = new SolidColorBrush(Color.Parse("#16181A"));
-    private static readonly IBrush Gold = new SolidColorBrush(Color.Parse("#F4CE23"));
+    private static readonly IBrush Ink = new SolidColorBrush(Color.Parse("#14151A"));
+    private static readonly IBrush PureWhite = Brushes.White;
     private static readonly IPen HandlePen = new Pen(Ink, 7, lineCap: PenLineCap.Round);
     private static readonly IPen LensPen = new Pen(Ink, 3.2);
     private static readonly IPen AlmondPen = new Pen(Ink, 2.4, lineJoin: PenLineJoin.Round);
     private static readonly Geometry Almond = Geometry.Parse("M17 42 Q42 21 67 42 Q42 63 17 42Z");
+    private static readonly Geometry LensCircle = new EllipseGeometry(new Rect(9, 9, 66, 66));
+
+    // Lavis d'aquarelle Bleu Céleste et Rose Pétale
+    private static readonly IBrush WcBlueWash = new RadialGradientBrush
+    {
+        Center = new RelativePoint(0.35, 0.35, RelativeUnit.Relative),
+        GradientOrigin = new RelativePoint(0.35, 0.35, RelativeUnit.Relative),
+        Radius = 0.6,
+        GradientStops = new GradientStops
+        {
+            new GradientStop(Color.FromArgb(160, 125, 211, 252), 0.0), // #7dd3fc
+            new GradientStop(Color.FromArgb(56, 2, 132, 199), 0.6),    // #0284c7
+            new GradientStop(Color.FromArgb(0, 2, 132, 199), 1.0)
+        }
+    };
+
+    private static readonly IBrush WcRoseWash = new RadialGradientBrush
+    {
+        Center = new RelativePoint(0.68, 0.65, RelativeUnit.Relative),
+        GradientOrigin = new RelativePoint(0.68, 0.65, RelativeUnit.Relative),
+        Radius = 0.58,
+        GradientStops = new GradientStops
+        {
+            new GradientStop(Color.FromArgb(178, 249, 168, 212), 0.0), // #f9a8d4
+            new GradientStop(Color.FromArgb(64, 236, 72, 153), 0.6),    // #ec4899
+            new GradientStop(Color.FromArgb(0, 236, 72, 153), 1.0)
+        }
+    };
+
+    // Iris bicolore aquarelle (Bleu -> Rose)
+    private static readonly IBrush IrisGradient = new LinearGradientBrush
+    {
+        StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+        EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
+        GradientStops = new GradientStops
+        {
+            new GradientStop(Color.Parse("#38BDF8"), 0.0),
+            new GradientStop(Color.Parse("#0284C7"), 0.52),
+            new GradientStop(Color.Parse("#EC4899"), 1.0)
+        }
+    };
+
+    private static readonly IBrush LensBacking = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255));
+    private static readonly IBrush PupilBrush = new SolidColorBrush(Color.Parse("#111318"));
+    private static readonly IPen SpinPen = new Pen(new SolidColorBrush(Color.Parse("#0284C7")), 2.4, lineCap: PenLineCap.Round);
 
     private readonly DispatcherTimer _frame;
     private readonly DispatcherTimer _blink;
@@ -138,26 +183,43 @@ public sealed class AlyxEye : Control
         if (s <= 0) return;
         using var scale = context.PushTransform(Matrix.CreateScale(s, s));
 
-        context.DrawLine(HandlePen, new Point(66, 66), new Point(88, 88));
-        context.DrawEllipse(Brushes.White, LensPen, new Point(42, 42), 33, 33);
+        // 1. Taches d'aquarelle douces débordant légèrement de la lentille
+        context.DrawEllipse(WcBlueWash, null, new Point(35, 34), 33, 33);
+        context.DrawEllipse(WcRoseWash, null, new Point(49, 47), 31, 31);
 
-        // Arc doré qui tourne dans la loupe pendant la réflexion (1,2 s/tour)
+        // 2. Manche de la loupe (trait d'encre arrondi)
+        context.DrawLine(HandlePen, new Point(66, 66), new Point(88, 88));
+
+        // 3. Fond et cercle principal de la lentille
+        context.DrawEllipse(LensBacking, LensPen, new Point(42, 42), 33, 33);
+
+        // Lavis d'aquarelle interne découpé dans la lentille
+        using (context.PushGeometryClip(LensCircle))
+        {
+            context.DrawEllipse(WcBlueWash, null, new Point(38, 37), 26, 26);
+            context.DrawEllipse(WcRoseWash, null, new Point(47, 45), 24, 24);
+        }
+
+        // 4. Arc céleste qui tourne dans la loupe pendant la réflexion (1,2 s/tour)
         if (_spinOpacity > .01)
         {
             double angle = _clock.Elapsed.TotalMilliseconds / 1200.0 * 360;
             using var rot = context.PushTransform(Matrix.CreateTranslation(-42, -42) * Matrix.CreateRotation(angle * Math.PI / 180) * Matrix.CreateTranslation(42, 42));
             using var op = context.PushOpacity(_spinOpacity);
-            context.DrawGeometry(null, new Pen(Gold, 2.2, lineCap: PenLineCap.Round), Arc(42, 42, 27.5, 0, 62.5));
+            context.DrawGeometry(null, SpinPen, Arc(42, 42, 27.5, 0, 62.5));
         }
 
-        // Paupière : l'œil entier s'écrase verticalement autour de son centre
+        // 5. Paupière et œil en amande
         using var lid = context.PushTransform(Matrix.CreateTranslation(-42, -42) * Matrix.CreateScale(1, _lid) * Matrix.CreateTranslation(42, 42));
         context.DrawGeometry(Brushes.White, AlmondPen, Almond);
+
+        // 6. Iris aquarelle bicolore, pupille encre et éclat de lumière
         using (context.PushGeometryClip(Almond))
         using (context.PushTransform(Matrix.CreateTranslation(_cx, _cy)))
         {
-            context.DrawEllipse(Gold, null, new Point(42, 42), 9.5, 9.5);
-            context.DrawEllipse(Ink, null, new Point(42, 42), _rx, 7.8);
+            context.DrawEllipse(IrisGradient, null, new Point(42, 42), 9.5, 9.5);
+            context.DrawEllipse(PupilBrush, null, new Point(42, 42), _rx, 7.8);
+            context.DrawEllipse(PureWhite, null, new Point(45.5, 38.5), 1.6, 1.6);
         }
     }
 

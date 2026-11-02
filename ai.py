@@ -1,3 +1,4 @@
+import re
 from core.logger import get_logger
 from core.exceptions import PermissionRequiredException
 
@@ -30,6 +31,8 @@ from function import (
     gerer_app_demarrage,
     desactiver_telemetrie_pc,
     executer_commande_systeme,
+    rechercher_ou_jouer_media,
+    lire_presse_papiers,
 )
 
 from core.llm_provider import (
@@ -44,6 +47,8 @@ outils_disponibles = {
     'ouvrir_application': ouvrir_application,
     'lister_apps_actives': lister_apps_actives,
     'fermer_application': fermer_application,
+    'rechercher_ou_jouer_media': rechercher_ou_jouer_media,
+    'lire_presse_papiers': lire_presse_papiers,
     'rechercher_processus': rechercher_processus,
     'lister_services': lister_services,
     'gerer_service': gerer_service,
@@ -63,28 +68,125 @@ outils_disponibles = {
     'ecrire_fichier_securise': ecrire_fichier_securise,
     'generer_pdf': generer_pdf,
     'controler_media': controler_media,
-    'redemarrer_pc': redemarrer_pc
+    'redemarrer_pc': redemarrer_pc,
 }
 
 LISTE_FONCTIONS = list(outils_disponibles.values())
 
+# --- ROUTAGE DYNAMIQUE D'OUTILS (< 1 ms) & DÉTECTION CONTEXTE MATÉRIEL ---
+_DOMAINES_OUTILS = (
+    (
+        re.compile(
+            r'\b(?:spotify|musiques?|chansons?|titres?|joue[rzs]?|lance[rzs]?|play|pause|'
+            r'suivante?s?|pr[eé]c[eé]dente?s?|next|previous|prev|music|songs?|tracks?|'
+            r'youtube|yt|deezer|medias?|m[eé]dias?|[eé]coute[rzs]?|listen|albums?|artistes?|'
+            r'artists?|playlists?|son|audio)\b',
+            re.IGNORECASE,
+        ),
+        (rechercher_ou_jouer_media, controler_media, ouvrir_application, fermer_application),
+    ),
+    (
+        re.compile(
+            r'\b(?:ouvre|ouvrir|open|lance[rzs]?|launch|ferme[rzs]?|close|quitte[rzs]?|quit|kill|'
+            r'apps?|applis?|applications?|programmes?|logiciels?|explorateur|explorer|'
+            r'copi[eé][es]?|copier|presse[- ]papiers?|clipboard|colle[rzs]?|paste)\b',
+            re.IGNORECASE,
+        ),
+        (ouvrir_application, fermer_application, lister_apps_actives, ouvrir_explorateur, rechercher_ou_jouer_media, lire_presse_papiers),
+    ),
+    (
+        re.compile(
+            r'\b(?:fichiers?|files?|dossiers?|folders?|r[eé]pertoires?|directory|documents?|docs?|'
+            r'pdfs?|notes?|cr[eé]e[rzs]?|create|[eé]cri[stve][a-z]*|write|li[st]|lire|read|'
+            r'supprime[rzs]?|efface[rzs]?|delete|remove|corbeille|renomme[rzs]?|rename|'
+            r'd[eé]place[rzs]?|move|liste[rzs]?|bureau|desktop|t[eé]l[eé]chargements?|downloads?)\b',
+            re.IGNORECASE,
+        ),
+        (
+            creer_fichier, creer_dossier, lister_fichiers, renommer_fichier, deplacer_fichier,
+            supprimer_fichier, lire_fichier_securise, ecrire_fichier_securise, generer_pdf,
+            ouvrir_explorateur, lire_presse_papiers,
+        ),
+    ),
+    (
+        re.compile(
+            r'\b(?:t[eé]l[eé]m[eé]trie|telemetry|diagtrack|services?|systemd|t[aâ]ches?|tasks?|'
+            r'planifi[a-z]*|scheduled|timers?|processus|process|pids?|ram|cpu|gpu|vram|'
+            r'm[eé]moire|memory|lent|lenteurs?|rame[rzs]?|lag|d[eé]marrage|startup|autostart|boot|'
+            r'commandes?|commands?|powershell|terminal|bash|cmd|registre|registry|'
+            r'red[eé]marre[rzs]?|reboot|restart|admin|administrateur|syst[eé]me|system)\b',
+            re.IGNORECASE,
+        ),
+        (
+            desactiver_telemetrie_pc, rechercher_processus, lister_services, gerer_service,
+            lister_taches_planifiees, gerer_tache_planifiee, lister_apps_demarrage,
+            gerer_app_demarrage, executer_commande_systeme, fermer_application, redemarrer_pc,
+        ),
+    ),
+)
+
+_KIT_BASE_POLYVALENT = [
+    ouvrir_application,
+    rechercher_ou_jouer_media,
+    controler_media,
+    rechercher_processus,
+    lister_fichiers,
+    lire_presse_papiers,
+    executer_commande_systeme,
+]
+
+_REGEX_BESOIN_ETAT_SYSTEME = re.compile(
+    r'\b(?:cpu|processeur|processor|ram|m[eé]moire|memory|gpu|vram|carte graphique|nvidia|'
+    r'temp[eé]rature|chauffe|batterie|battery|autonomie|charge|r[eé]seau|wifi|wi-fi|ssid|'
+    r'internet|ip|d[eé]bit|lent|lenteurs?|rame[rzs]?|lag|freeze|performances?|processus|'
+    r'process|consomme[a-z]*|gourmand[es]?|utilisation|usage|[eé]tat|mat[eé]riel|hardware|'
+    r'config|configuration|machine|pc|ordinateur|disque|stockage)\b',
+    re.IGNORECASE,
+)
+
+
+def selectionner_outils_pertinents(user_input: str) -> list:
+    """Sélectionne en < 1 ms le sous-ensemble d'outils pertinent pour la requête utilisateur."""
+    if not load_config().get('llm_provider', {}).get('dynamic_tool_routing', True):
+        return LISTE_FONCTIONS
+
+    texte = str(user_input or "")
+    selection = []
+    vus = set()
+    for regex, outils_domaine in _DOMAINES_OUTILS:
+        if regex.search(texte):
+            for fn in outils_domaine:
+                if fn not in vus:
+                    vus.add(fn)
+                    selection.append(fn)
+
+    return selection if selection else list(_KIT_BASE_POLYVALENT)
+
+
+def besoin_etat_systeme(user_input: str) -> bool:
+    """Détermine si le snapshot matériel en direct (CPU/RAM/GPU/processus) est utile à la requête."""
+    return bool(_REGEX_BESOIN_ETAT_SYSTEME.search(str(user_input or "")))
+
+
 # --- 2. INITIALISATION DE L'AGENT ---
 PROMPT_BASE = (
     "Tu es Alyx, un assistant système intelligent et efficace. "
-    "RÈGLE ABSOLUE : Si l'utilisateur te demande d'effectuer une action système (ouvrir/fermer une application, créer un fichier, etc.), "
+    "RÈGLE ABSOLUE : Si l'utilisateur te demande d'effectuer une action système (ouvrir/fermer une application, rechercher un média, créer un fichier, couper la télémétrie, etc.), "
     "tu DOIS IMPÉRATIVEMENT utiliser l'outil/la fonction JSON correspondant. "
     "Ne réponds JAMAIS par du texte comme 'Ouverture en cours...' ou 'Je ferme l'application' sans avoir appelé l'outil. "
     "IMPORTANT: Quand l'utilisateur te demande de réaliser PLUSIEURS actions dans une même requête "
     "(par exemple 'ferme Firefox et ouvre Discord'), tu DOIS appeler TOUS les outils nécessaires en même temps. "
-    "Tu as accès aux outils pour : ouvrir/fermer des applications, rechercher et lister tous les processus actifs, "
-    "lister et gérer les services système (arrêter, démarrer, désactiver), lister et gérer les tâches planifiées, "
-    "lister et gérer les applications au démarrage automatique, désactiver intégralement la télémétrie du PC "
+    "HONNÊTETÉ STRICTE : Si un outil indique qu'une partie de l'action n'est pas automatisable (ex: application ouverte sur une recherche sans pouvoir lancer la chanson exacte), "
+    "tu DOIS le dire explicitement à l'utilisateur au lieu de prétendre que tout est fait. Si tu ne peux pas accomplir l'action exacte, ouvre au moins la bonne application et explique la limite en une phrase. "
+    "Tu as accès aux outils pour : ouvrir/fermer des applications, rechercher une musique/vidéo dans Spotify ou YouTube (`rechercher_ou_jouer_media`), "
+    "contrôler la lecture multimédia (`controler_media`), lire le presse-papiers (`lire_presse_papiers`), rechercher les processus actifs, "
+    "gérer les services système, les tâches planifiées et les applications au démarrage, désactiver intégralement la télémétrie du PC "
     "(utilise `desactiver_telemetrie_pc` dès qu'on te demande de couper ou désactiver la télémétrie partout), "
-    "exécuter des commandes système PowerShell/Bash (`executer_commande_systeme`), gérer les fichiers "
-    "(lister, créer, renommer, déplacer, lire, écrire, et supprimer), générer des PDF, contrôler la musique (lecture/pause, suivant, précédent) et redémarrer le PC. Un état du système en direct (CPU, RAM, GPU, processus) t'est fourni : utilise-le pour répondre aux questions sur la machine. "
+    "exécuter des commandes système PowerShell/Bash (`executer_commande_systeme`), gérer les fichiers et PDF, et redémarrer le PC. "
     "Réponds de façon très concise. Moins tu parles, mieux c'est. "
     "Mets en forme tes réponses en Markdown quand c'est utile (titres ##, listes, **gras**, `code`, tableaux) ; "
-    "écris les formules en LaTeX entre $...$, ou $$...$$ pour une formule seule sur sa ligne."
+    "écris les formules en LaTeX entre $...$, ou $$...$$ pour une formule seule sur sa ligne. "
+    "LANGUE OBLIGATOIRE : Respecte TOUJOURS la consigne de langue finale, même après l'exécution d'un outil (ne bascule jamais en anglais si la langue demandée est le français)."
 )
 
 
@@ -156,9 +258,10 @@ def lancer_cli():
             continue
 
         messages.append({'role': 'user', 'content': user_input})
+        outils_tour = selectionner_outils_pertinents(user_input)
 
         try:
-            response = chat_with_provider(model_name=MODEL, messages_list=messages, tools=LISTE_FONCTIONS)
+            response = chat_with_provider(model_name=MODEL, messages_list=messages, tools=outils_tour)
             message_ia = response['message']
             messages.append(message_ia)
 
@@ -182,7 +285,7 @@ def lancer_cli():
                     })
 
                 iteration += 1
-                outils = LISTE_FONCTIONS if iteration < max_iterations else None
+                outils = outils_tour if iteration < max_iterations else None
                 response = chat_with_provider(model_name=MODEL, messages_list=messages, tools=outils)
                 message_ia = response['message']
                 messages.append(message_ia)
@@ -193,6 +296,7 @@ def lancer_cli():
         except Exception as e:
             logger.error(f"Erreur système LLM : {e}", exc_info=True)
             print(f"\n---> Erreur système LLM : {e}")
+
 
 if __name__ == "__main__":
     lancer_cli()

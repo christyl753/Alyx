@@ -29,4 +29,6 @@ from .system import (
     gerer_app_demarrage,
     desactiver_telemetrie_pc,
     executer_commande_systeme,
+    rechercher_ou_jouer_media,
+    lire_presse_papiers,
 )

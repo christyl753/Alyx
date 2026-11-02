@@ -39,6 +39,27 @@
       <Setter Property="BorderBrush" Value="{StaticResource Hair6}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
+    <!-- Sélecteur de format dans l'en-tête (Card / Side / Overlay) -->
+    <Style Selector="Button.layout-pill">
+      <Setter Property="Width" Value="24" />
+      <Setter Property="Height" Value="22" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.layout-pill:pointerover">
+      <Setter Property="Background" Value="{StaticResource Fill04}" />
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    </Style>
+    <Style Selector="Button.layout-pill.active">
+      <Setter Property="Background" Value="{StaticResource AccentActivePill}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentDeep}" />
+    </Style>
     <!-- Onglets -->
     <Style Selector="Button.tab">
       <Setter Property="Padding" Value="0,0,0,10" />
@@ -172,20 +193,42 @@
   <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
 
     <!-- 1. En-tête -->
-    <Grid x:Name="HeaderSection" Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto" Margin="16,16,14,12">
+    <Grid x:Name="HeaderSection" Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="16,16,14,12">
       <c:AlyxEye x:Name="HeaderEye" Width="42" Height="42" VerticalAlignment="Center" />
-      <StackPanel Grid.Column="1" Margin="12,0" Spacing="3" VerticalAlignment="Center">
+      <StackPanel Grid.Column="1" Margin="10,0,8,0" Spacing="3" VerticalAlignment="Center">
         <TextBlock Text="Alyx" FontFamily="{StaticResource DisplayFont}" FontSize="26" FontWeight="SemiBold" LetterSpacing="0.8" LineHeight="26" />
-        <StackPanel Orientation="Horizontal" Spacing="6">
+        <Grid ColumnDefinitions="Auto,*">
           <Ellipse x:Name="ModelDot" Width="6" Height="6" Fill="{StaticResource Faint}" VerticalAlignment="Center" />
-          <TextBlock x:Name="ModelLine" Text="Connexion au moteur…" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" MaxWidth="170" />
-        </StackPanel>
+          <TextBlock Grid.Column="1" x:Name="ModelLine" Margin="6,0,0,0" Text="Connexion au moteur…" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" />
+        </Grid>
       </StackPanel>
-      <StackPanel Grid.Column="2" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Center">
+      <StackPanel Grid.Column="2" Margin="0,0,8,0" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Center">
         <TextBlock x:Name="ClockText" Text="00:00" FontFamily="{StaticResource DisplayFont}" FontSize="30" FontWeight="Medium" HorizontalAlignment="Right" LineHeight="27" />
         <TextBlock x:Name="DateText" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
       </StackPanel>
-      <Button Grid.Column="3" Classes="flat hover-fill" Width="28" Height="28" CornerRadius="8" Margin="10,0,0,0" VerticalAlignment="Top"
+      <Border Grid.Column="3" Padding="2" CornerRadius="8" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1" VerticalAlignment="Center">
+        <StackPanel x:Name="LayoutBar" Orientation="Horizontal" Spacing="2">
+          <Button x:Name="LayoutCardBtn" Classes="flat layout-pill active" Tag="card" ToolTip.Tip="Carte (Ctrl+1)" AutomationProperties.Name="Carte" Click="OnLayoutPillClick">
+            <Canvas Width="14" Height="11">
+              <Rectangle Canvas.Left="0.5" Canvas.Top="0.5" Width="13" Height="10" RadiusX="2" RadiusY="2" Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.15" />
+              <Rectangle Canvas.Left="7.5" Canvas.Top="2.5" Width="4.2" Height="6" RadiusX="1" RadiusY="1" Fill="{Binding $parent[Button].Foreground}" />
+            </Canvas>
+          </Button>
+          <Button x:Name="LayoutSideBtn" Classes="flat layout-pill" Tag="side" ToolTip.Tip="Panneau latéral (Ctrl+2)" AutomationProperties.Name="Panneau latéral" Click="OnLayoutPillClick">
+            <Canvas Width="14" Height="11">
+              <Rectangle Canvas.Left="0.5" Canvas.Top="0.5" Width="13" Height="10" RadiusX="2" RadiusY="2" Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.15" />
+              <Rectangle Canvas.Left="8.8" Canvas.Top="1" Width="4.2" Height="9" RadiusX="1" RadiusY="1" Fill="{Binding $parent[Button].Foreground}" />
+            </Canvas>
+          </Button>
+          <Button x:Name="LayoutOverlayBtn" Classes="flat layout-pill" Tag="overlay" ToolTip.Tip="Overlay (Ctrl+3)" AutomationProperties.Name="Overlay" Click="OnLayoutPillClick">
+            <Canvas Width="14" Height="11">
+              <Rectangle Canvas.Left="0.5" Canvas.Top="0.5" Width="13" Height="10" RadiusX="2" RadiusY="2" Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.15" />
+              <Rectangle Canvas.Left="2.7" Canvas.Top="2.5" Width="8.6" Height="6" RadiusX="1" RadiusY="1" Fill="{Binding $parent[Button].Foreground}" />
+            </Canvas>
+          </Button>
+        </StackPanel>
+      </Border>
+      <Button Grid.Column="4" Classes="flat hover-fill" Width="28" Height="28" CornerRadius="8" Margin="6,0,0,0" VerticalAlignment="Center"
               Foreground="{StaticResource Muted}" ToolTip.Tip="Fermer (Échap)" AutomationProperties.Name="Fermer" Click="OnCloseClick">
         <TextBlock Text="×" FontSize="18" LineHeight="18" />
       </Button>
@@ -234,6 +277,7 @@
           <Button Classes="flat tab" Tag="tasks" Content="Tâches" Click="OnTabClick" />
           <Button Classes="flat tab" Tag="models" Content="Modèles" Click="OnTabClick" />
           <Button Classes="flat tab" Tag="settings" Content="Réglages" Click="OnTabClick" />
+          <Button Classes="flat tab" Tag="style" Content="Style" Click="OnTabClick" />
         </StackPanel>
       </Border>
     </StackPanel>
@@ -244,16 +288,18 @@
       <!-- Chat -->
       <Grid x:Name="ChatView" RowDefinitions="*,Auto,Auto">
         <ScrollViewer x:Name="ChatScroll">
-          <StackPanel Spacing="16" Margin="18,18,18,8">
+          <StackPanel MaxWidth="720" HorizontalAlignment="Stretch" Spacing="16" Margin="18,18,18,8">
             <ItemsControl x:Name="MessageList">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><StackPanel Spacing="16" /></ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
               <ItemsControl.DataTemplates>
                 <DataTemplate DataType="m:UserMessage">
-                  <Border HorizontalAlignment="Right" MaxWidth="298" Padding="13,9" CornerRadius="14,14,4,14" Background="{StaticResource Fill07}">
-                    <SelectableTextBlock Text="{Binding Text}" FontSize="13.5" LineHeight="20" TextWrapping="Wrap" />
-                  </Border>
+                  <Grid ColumnDefinitions="18*,82*">
+                    <Border Grid.Column="1" HorizontalAlignment="Right" Padding="13,9" CornerRadius="14,14,4,14" Background="{StaticResource Fill07}">
+                      <SelectableTextBlock Text="{Binding Text}" FontSize="13.5" LineHeight="20" TextWrapping="Wrap" />
+                    </Border>
+                  </Grid>
                 </DataTemplate>
                 <DataTemplate DataType="m:AlyxMessage">
                   <StackPanel Spacing="5" HorizontalAlignment="Stretch">
@@ -296,7 +342,7 @@
           </StackPanel>
         </ScrollViewer>
 
-        <WrapPanel x:Name="Suggestions" Grid.Row="1" Margin="18,4,18,4">
+        <WrapPanel x:Name="Suggestions" Grid.Row="1" MaxWidth="720" HorizontalAlignment="Stretch" Margin="18,4,18,4">
           <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Qu'est-ce qui mange ma RAM ?" Click="OnSuggestionClick" />
           <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Pourquoi mon PC rame ?" Click="OnSuggestionClick" />
           <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Mets la musique en pause" Click="OnSuggestionClick" />
@@ -304,7 +350,7 @@
         </WrapPanel>
 
         <Border Grid.Row="2" Padding="14,10,14,12" BorderBrush="{StaticResource Hair6}" BorderThickness="0,1,0,0">
-          <StackPanel Spacing="6">
+          <StackPanel MaxWidth="720" HorizontalAlignment="Stretch" Spacing="6">
             <Border x:Name="Composer" CornerRadius="12" Padding="12,8,8,8" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
               <Border.Transitions>
                 <Transitions><BrushTransition Property="BorderBrush" Duration="0:0:0.16" /></Transitions>
@@ -334,8 +380,8 @@
 
       <!-- Système -->
       <ScrollViewer x:Name="SystemView" IsVisible="False">
-        <StackPanel Spacing="10" Margin="16">
-          <Border Classes="card">
+        <UniformGrid x:Name="SystemGrid" Columns="1" VerticalAlignment="Top" Margin="16,16,6,6">
+          <Border Classes="card" Margin="0,0,10,10">
             <StackPanel Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="CPU" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
@@ -345,7 +391,7 @@
               <TextBlock Classes="sub" x:Name="CpuSub" />
             </StackPanel>
           </Border>
-          <Border Classes="card">
+          <Border Classes="card" Margin="0,0,10,10">
             <StackPanel Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="Mémoire" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
@@ -355,7 +401,7 @@
               <TextBlock Classes="sub" x:Name="RamSub" />
             </StackPanel>
           </Border>
-          <Border Classes="card">
+          <Border Classes="card" Margin="0,0,10,10">
             <StackPanel Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="GPU" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
@@ -365,7 +411,7 @@
               <TextBlock Classes="sub" x:Name="GpuSub" Text="Aucun GPU NVIDIA détecté" />
             </StackPanel>
           </Border>
-          <Border Classes="card">
+          <Border Classes="card" Margin="0,0,10,10">
             <StackPanel Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="Réseau" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" />
@@ -384,13 +430,13 @@
               <TextBlock Classes="sub" x:Name="NetSub" />
             </StackPanel>
           </Border>
-          <Border Classes="card">
+          <Border Classes="card" Margin="0,0,10,10">
             <StackPanel Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="Batterie" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
                 <TextBlock Grid.Column="1" Classes="big" x:Name="BatValue" Text="—" />
               </Grid>
-              <Border Height="8" CornerRadius="4" Background="{StaticResource Fill08}" ClipToBounds="True">
+              <Border x:Name="BatTrack" Height="8" CornerRadius="4" Background="{StaticResource Fill08}" ClipToBounds="True">
                 <Border x:Name="BatFill" HorizontalAlignment="Left" Width="0" CornerRadius="4" Background="{StaticResource Ink}">
                   <Border.Transitions>
                     <Transitions><DoubleTransition Property="Width" Duration="0:0:0.6" /></Transitions>
@@ -400,7 +446,7 @@
               <TextBlock Classes="sub" x:Name="BatSub" />
             </StackPanel>
           </Border>
-        </StackPanel>
+        </UniformGrid>
       </ScrollViewer>
 
       <!-- Tâches -->
@@ -500,7 +546,7 @@
 
       <!-- Réglages -->
       <ScrollViewer x:Name="SettingsView" IsVisible="False">
-        <StackPanel Spacing="18" Margin="16">
+        <StackPanel MaxWidth="720" HorizontalAlignment="Stretch" Spacing="18" Margin="16">
           <UniformGrid x:Name="TileGrid" Columns="3" Margin="0,0,-8,-8" />
           <StackPanel Spacing="12">
             <Grid ColumnDefinitions="80,*,46">
@@ -598,8 +644,16 @@
             </StackPanel>
           </Border>
           <Border BorderBrush="{StaticResource Hair7}" BorderThickness="0,1,0,0" Padding="0,6,0,0">
-            <StackPanel>
-              <TextBlock Classes="label10" Text="ALYX" Margin="0,8" />
+            <StackPanel Spacing="4">
+              <TextBlock Classes="label10" Text="ALYX" Margin="0,8,0,4" />
+              <StackPanel Spacing="6" Margin="0,4,0,6">
+                <TextBlock Text="Style d'ouverture" FontSize="12" Foreground="{StaticResource Ink2}" />
+                <WrapPanel x:Name="EntryModeChips" />
+              </StackPanel>
+              <StackPanel Spacing="6" Margin="0,0,0,6">
+                <TextBlock Text="Présence sur le bureau" FontSize="12" Foreground="{StaticResource Ink2}" />
+                <WrapPanel x:Name="IdleModeChips" />
+              </StackPanel>
               <Button x:Name="FollowPref" AutomationProperties.Name="L'œil suit le curseur" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,9" Click="OnFollowPrefClick">
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBlock Text="L'œil suit le curseur" FontSize="13" VerticalAlignment="Center" />
@@ -618,6 +672,144 @@
                   <TextBlock x:Name="ShortcutText" Text="Alt + J" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Ink2}" />
                 </Border>
               </Grid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Style & Apparence Aquarelle -->
+      <ScrollViewer x:Name="StyleView" IsVisible="False">
+        <StackPanel MaxWidth="720" HorizontalAlignment="Stretch" Spacing="16" Margin="16">
+
+          <!-- Aperçu du Logo Loupe & Œil Aquarelle -->
+          <Border Classes="card" Background="{StaticResource WatercolorCardWash}">
+            <Grid ColumnDefinitions="Auto,*">
+              <Border Width="64" Height="64" CornerRadius="18" Background="#F2FFFFFF" BorderBrush="{StaticResource Hair8}" BorderThickness="1" Margin="0,0,14,0" VerticalAlignment="Center">
+                <c:AlyxEye Width="52" Height="52" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                <TextBlock Text="Logo Loupe &amp; Œil Aquarelle" FontSize="14" FontWeight="SemiBold" />
+                <TextBlock Text="Trait d'encre minimaliste avec double lavis bleu céleste et rose pétale au cœur de la lentille." FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" LineHeight="16" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- Nuances Aquarelle & Encre -->
+          <Border Classes="card">
+            <StackPanel Spacing="10">
+              <TextBlock Text="Nuances Aquarelle &amp; Encre" FontSize="12" FontWeight="SemiBold" />
+              <UniformGrid Columns="2" Margin="0,2,0,0">
+                <Button x:Name="PalDuoBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteDuoClick">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
+                      <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                          <GradientStop Color="#0284C7" Offset="0" />
+                          <GradientStop Color="#EC4899" Offset="1" />
+                        </LinearGradientBrush>
+                      </Border.Background>
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="Aquarelle Bleu &amp; Rose" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  </Grid>
+                </Button>
+                <Button x:Name="PalBlueBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteBlueClick">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
+                      <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                          <GradientStop Color="#0284C7" Offset="0" />
+                          <GradientStop Color="#7DD3FC" Offset="1" />
+                        </LinearGradientBrush>
+                      </Border.Background>
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="Bleu Aquarelle Pur" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  </Grid>
+                </Button>
+                <Button x:Name="PalRoseBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteRoseClick">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
+                      <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                          <GradientStop Color="#DB2777" Offset="0" />
+                          <GradientStop Color="#F9A8D4" Offset="1" />
+                        </LinearGradientBrush>
+                      </Border.Background>
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="Rose Pétale &amp; Encre" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  </Grid>
+                </Button>
+                <Button x:Name="PalInkBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteInkClick">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
+                      <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                          <GradientStop Color="#18181B" Offset="0" />
+                          <GradientStop Color="#F472B6" Offset="1" />
+                        </LinearGradientBrush>
+                      </Border.Background>
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="Encre Noire &amp; Pastel" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  </Grid>
+                </Button>
+              </UniformGrid>
+            </StackPanel>
+          </Border>
+
+          <!-- Thème (Luminosité) et Format de bureau -->
+          <Border Classes="card">
+            <StackPanel Spacing="14">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Luminosité" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
+                  <StackPanel Orientation="Horizontal" Spacing="2">
+                    <Button x:Name="ThemeLightBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Blanc" FontSize="10.5" Tag="light" Click="OnThemeModeClick" />
+                    <Button x:Name="ThemeDarkBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Noir" FontSize="10.5" Tag="dark" Click="OnThemeModeClick" />
+                    <Button x:Name="ThemeAutoBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Auto" FontSize="10.5" Tag="auto" Click="OnThemeModeClick" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Présence au repos" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
+                  <StackPanel Orientation="Horizontal" Spacing="2">
+                    <Button x:Name="PresenceEdgeBtn" Classes="flat layout-pill" Width="72" Height="24" Content="Languette" FontSize="10" Tag="EdgeTab" Click="OnPresenceModeClick" />
+                    <Button x:Name="PresenceStealthBtn" Classes="flat layout-pill" Width="56" Height="24" Content="Furtif" FontSize="10" Tag="Stealth" Click="OnPresenceModeClick" />
+                    <Button x:Name="PresenceMiniBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Mini-orbe" FontSize="10" Tag="MiniOrb" Click="OnPresenceModeClick" />
+                    <Button x:Name="PresenceOrbBtn" Classes="flat layout-pill" Width="52" Height="24" Content="Orbe" FontSize="10" Tag="Orb" Click="OnPresenceModeClick" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Bord d'accroche" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
+                  <StackPanel Orientation="Horizontal" Spacing="2">
+                    <Button x:Name="DockRightBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Droite" FontSize="10.5" Tag="Right" Click="OnDockSideClick" />
+                    <Button x:Name="DockLeftBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Gauche" FontSize="10.5" Tag="Left" Click="OnDockSideClick" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <!-- Curseur Transparence aquarelle -->
+              <StackPanel Spacing="4">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="Transparence aquarelle" FontSize="12" Foreground="{StaticResource Ink2}" />
+                  <TextBlock x:Name="OpacityValueText" Grid.Column="1" Text="96%" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Muted}" />
+                </Grid>
+                <Slider x:Name="OpacitySlider" Minimum="82" Maximum="100" Value="96" />
+              </StackPanel>
+
+              <!-- Mode éco RAM / VRAM -->
+              <Button x:Name="EcoModePref" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,6" Click="OnEcoModePrefClick">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="Mode Silence &amp; Économie VRAM" FontSize="12" FontWeight="SemiBold" />
+                    <TextBlock Text="Suspend les routines en plein écran pour garantir 0 impact FPS." FontSize="10.5" Foreground="{StaticResource Muted}" />
+                  </StackPanel>
+                  <Border x:Name="EcoModeTrack" Grid.Column="1" Classes="track" VerticalAlignment="Center"><Border Classes="knob" /></Border>
+                </Grid>
+              </Button>
             </StackPanel>
           </Border>
         </StackPanel>
