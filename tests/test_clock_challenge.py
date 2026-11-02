@@ -431,5 +431,127 @@ class TestWebSocketMetricsStreamingStress(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(delta2, 1.5, f"Frame interval {delta2}s is too slow (>1.5s)")
 
 
+
+class TestMissingHardwareDegradationChallenge(unittest.TestCase):
+    """Adversarial challenge for missing hardware (no GPU, no battery, no network, sensor failures)."""
+
+    def setUp(self):
+        self._orig_messages = list(api.messages)
+
+    def tearDown(self):
+        api.messages[:] = self._orig_messages
+
+    def test_missing_gpu_preserves_clock_and_serialization(self):
+        """When GPU is absent (_gpu() returns None), clock fields remain intact, accurate, and JSON serializable."""
+        with patch.object(system_monitor, '_gpu', return_value=None):
+            s = system_monitor.snapshot()
+            self.assertIsNone(s['gpu'])
+            self.assertIn('timestamp', s)
+            self.assertIn('time', s)
+            self.assertIn('date', s)
+            self.assertTrue(s['timestamp'].startswith(s['date']))
+            self.assertTrue(s['timestamp'].split('T')[1].startswith(s['time']))
+
+            # JSON serialization
+            serialized = json.dumps(s)
+            self.assertIsInstance(serialized, str)
+            roundtrip = json.loads(serialized)
+            self.assertEqual(roundtrip['timestamp'], s['timestamp'])
+
+            # resume_pour_llm
+            resume = system_monitor.resume_pour_llm()
+            self.assertIn("Date et heure :", resume)
+            self.assertIn(s['date'], resume)
+            self.assertNotIn("GPU", resume)
+
+    def test_missing_battery_preserves_clock_and_serialization(self):
+        """When running on desktop without battery (sensors_battery() returns None), clock keys remain valid."""
+        with patch('psutil.sensors_battery', return_value=None):
+            s = system_monitor.snapshot()
+            self.assertIsNone(s['battery'])
+            self.assertIn('timestamp', s)
+            self.assertIn('time', s)
+            self.assertIn('date', s)
+
+            # JSON serialization
+            serialized = json.dumps(s)
+            self.assertIsInstance(serialized, str)
+
+            # resume_pour_llm
+            resume = system_monitor.resume_pour_llm()
+            self.assertIn("Date et heure :", resume)
+            self.assertNotIn("batterie", resume)
+
+    def test_battery_sensor_exceptions_handled_gracefully(self):
+        """When sensors_battery() raises OSError or NotImplementedError, clock fields remain present and accurate."""
+        for exc in (OSError("Sensor unavailable"), NotImplementedError("Unsupported platform")):
+            with patch('psutil.sensors_battery', side_effect=exc):
+                s = system_monitor.snapshot()
+                self.assertIsNone(s['battery'])
+                self.assertIn('timestamp', s)
+                self.assertIn('time', s)
+                self.assertIn('date', s)
+                self.assertIsInstance(json.dumps(s), str)
+
+    def test_missing_network_preserves_clock_and_serialization(self):
+        """When network is absent or reseau=False, clock keys remain intact and JSON-serializable."""
+        with patch.object(system_monitor, '_reseau', return_value=None):
+            s = system_monitor.snapshot(reseau=True)
+            self.assertIsNone(s['net'])
+            self.assertIn('timestamp', s)
+            self.assertIn('time', s)
+            self.assertIn('date', s)
+            self.assertIsInstance(json.dumps(s), str)
+
+        s_no_net = system_monitor.snapshot(reseau=False)
+        self.assertIsNone(s_no_net['net'])
+        self.assertIn('timestamp', s_no_net)
+        self.assertIn('time', s_no_net)
+        self.assertIn('date', s_no_net)
+        self.assertIsInstance(json.dumps(s_no_net), str)
+
+    def test_all_hardware_missing_simultaneously(self):
+        """Headless/minimal environment: no GPU, no battery, no network."""
+        with patch.object(system_monitor, '_gpu', return_value=None), \
+             patch('psutil.sensors_battery', return_value=None), \
+             patch.object(system_monitor, '_reseau', return_value=None):
+
+            s = system_monitor.snapshot(reseau=False)
+            self.assertIsNone(s['gpu'])
+            self.assertIsNone(s['battery'])
+            self.assertIsNone(s['net'])
+
+            # Clock invariants
+            self.assertIn('timestamp', s)
+            self.assertIn('time', s)
+            self.assertIn('date', s)
+
+            parsed = datetime.fromisoformat(s['timestamp'])
+            self.assertEqual(parsed.strftime("%Y-%m-%d"), s['date'])
+            self.assertEqual(parsed.strftime("%H:%M:%S"), s['time'])
+
+            # Strict JSON validation
+            raw_json = json.dumps(s)
+            roundtrip = json.loads(raw_json)
+            self.assertEqual(roundtrip['timestamp'], s['timestamp'])
+            self.assertEqual(roundtrip['time'], s['time'])
+            self.assertEqual(roundtrip['date'], s['date'])
+
+            # resume_pour_llm
+            resume = system_monitor.resume_pour_llm()
+            self.assertTrue(resume.startswith("État du système en direct : Date et heure :"))
+            self.assertIn(s['date'], resume)
+            self.assertIn(s['time'][:5], resume)
+
+            # Prompt context window injection
+            api.messages[:] = [
+                {'role': 'system', 'content': 'Sys'},
+                {'role': 'user', 'content': 'System status?'}
+            ]
+            contexte = api._messages_avec_fenetre(etat_systeme=resume)
+            self.assertIn("- Date et Heure locales :", contexte[0]['content'])
+            self.assertIn(f"[Contexte matériel actuel : {resume}]", contexte[-1]['content'])
+
+
 if __name__ == '__main__':
     unittest.main()
