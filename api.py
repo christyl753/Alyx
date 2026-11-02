@@ -6,6 +6,7 @@ import re
 import threading
 import time
 import urllib.request
+from datetime import datetime
 
 import psutil
 
@@ -80,8 +81,11 @@ def _index_coupure_sure(recents, max_messages):
     return start_idx
 
 def _messages_avec_fenetre(etat_systeme=None):
-    # Prompt système reconstruit à chaque tour : langue choisie dans les réglages + état du système
+    # Prompt système reconstruit à chaque tour : langue choisie dans les réglages + ancrage temporel
+    maintenant = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     contenu = ai.prompt_systeme(preferences.charger()['language'])
+    if "- Date et Heure locales :" not in contenu:
+        contenu = f"{contenu}\n\n# Contexte temporel\n- Date et Heure locales : {maintenant}"
     if etat_systeme:
         pass  # system_prompt reste 100% statique pour préserver le KV-Cache d'Ollama/LM Studio
     system_prompt = {'role': 'system', 'content': contenu}
@@ -427,7 +431,13 @@ async def _boucle_metriques(session):
     try:
         while True:
             snapshot = await asyncio.to_thread(system_monitor.snapshot)
-            await session.envoyer({"type": "metrics", "generating": session.occupee(), **snapshot})
+            payload = {
+                "type": "metrics",
+                "generating": session.occupee(),
+                "timestamp": snapshot.get("timestamp") or datetime.now().isoformat(),
+                **snapshot,
+            }
+            await session.envoyer(payload)
             await asyncio.sleep(1)
     except asyncio.CancelledError:
         pass

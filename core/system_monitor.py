@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime
 
 import psutil
 
@@ -143,7 +144,11 @@ def snapshot(reseau: bool = True) -> dict:
                 batterie = {'percent': round(b.percent), 'plugged': bool(b.power_plugged), 'secs_left': restant}
         except (OSError, NotImplementedError):
             pass
+        now = datetime.now()
         return {
+            'timestamp': now.isoformat(),
+            'time': now.strftime("%H:%M:%S"),
+            'date': now.strftime("%Y-%m-%d"),
             'cpu': {'percent': psutil.cpu_percent(None), 'cores': psutil.cpu_count(logical=True), 'freq_ghz': freq},
             'ram': {'percent': mem.percent, 'used_gb': round(mem.used / 1024**3, 1), 'total_gb': round(mem.total / 1024**3, 1)},
             'gpu': _gpu(),
@@ -283,6 +288,7 @@ def resume_pour_llm() -> str:
     s = snapshot(reseau=False)
     top = processus(limite=5)['items']
     lignes = [
+        f"Date et heure : {s.get('date', '')} {s.get('time', '')}".strip(),
         f"CPU {s['cpu']['percent']:.0f} %",
         f"RAM {s['ram']['percent']:.0f} % ({s['ram']['used_gb']} / {s['ram']['total_gb']} Go)",
     ]

@@ -61,6 +61,10 @@ public partial class AlyxPanel : UserControl
     private readonly DispatcherTimer _clockTimer;
     private readonly DispatcherTimer _pollTimer;
     private int _pollTicks;
+    private int _lastClockMinute = -1;
+    private int _lastClockHour = -1;
+    private DateTime _lastClockDate = DateTime.MinValue;
+    private bool _lastClockCompact;
 
     /// <summary>Valeurs affichées par les bulles du menu radial.</summary>
     public double CpuPercent { get; private set; }
@@ -107,9 +111,9 @@ public partial class AlyxPanel : UserControl
         BrightnessSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) OnBrightnessChanged(); };
         SizeChanged += OnPanelSizeChanged;
 
-        _clockTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => UpdateClock());
+        _clockTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Normal, (_, _) => UpdateClock());
         _pollTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, async (_, _) => await PollAsync());
-        UpdateClock();
+        UpdateClock(force: true);
         _clockTimer.Start();
         BuildTiles();
         BuildWidgetModeChips();
@@ -296,6 +300,7 @@ public partial class AlyxPanel : UserControl
         _menuActive = active;
         if (active)
         {
+            UpdateClock(force: true);
             _pollTimer.Start();
             await Send(new { type = "subscribe_metrics", on = true });
             await Send(new { type = "get_processes", limit = 40 });
@@ -590,11 +595,25 @@ public partial class AlyxPanel : UserControl
 
     // ================= En-tête =================
 
-    private void UpdateClock()
+    private void UpdateClock(bool force = false)
     {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => UpdateClock(force), DispatcherPriority.Normal);
+            return;
+        }
+
         var now = DateTime.Now;
-        ClockText.Text = now.ToString("HH:mm", Fr);
         bool compact = Bounds.Width > 0 ? Bounds.Width < 430 : _settings.PanelLayout == PanelLayoutMode.Card;
+        if (!force && now.Minute == _lastClockMinute && now.Hour == _lastClockHour && now.Date == _lastClockDate && compact == _lastClockCompact)
+            return;
+
+        _lastClockMinute = now.Minute;
+        _lastClockHour = now.Hour;
+        _lastClockDate = now.Date;
+        _lastClockCompact = compact;
+
+        ClockText.Text = now.ToString("HH:mm", Fr);
         string date = now.ToString(compact ? "ddd d MMM" : "dddd d MMMM", Fr);
         if (!string.IsNullOrEmpty(date))
             date = char.ToUpper(date[0], Fr) + date[1..];
