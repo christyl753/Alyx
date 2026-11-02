@@ -1,4 +1,5 @@
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 import platform
 import re
@@ -108,7 +109,7 @@ _DOMAINES_OUTILS = (
             r'suivante?s?|pr[eé]c[eé]dente?s?|next|previous|prev|skip|'
             r'siguiente[s]?|anterior(?:es)?|pasa[rn]?|'
             r'n(?:[aä]|ae)chste[a-z]*|vorherige[a-z]*|weiter|zur(?:[uü]|ue)ck|(?:[uü]|ue)berspringen|'
-            r'volume|volumen|lautst(?:[aä]|ae)rke|son|audio|sonido|ton|sound|'
+            r'volume|volumen|lautst(?:[aä]|ae)rke[a-z]*|son|audio|sonido|ton|sound|'
             r'sourdine|muet|mute|unmute|silencio|stumm|'
             r'[eé]coute[rzs]?|listen|escuch[a-z]*|h(?:[oö]|oe)r[a-z]*|'
             r'medias?|m[eé]dias?|medien|medios?)\b',
@@ -177,22 +178,22 @@ _DOMAINES_OUTILS = (
     ),
     (
         re.compile(
-            r'\b(?:cpu|processeur|processor|procesador|prozessor|coeurs?|cores?|'
-            r'ram|m[eé]moire|memory|memoria|arbeitsspeicher|speicher|'
-            r'gpu|vram|carte graphique|tarjeta gr[aá]fica|grafikkarte|nvidia|radeon|'
-            r'disques?|stockage|disk(?:s)?|storage|drives?|ssd|hdd|discos?|almacenamiento|festplatte(?:n)?|speicherplatz|'
+            r'\b(?:cpu|processeur|processor|procesador|prozessor[a-z]*|coeurs?|cores?|'
+            r'ram|m[eé]moire|memory|memoria|arbeitsspeicher|speicher[a-z]*|'
+            r'gpu|vram|carte graphique|tarjeta gr[aá]fica|grafikkarte[a-z]*|nvidia|radeon|'
+            r'disques?|stockage|disk(?:s)?|storage|drives?|ssd|hdd|discos?|almacenamiento|festplatte[a-z]*|speicherplatz|'
             r'batterie|battery|bater[ií]a|akku(?:stand)?|autonomie|charge|'
             r'temp[eé]rature|temperature|temperatura|chauffe|surchauffe|calienta|heiss|heiß|(?:[uü]|ue)berhitzung|'
             r'mat[eé]riel|hardware|ventilateur|fan(?:s)?|l(?:[uü]|ue)fter|'
-            r'processus|process(?:es)?|prozesse?|pids?|'
+            r'processus|process(?:es)?|procesos?|prozess[a-z]*|pids?|'
             r'services?|systemd|servicios?|dienst(?:e)?|'
             r't[aâ]ches?|tasks?|tareas?|aufgabe(?:n)?|planifi[a-z]*|scheduled|zeitplan|cron|timers?|'
-            r'd[eé]marrage|startup|autostart|boot|inicio|'
+            r'd[eé]marr[a-z]*|startup[a-z]*|autostart[a-z]*|boot|inicio|'
             r'commandes?|commands?|comandos?|befehle?|powershell|terminal|bash|cmd|registre|registry|'
             r'red[eé]marre[rzs]?|reboot|restart|reinicia[rn]?|neustart[a-z]*|'
             r'admin|administrateur|administrator|administrador|syst[eé]me|system|sistema|'
-            r'mises? [aà] jour|updates?|upgrade|actualizaci[oó]n(?:es)?|aktualisier[a-z]*|winget|pacman|apt|dnf|'
-            r'r[eé]seau|network|red|netzwerk|ping|dns|flushdns|connexion|conexi[oó]n|verbindung|wifi|wi-fi|ethernet|ip|ssid|'
+            r'mises? [aà] jour|updates?|upgrade|actualiz[a-z]*|aktualisier[a-z]*|winget|pacman|apt|dnf|'
+            r'r[eé]seau|network|red|netzwerk[a-z]*|ping|dns|flushdns|connexion|conexi[oó]n|verbindung[a-z]*|wifi|wi-fi|ethernet|ip|ssid|diagnos[a-z]*|diagnosti[a-z]*|'
             r't[eé]l[eé]m[eé]trie|telemetry|telemetr[ií]a|telemetrie|diagtrack|'
             r'horloge|clock|reloj|uhrzeit|fuseau|timezone|zeitzone|'
             r'lent|lenteurs?|slow|lento|rame[rzs]?|lag|freeze|'
@@ -208,13 +209,13 @@ _DOMAINES_OUTILS = (
     ),
     (
         re.compile(
-            r'\b(?:netto[iy][a-z]*|clean[a-z]*|limpi[a-z]*|bereinig[a-z]*|s(?:[aä]|ae)uber[a-z]*|'
+            r'\b(?:netto[iy][a-z]*|clean[a-z]*|limpi[a-z]*|(?:[a-z]+)?bereinig[a-z]*|s(?:[aä]|ae)uber[a-z]*|'
             r'purger?|purge|purga[rn]?|leeren|vide[rzs]?|empty|vacia[rn]?|'
             r'caches?|cach[eé]s?|temp(?:oraire)?s?|temporales?|tempor(?:[aä]|ae)r[a-z]*|'
             r'inutiles?|junk|basura|m(?:[uü]|ue)ll|datenm(?:[uü]|ue)ll|'
             r'lib[eé]rer|free(?: up)?|liberar|freigeben|'
             r'optimis[a-z]*|optimi[sz][a-z]*|optimier[a-z]*|'
-            r'maintenance|mantenimiento|wartung)\b',
+            r'maintenance|mantenimiento|(?:[a-z]+)?wartung[a-z]*)\b',
             re.IGNORECASE,
         ),
         (
@@ -249,17 +250,17 @@ _KIT_BASE_POLYVALENT = [
 ]
 
 _REGEX_BESOIN_ETAT_SYSTEME = re.compile(
-    r'\b(?:cpu|processeur|processor|procesador|prozessor|coeurs?|cores?|'
-    r'ram|m[eé]moire|memory|memoria|arbeitsspeicher|speicher|'
-    r'gpu|vram|carte graphique|tarjeta gr[aá]fica|grafikkarte|nvidia|radeon|'
-    r'disques?|stockage|disk(?:s)?|storage|drives?|ssd|hdd|discos?|almacenamiento|festplatte(?:n)?|speicherplatz|'
+    r'\b(?:cpu|processeur|processor|procesador|prozessor[a-z]*|coeurs?|cores?|'
+    r'ram|m[eé]moire|memory|memoria|arbeitsspeicher|speicher[a-z]*|'
+    r'gpu|vram|carte graphique|tarjeta gr[aá]fica|grafikkarte[a-z]*|nvidia|radeon|'
+    r'disques?|stockage|disk(?:s)?|storage|drives?|ssd|hdd|discos?|almacenamiento|festplatte[a-z]*|speicherplatz|'
     r'batterie|battery|bater[ií]a|akku(?:stand)?|autonomie|charge|'
     r'temp[eé]rature|temperature|temperatura|chauffe|surchauffe|calienta|heiss|heiß|(?:[uü]|ue)berhitzung|'
     r'mat[eé]riel|hardware|ventilateur|fan(?:s)?|l(?:[uü]|ue)fter|'
-    r'r[eé]seau|network|red|netzwerk|wifi|wi-fi|ssid|internet|ip|d[eé]bit|speed|velocidad|geschwindigkeit|'
+    r'r[eé]seau|network|red|netzwerk[a-z]*|wifi|wi-fi|ssid|internet|ip|d[eé]bit|speed|velocidad|geschwindigkeit|'
     r'lent|lenteurs?|slow|lento|rame[rzs]?|lag|freeze|'
     r'performances?|rendement|rendimiento|leistung|auslastung|'
-    r'processus|process(?:es)?|prozesse?|consomme[a-z]*|consuming|consume|verbraucht|gourmand[es]?|heavy|'
+    r'processus|process(?:es)?|procesos?|prozess[a-z]*|consomme[a-z]*|consuming|consume|verbraucht|gourmand[es]?|heavy|'
     r'utilisation|usage|uso|nutzung|[eé]tat|state|status|estado|zustand|sant[eé]|health|salud|'
     r'config|configuration|machine|pc|ordinateur|computer|computadora|rechner|'
     r'horloge|clock|reloj|uhrzeit|fuseau|timezone|zeitzone)\b',
@@ -267,9 +268,14 @@ _REGEX_BESOIN_ETAT_SYSTEME = re.compile(
 )
 
 
+@lru_cache(maxsize=1)
+def _load_cached_config():
+    return load_config()
+
+
 def selectionner_outils_pertinents(user_input: str) -> list:
     """Sélectionne en < 1 ms le sous-ensemble d'outils pertinent pour la requête utilisateur."""
-    if not load_config().get('llm_provider', {}).get('dynamic_tool_routing', True):
+    if not _load_cached_config().get('llm_provider', {}).get('dynamic_tool_routing', True):
         return LISTE_FONCTIONS
 
     texte = str(user_input or "")

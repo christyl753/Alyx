@@ -77,7 +77,7 @@ def _index_coupure_sure(recents, max_messages):
         prev_msg = recents[start_idx - 1]
         if msg.get('role') == 'tool' or prev_msg.get('tool_calls'):
             start_idx -= 1
-        elif msg.get('tool_calls') and prev_msg.get('role') == 'user':
+        elif msg.get('tool_calls'):
             start_idx -= 1
         else:
             break
