@@ -10,8 +10,11 @@ from .files import (
     lire_fichier_securise,
     ecrire_fichier_securise,
     generer_pdf,
+    trouver_doublons,
+    annuler_derniere_action,
     executer_avec_permission
 )
+from .web import rechercher_web
 from .voice import faire_parler, ecouter, arreter_parole
 from .system import (
     ouvrir_explorateur,
@@ -31,4 +34,9 @@ from .system import (
     executer_commande_systeme,
     rechercher_ou_jouer_media,
     lire_presse_papiers,
+    diagnostiquer_reseau,
+    reparer_reseau,
+    nettoyer_caches,
+    analyser_telechargements,
+    mettre_a_jour_logiciels,
 )

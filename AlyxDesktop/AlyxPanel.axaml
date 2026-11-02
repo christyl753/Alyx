@@ -202,8 +202,8 @@
           <TextBlock Grid.Column="1" x:Name="ModelLine" Margin="6,0,0,0" Text="Connexion au moteur…" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" />
         </Grid>
       </StackPanel>
-      <StackPanel Grid.Column="2" Margin="0,0,8,0" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Center">
-        <TextBlock x:Name="ClockText" Text="00:00" FontFamily="{StaticResource DisplayFont}" FontSize="30" FontWeight="Medium" HorizontalAlignment="Right" LineHeight="27" />
+      <StackPanel Grid.Column="2" Margin="0,0,8,0" Spacing="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <TextBlock x:Name="ClockText" Text="00:00" FontFamily="{StaticResource DisplayFont}" FontSize="28" FontWeight="Medium" HorizontalAlignment="Right" />
         <TextBlock x:Name="DateText" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
       </StackPanel>
       <Border Grid.Column="3" Padding="2" CornerRadius="8" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1" VerticalAlignment="Center">

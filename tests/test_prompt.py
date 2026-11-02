@@ -251,5 +251,75 @@ class TestVoixEtLangue(unittest.TestCase):
         self.assertIn("rien compris", api._message_erreur_stt({'text': '', 'error': ''}))
 
 
+class TestFonctionnalitesProfilC(unittest.TestCase):
+    def setUp(self):
+        self.home = os.path.expanduser("~")
+        self.dossier = tempfile.mkdtemp(prefix="alyx_profil_c_", dir=self.home)
+
+    def tearDown(self):
+        shutil.rmtree(self.dossier, ignore_errors=True)
+
+    def test_trouver_doublons(self):
+        # Création de deux fichiers identiques et un différent
+        f1 = os.path.join(self.dossier, "f1.txt")
+        f2 = os.path.join(self.dossier, "f2.txt")
+        f3 = os.path.join(self.dossier, "f3.txt")
+        with open(f1, 'w') as fp: fp.write("contenu_identique_sha256")
+        with open(f2, 'w') as fp: fp.write("contenu_identique_sha256")
+        with open(f3, 'w') as fp: fp.write("autre_chose")
+
+        res = files.trouver_doublons(self.dossier)
+        self.assertIn("Doublons détectés", res)
+        self.assertIn("f1.txt", res)
+        self.assertIn("f2.txt", res)
+
+    def test_annuler_derniere_action_deplacement(self):
+        f1 = os.path.join(self.dossier, "source.txt")
+        dossier_dst = os.path.join(self.dossier, "sous_dossier")
+        os.makedirs(dossier_dst, exist_ok=True)
+        with open(f1, 'w') as fp: fp.write("test_undo")
+
+        files.deplacer_fichier(f1, dossier_dst)
+        f_deplace = os.path.join(dossier_dst, "source.txt")
+        self.assertTrue(os.path.exists(f_deplace))
+        self.assertFalse(os.path.exists(f1))
+
+        # Annulation
+        res_undo = files.annuler_derniere_action()
+        self.assertIn("Annulation réussie", res_undo)
+        self.assertTrue(os.path.exists(f1))
+        self.assertFalse(os.path.exists(f_deplace))
+
+    def test_protection_anti_ssrf(self):
+        from function.web import _est_ip_privee, _verifier_url_securisee
+        # Adresses interdites
+        self.assertTrue(_est_ip_privee("127.0.0.1"))
+        self.assertTrue(_est_ip_privee("192.168.1.1"))
+        self.assertTrue(_est_ip_privee("10.0.0.1"))
+        self.assertTrue(_est_ip_privee("172.16.0.1"))
+        self.assertTrue(_est_ip_privee("169.254.169.254"))
+
+        # Rejet d'URLs locales
+        with self.assertRaises(ValueError):
+            _verifier_url_securisee("http://localhost:8080/admin")
+        with self.assertRaises(ValueError):
+            _verifier_url_securisee("http://127.0.0.1/status")
+
+    def test_historique_session_et_purge_90j(self):
+        from core import history
+        temp_hist = tempfile.mkdtemp(prefix="alyx_hist_")
+        history._dossier_historique = lambda: temp_hist
+        try:
+            history.enregistrer_session("sess_test_1", "Combien font 2+2 ?", "4")
+            res = history.consulter_historique()
+            self.assertIn("Combien font 2+2 ?", res)
+            # Suppression
+            res_suppr = history.supprimer_historique()
+            self.assertIn("supprimée", res_suppr)
+            self.assertIn("vide", history.consulter_historique())
+        finally:
+            shutil.rmtree(temp_hist, ignore_errors=True)
+
+
 if __name__ == '__main__':
     unittest.main()

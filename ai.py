@@ -13,6 +13,9 @@ from function import (
     lire_fichier_securise,
     ecrire_fichier_securise,
     generer_pdf,
+    trouver_doublons,
+    annuler_derniere_action,
+    rechercher_web,
     executer_avec_permission,
     faire_parler,
     ecouter,
@@ -33,6 +36,11 @@ from function import (
     executer_commande_systeme,
     rechercher_ou_jouer_media,
     lire_presse_papiers,
+    diagnostiquer_reseau,
+    reparer_reseau,
+    nettoyer_caches,
+    analyser_telechargements,
+    mettre_a_jour_logiciels,
 )
 
 from core.llm_provider import (
@@ -67,6 +75,14 @@ outils_disponibles = {
     'lire_fichier_securise': lire_fichier_securise,
     'ecrire_fichier_securise': ecrire_fichier_securise,
     'generer_pdf': generer_pdf,
+    'trouver_doublons': trouver_doublons,
+    'annuler_derniere_action': annuler_derniere_action,
+    'rechercher_web': rechercher_web,
+    'diagnostiquer_reseau': diagnostiquer_reseau,
+    'reparer_reseau': reparer_reseau,
+    'nettoyer_caches': nettoyer_caches,
+    'analyser_telechargements': analyser_telechargements,
+    'mettre_a_jour_logiciels': mettre_a_jour_logiciels,
     'controler_media': controler_media,
     'redemarrer_pc': redemarrer_pc,
 }
@@ -99,14 +115,24 @@ _DOMAINES_OUTILS = (
             r'\b(?:fichiers?|files?|dossiers?|folders?|r[eé]pertoires?|directory|documents?|docs?|'
             r'pdfs?|notes?|cr[eé]e[rzs]?|create|[eé]cri[stve][a-z]*|write|li[st]|lire|read|'
             r'supprime[rzs]?|efface[rzs]?|delete|remove|corbeille|renomme[rzs]?|rename|'
-            r'd[eé]place[rzs]?|move|liste[rzs]?|bureau|desktop|t[eé]l[eé]chargements?|downloads?)\b',
+            r'd[eé]place[rzs]?|move|liste[rzs]?|bureau|desktop|t[eé]l[eé]chargements?|downloads?|'
+            r'doublons?|duplicates?|undo|annule[rzs]?|restaure[rzs]?|clean|nettoie[rzs]?)\b',
             re.IGNORECASE,
         ),
         (
             creer_fichier, creer_dossier, lister_fichiers, renommer_fichier, deplacer_fichier,
             supprimer_fichier, lire_fichier_securise, ecrire_fichier_securise, generer_pdf,
+            trouver_doublons, annuler_derniere_action, analyser_telechargements,
             ouvrir_explorateur, lire_presse_papiers,
         ),
+    ),
+    (
+        re.compile(
+            r'\b(?:recherche[rzs]?|cherche[rzs]?|google|web|internet|info|nouvelles?|actualit[eé]s?|'
+            r'm[eé]t[eé]o|cours|qui est|qu est ce|search|en ligne|site|page)\b',
+            re.IGNORECASE,
+        ),
+        (rechercher_web, lire_presse_papiers),
     ),
     (
         re.compile(
@@ -114,13 +140,16 @@ _DOMAINES_OUTILS = (
             r'planifi[a-z]*|scheduled|timers?|processus|process|pids?|ram|cpu|gpu|vram|'
             r'm[eé]moire|memory|lent|lenteurs?|rame[rzs]?|lag|d[eé]marrage|startup|autostart|boot|'
             r'commandes?|commands?|powershell|terminal|bash|cmd|registre|registry|'
-            r'red[eé]marre[rzs]?|reboot|restart|admin|administrateur|syst[eé]me|system)\b',
+            r'red[eé]marre[rzs]?|reboot|restart|admin|administrateur|syst[eé]me|system|'
+            r'mises? [aà] jour|updates?|upgrade|winget|pacman|apt|dnf|caches?|temp|nettoyage|'
+            r'r[eé]seau|network|ping|dns|flushdns|connexion|wifi|ethernet)\b',
             re.IGNORECASE,
         ),
         (
             desactiver_telemetrie_pc, rechercher_processus, lister_services, gerer_service,
             lister_taches_planifiees, gerer_tache_planifiee, lister_apps_demarrage,
             gerer_app_demarrage, executer_commande_systeme, fermer_application, redemarrer_pc,
+            mettre_a_jour_logiciels, nettoyer_caches, reparer_reseau, diagnostiquer_reseau,
         ),
     ),
 )

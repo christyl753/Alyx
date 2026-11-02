@@ -288,6 +288,14 @@ async def _executer_outils(session, tool_calls, debut, vocal, iteration, index_a
 
 async def _terminer(session):
     _tronquer_historique()
+    try:
+        from core import history
+        u = next((m['content'] for m in reversed(messages) if m.get('role') == 'user'), '')
+        a = next((m.get('content', '') for m in reversed(messages) if m.get('role') == 'assistant'), '')
+        if u and a:
+            history.enregistrer_session(getattr(session, 'id', 'session_active'), u, a)
+    except Exception as e:
+        logger.debug(f'Erreur enregistrement historique: {e}')
     await session.envoyer({"type": "done", "tps": session.tps, "provider": get_model_provider(ai.MODEL)})
 
 async def _etat_systeme():

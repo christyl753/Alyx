@@ -4,10 +4,10 @@
              RequestedThemeVariant="Light">
 
   <Application.Resources>
-    <!-- Typographie : Manrope (UI), JetBrains Mono (données), Fredoka (affichage, remplace Yellow Banana) -->
+    <!-- Typographie : Manrope (UI), JetBrains Mono (données), Fredoka Medium (affichage / horloge) -->
     <FontFamily x:Key="UiFont">avares://AlyxDesktop/Assets/Fonts#Manrope</FontFamily>
     <FontFamily x:Key="MonoFont">avares://AlyxDesktop/Assets/Fonts#JetBrains Mono</FontFamily>
-    <FontFamily x:Key="DisplayFont">avares://AlyxDesktop/Assets/Fonts#Fredoka</FontFamily>
+    <FontFamily x:Key="DisplayFont">avares://AlyxDesktop/Assets/Fonts#Fredoka Medium, avares://AlyxDesktop/Assets/Fonts#Fredoka SemiBold, avares://AlyxDesktop/Assets/Fonts#Manrope, sans-serif</FontFamily>
 
     <!-- Tokens Aquarelle & Minimaliste (Blanc porcelaine, Lavis bleu céleste et rose pétale, Encre) -->
     <SolidColorBrush x:Key="WatercolorBlue" Color="#0284C7" />
@@ -33,8 +33,8 @@
     <!-- Tokens du thème actif (adaptables dynamiquement au mode clair/sombre et palette) -->
     <SolidColorBrush x:Key="Bg" Color="#FAF9F6" />
     <SolidColorBrush x:Key="Surface" Color="#FFFFFF" />
-    <!-- Blanc 92% à 97% pour la lisibilité sur fond de bureau -->
-    <SolidColorBrush x:Key="PanelSurface" Color="#F7FFFFFF" />
+    <!-- Surface opaque blanche pour éviter les fuites de texte en arrière-plan -->
+    <SolidColorBrush x:Key="PanelSurface" Color="#FFFFFF" />
     <SolidColorBrush x:Key="NodeSurface" Color="#F5FFFFFF" />
     <SolidColorBrush x:Key="Ink" Color="#14151A" />
     <SolidColorBrush x:Key="Ink2" Color="#27272A" />

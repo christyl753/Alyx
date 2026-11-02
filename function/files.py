@@ -17,6 +17,98 @@ _permission_ctx = threading.local()
 # Nombre maximal d'entrées renvoyées par lister_fichiers (le résultat part dans le contexte du LLM)
 MAX_ENTREES_LISTE = 200
 
+# Journal d'actions réversibles (déplacements, suppressions) pour l'annulation (undo)
+_JOURNAL_ANNULATION: list[dict] = []
+
+def _enregistrer_action(type_action: str, source: str, destination: str | None = None):
+    _JOURNAL_ANNULATION.append({
+        "type": type_action,
+        "source": source,
+        "destination": destination,
+    })
+    if len(_JOURNAL_ANNULATION) > 50:
+        _JOURNAL_ANNULATION.pop(0)
+
+def annuler_derniere_action() -> str:
+    """Restaure ou annule la dernière opération réversible sur un fichier (déplacement ou mise en corbeille)."""
+    if not _JOURNAL_ANNULATION:
+        return "Aucune action récente dans le journal d'annulation."
+    derniere = _JOURNAL_ANNULATION.pop()
+    if derniere["type"] == "deplacement":
+        src = derniere["source"]
+        dst = derniere["destination"]
+        if dst and os.path.exists(dst):
+            try:
+                os.makedirs(os.path.dirname(src), exist_ok=True)
+                shutil.move(dst, src)
+                return f"Annulation réussie : '{os.path.basename(src)}' a été replacé dans '{os.path.dirname(src)}'."
+            except Exception as e:
+                return f"Erreur lors de l'annulation du déplacement : {e}"
+        return f"Impossible d'annuler : le fichier '{dst}' est introuvable."
+    elif derniere["type"] == "suppression_corbeille":
+        src = derniere["source"]
+        return f"L'élément '{src}' a été déplacé dans la Corbeille système. Vous pouvez le restaurer directement depuis la Corbeille OS."
+    return "Action non reconnue pour l'annulation."
+
+def trouver_doublons(dossier: str = "~") -> str:
+    """Scanne un dossier pour trouver les fichiers identiques par empreinte SHA-256 (Niveau 1).
+
+    Args:
+        dossier: Répertoire à analyser (ex: '~/Téléchargements' ou '~/Documents').
+    """
+    import hashlib
+    try:
+        racine = _resoudre_chemin(dossier)
+    except PermissionError as e:
+        return str(e)
+    if not os.path.isdir(racine):
+        return f"Erreur : '{racine}' n'est pas un dossier valide."
+
+    par_taille: dict[int, list[str]] = {}
+    total_scannes = 0
+    for root, _, files in os.walk(racine):
+        for f in files:
+            p = os.path.join(root, f)
+            try:
+                t = os.path.getsize(p)
+                if t > 0:
+                    par_taille.setdefault(t, []).append(p)
+                total_scannes += 1
+            except OSError:
+                continue
+
+    doublons: dict[str, tuple[int, list[str]]] = {}
+    for taille, chemins in par_taille.items():
+        if len(chemins) < 2:
+            continue
+        par_hash: dict[str, list[str]] = {}
+        for c in chemins:
+            try:
+                h = hashlib.sha256()
+                with open(c, 'rb') as fp:
+                    while chunk := fp.read(65536):
+                        h.update(chunk)
+                cle = h.hexdigest()
+                par_hash.setdefault(cle, []).append(c)
+            except (OSError, PermissionError):
+                continue
+        for cle, groupe in par_hash.items():
+            if len(groupe) >= 2:
+                doublons[cle] = (taille, groupe)
+
+    if not doublons:
+        return f"Scan terminé ({total_scannes} fichiers analysés) : aucun doublon trouvé dans '{dossier}'."
+
+    lignes = [f"Doublons détectés dans '{dossier}' ({len(doublons)} groupes de fichiers identiques, {total_scannes} analysés) :"]
+    for cle, (taille, groupe) in list(doublons.items())[:12]:
+        taille_mo = round(taille / (1024 * 1024), 2)
+        lignes.append(f"\n• Groupe [{taille_mo} Mo, SHA256: {cle[:10]}...] :")
+        for p in groupe:
+            lignes.append(f"   - {p}")
+    if len(doublons) > 12:
+        lignes.append(f"\n[... {len(doublons) - 12} autres groupes de doublons]")
+    return "\n".join(lignes)
+
 def _normaliser(chemin: str) -> str:
     return os.path.normcase(os.path.realpath(chemin))
 
@@ -207,6 +299,7 @@ def deplacer_fichier(chemin_source: str, dossier_destination: str) -> str:
         if os.path.exists(destination_finale):
             return f"Erreur: un fichier du même nom existe déjà dans '{destination_dossier}'."
         shutil.move(source, destination_finale)
+        _enregistrer_action("deplacement", source, destination_finale)
         return f"'{os.path.basename(source)}' a été déplacé vers '{destination_dossier}' avec succès."
     except Exception as e:
         return f"Erreur lors du déplacement : {str(e)}"
@@ -233,6 +326,7 @@ def supprimer_fichier(chemin: str) -> str:
     try:
         from send2trash import send2trash
         send2trash(chemin_absolu)
+        _enregistrer_action("suppression_corbeille", chemin_absolu, None)
         return f"Succès : '{os.path.basename(chemin_absolu)}' a été placé dans la corbeille du système."
     except Exception as e:
         return f"Erreur lors de la mise en corbeille : {str(e)}"

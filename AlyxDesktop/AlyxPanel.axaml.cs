@@ -595,7 +595,10 @@ public partial class AlyxPanel : UserControl
         var now = DateTime.Now;
         ClockText.Text = now.ToString("HH:mm", Fr);
         bool compact = Bounds.Width > 0 ? Bounds.Width < 430 : _settings.PanelLayout == PanelLayoutMode.Card;
-        DateText.Text = now.ToString(compact ? "ddd d MMM" : "dddd d MMMM", Fr);
+        string date = now.ToString(compact ? "ddd d MMM" : "dddd d MMMM", Fr);
+        if (!string.IsNullOrEmpty(date))
+            date = char.ToUpper(date[0], Fr) + date[1..];
+        DateText.Text = date;
     }
 
     private string ProviderLabel(string model) => _modelProviders.TryGetValue(model, out var p) ? p switch

@@ -1134,3 +1134,163 @@ def lire_presse_papiers() -> str:
         texte = texte[:8000] + "\n...[Contenu du presse-papiers tronqué à 8000 caractères]"
     return f"Contenu du presse-papiers :\n{texte}"
 
+# --- TÂCHES AUTOMATISATION SYSTÈME (CAHIER DES CHARGES PROFIL C CHAPITRE 5) ---
+
+def diagnostiquer_reseau(hote: str = "8.8.8.8") -> str:
+    """Effectue un diagnostic réseau sans risque de saturation : ping 4 paquets et résolution DNS (Niveau 1).
+
+    Args:
+        hote: Hôte ou IP à tester (par défaut '8.8.8.8').
+    """
+    import socket
+    resultats = ["=== Diagnostic Réseau ==="]
+    hote_propre = re.sub(r'[^a-zA-Z0-9.-]', '', str(hote).strip()) or "8.8.8.8"
+
+    # 1. Test de résolution DNS
+    try:
+        ip = socket.gethostbyname("google.com")
+        resultats.append(f"• Résolution DNS : Opérationnelle (google.com -> {ip})")
+    except Exception as e:
+        resultats.append(f"• Résolution DNS : Échec ({e})")
+
+    # 2. Mesure de latence par ping (4 paquets)
+    cmd = ["ping", "-n", "4", hote_propre] if sys.platform == "win32" else ["ping", "-c", "4", hote_propre]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=10)
+        sortie = proc.stdout.strip()
+        lignes = [l for l in sortie.splitlines() if any(k in l.lower() for k in ("moyenne", "average", "ms", "packet", "perte", "loss", "min/avg/max"))]
+        resultats.append(f"• Ping vers {hote_propre} :\n" + ("\n".join(lignes) if lignes else sortie[:400]))
+    except Exception as e:
+        resultats.append(f"• Ping : Échec ({e})")
+
+    return "\n".join(resultats)
+
+def reparer_reseau() -> str:
+    """Vide le cache DNS et réinitialise la pile réseau (Niveau 3 - Admin requis)."""
+    _demander_permission("REPARER LE RESEAU", "Vidage cache DNS et réinitialisation pile TCP/IP")
+    if sys.platform == "win32":
+        code, out = _run_ps_admin("ipconfig /flushdns; netsh int ip reset", timeout=20)
+        if code == 0:
+            return "Succès : Cache DNS vidé et pile TCP/IP réinitialisée. Un redémarrage peut être conseillé."
+        return f"Erreur lors de la réparation réseau : {out}"
+    else:
+        # Linux
+        for flush_cmd in (["resolvectl", "flush-caches"], ["systemd-resolve", "--flush-caches"]):
+            if shutil.which(flush_cmd[0]):
+                res = subprocess.run(flush_cmd, capture_output=True, text=True)
+                return "Succès : Cache DNS vidé via systemd-resolved."
+        return "Cache DNS vidé (aucun service systemd-resolved détecté)."
+
+def nettoyer_caches(inclure_windows_update: bool = False) -> str:
+    """Nettoie les fichiers temporaires et caches résiduels (Niveau 2, ou Niveau 3 pour Windows Update).
+
+    Args:
+        inclure_windows_update: Si True sous Windows, purge aussi le cache SoftwareDistribution/Download (Admin requis).
+    """
+    total_octets = 0
+    supprimes = 0
+
+    # 1. Dossier temporaire utilisateur (%TEMP%)
+    dossier_temp = tempfile.gettempdir()
+    for root, _, files in os.walk(dossier_temp):
+        for f in files:
+            p = os.path.join(root, f)
+            try:
+                sz = os.path.getsize(p)
+                os.remove(p)
+                total_octets += sz
+                supprimes += 1
+            except (OSError, PermissionError):
+                continue
+
+    # 2. Fichiers crash dump (.dmp)
+    crash_dir = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'CrashDumps')
+    if os.path.isdir(crash_dir):
+        for f in os.listdir(crash_dir):
+            if f.lower().endswith('.dmp'):
+                p = os.path.join(crash_dir, f)
+                try:
+                    sz = os.path.getsize(p)
+                    os.remove(p)
+                    total_octets += sz
+                    supprimes += 1
+                except (OSError, PermissionError):
+                    continue
+
+    mo_liberes = round(total_octets / (1024 * 1024), 2)
+    resume = [f"Nettoyage des caches terminé : {supprimes} fichiers supprimés ({mo_liberes} Mo libérés)."]
+
+    # 3. Windows Update (Niveau 3)
+    if inclure_windows_update and sys.platform == "win32":
+        _demander_permission("NETTOYER WINDOWS UPDATE", "Suppression des fichiers dans SoftwareDistribution\\Download")
+        ps_script = "Remove-Item -Path 'C:\\Windows\\SoftwareDistribution\\Download\\*' -Recurse -Force -ErrorAction SilentlyContinue"
+        code, out = _run_ps_admin(ps_script, timeout=25)
+        resume.append("• Cache Windows Update (SoftwareDistribution\\Download) : " + ("Vidé avec succès." if code == 0 else f"Avertissement ({out})"))
+
+    return "\n".join(resume)
+
+def analyser_telechargements(jours: int = 30) -> str:
+    """Repère les installateurs (.exe, .msi, .iso...) inactifs depuis plus de N jours dans les téléchargements (Niveau 2).
+
+    Args:
+        jours: Âge minimal en jours pour être signalé (défaut: 30).
+    """
+    import time
+    dossier_dl = os.path.join(os.path.expanduser("~"), "Downloads")
+    if not os.path.isdir(dossier_dl):
+        dossier_dl = os.path.join(os.path.expanduser("~"), "Téléchargements")
+    if not os.path.isdir(dossier_dl):
+        return "Le dossier Téléchargements est introuvable."
+
+    maintenant = time.time()
+    seuil_secondes = int(jours) * 86400
+    extensions_cibles = ('.exe', '.msi', '.iso', '.dmg', '.pkg', '.part', '.deb', '.rpm')
+
+    trouves = []
+    total_octets = 0
+    for root, _, files in os.walk(dossier_dl):
+        for f in files:
+            ext = os.path.splitext(f)[1].lower()
+            if ext in extensions_cibles:
+                p = os.path.join(root, f)
+                try:
+                    mtime = os.path.getmtime(p)
+                    age_jours = int((maintenant - mtime) / 86400)
+                    if age_jours >= jours:
+                        taille = os.path.getsize(p)
+                        trouves.append((f, age_jours, taille, p))
+                        total_octets += taille
+                except OSError:
+                    continue
+
+    if not trouves:
+        return f"Aucun installateur obsolète (> {jours} jours) trouvé dans Téléchargements."
+
+    trouves.sort(key=lambda x: x[2], reverse=True)
+    mo_total = round(total_octets / (1024 * 1024), 2)
+    lignes = [f"Installateurs obsolètes détectés ({len(trouves)} fichiers, total {mo_total} Mo libérables) :"]
+    for nom, age, sz, _ in trouves[:15]:
+        mo = round(sz / (1024 * 1024), 1)
+        lignes.append(f"• {nom} — {mo} Mo (inactif depuis {age} jours)")
+    if len(trouves) > 15:
+        lignes.append(f"[... {len(trouves) - 15} autres installateurs]")
+    lignes.append("\nVous pouvez demander à Alyx : 'Déplace les installateurs obsolètes vers la Corbeille'.")
+    return "\n".join(lignes)
+
+def mettre_a_jour_logiciels() -> str:
+    """Met à jour les logiciels du système via winget (Windows) ou gestionnaire de paquets (Linux) (Niveau 3 - Admin requis)."""
+    if sys.platform == "win32":
+        _demander_permission("METTRE A JOUR LES LOGICIELS", "winget upgrade --all --include-unknown")
+        code, out = _run_ps_admin("winget upgrade --all --include-unknown --accept-source-agreements --accept-package-agreements", timeout=120)
+        if code == 0:
+            return f"Mise à jour des logiciels terminée avec succès.\n{out[:800]}"
+        return f"Résultat de mise à jour winget (code {code}) :\n{out[:800]}"
+    else:
+        # Linux
+        for pkg, cmd in (("pacman", "sudo pacman -Syu --noconfirm"), ("dnf", "sudo dnf upgrade -y"), ("apt", "sudo apt update && sudo apt upgrade -y")):
+            if shutil.which(pkg):
+                _demander_permission(f"METTRE A JOUR LES PAQUETS ({pkg})", cmd)
+                res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+                return f"Mise à jour terminée ({pkg}) :\n{res.stdout[:800]}"
+        return "Aucun gestionnaire de paquets pris en charge (pacman, dnf, apt) n'a été trouvé."
+
