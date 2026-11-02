@@ -12,7 +12,9 @@ start "Alyx API" /B "%~dp0.venv\Scripts\python.exe" "%~dp0api.py" >"%LOGDIR%\api
 for /f %%I in ('powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'Name=''python.exe''' | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('%~dp0api.py') } | Sort-Object CreationDate | Select-Object -First 1).ProcessId"') do >"%RUNDIR%\api.pid" echo %%I
 
 echo [Alyx] Demarrage du Micro-service STT...
-start "Alyx STT" /B "%~dp0.venv\Scripts\python.exe" "%~dp0stt_server.py" >"%LOGDIR%\stt.log" 2>&1
+set "STT_PYTHON=%~dp0.venv_stt\Scripts\python.exe"
+if not exist "%STT_PYTHON%" set "STT_PYTHON=%~dp0.venv\Scripts\python.exe"
+start "Alyx STT" /B "%STT_PYTHON%" "%~dp0stt_server.py" >"%LOGDIR%\stt.log" 2>&1
 for /f %%I in ('powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'Name=''python.exe''' | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('%~dp0stt_server.py') } | Sort-Object CreationDate | Select-Object -First 1).ProcessId"') do >"%RUNDIR%\stt.pid" echo %%I
 
 timeout /t 2 /nobreak >nul

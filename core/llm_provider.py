@@ -1,3 +1,4 @@
+import asyncio
 import threading
 import time
 import requests
@@ -48,6 +49,7 @@ CB_COOLDOWN = llm_config.get('circuit_breaker_cooldown', 30)
 PROVIDER_STARTUP_TIMEOUT = llm_config.get('provider_startup_timeout', 10)
 CONTEXT_LENGTH = llm_config.get('context_length', 4096)
 ENABLE_THINKING = bool(llm_config.get('enable_thinking', False))
+MAX_CONCURRENCY = int(llm_config.get('max_concurrency', 1))
 
 PROVIDERS = {p['name']: p for p in config.get('providers', [])}
 if not PROVIDERS:
@@ -79,6 +81,20 @@ _models_ready = threading.Event()
 
 # { 'provider_name': {'failures': int, 'last_failure': timestamp, 'latency': float, 'status': str} }
 _provider_stats = {name: {'failures': 0, 'last_failure': 0.0, 'latency': 0.0, 'status': 'unknown'} for name in PROVIDERS}
+
+# --- CONTROLE DE CONCURRENCE (B.3.4) ---
+_semaphores = {
+    name: asyncio.Semaphore(int(cfg.get('max_concurrency', MAX_CONCURRENCY)))
+    for name, cfg in PROVIDERS.items()
+}
+
+def get_provider_semaphore(provider_name: str) -> asyncio.Semaphore:
+    """Retourne le sémaphore asyncio de contrôle de concurrence pour le fournisseur (B.3.4)."""
+    if provider_name not in _semaphores:
+        provider_cfg = PROVIDERS.get(provider_name, {})
+        limit = int(provider_cfg.get('max_concurrency', MAX_CONCURRENCY))
+        _semaphores[provider_name] = asyncio.Semaphore(limit)
+    return _semaphores[provider_name]
 
 def _is_provider_available(provider_name: str) -> bool:
     with _stats_lock:
@@ -207,7 +223,15 @@ def wait_models_ready(timeout: float) -> bool:
 
 def get_provider_status() -> dict:
     with _stats_lock:
-        return {name: dict(stats) for name, stats in _provider_stats.items()}
+        res = {}
+        for name, stats in _provider_stats.items():
+            entry = dict(stats)
+            sem = _semaphores.get(name)
+            if sem is not None:
+                entry['max_concurrency'] = getattr(sem, '_value', 1)
+                entry['locked'] = sem.locked()
+            res[name] = entry
+        return res
 
 def get_default_model():
     with _cache_lock:
@@ -524,6 +548,70 @@ def chat_with_provider(model_name, messages_list, tools=None):
             tool_calls.extend(event['tool_calls'])
     return {'message': {'role': 'assistant', 'content': ''.join(content), 'tool_calls': tool_calls}}
 
+# --- VÉRIFICATION ESPACE DISQUE (B.5.1) ---
+def verifier_espace_disque(chemin_cible: str | None = None, min_go_requis: float | None = None) -> tuple[bool, float, str]:
+    """Vérifie l'espace disque disponible avant téléchargement d'un modèle LLM (B.5.1).
+
+    Args:
+        chemin_cible: Répertoire à vérifier (défaut : ~/.ollama ou répertoire utilisateur).
+        min_go_requis: Espace libre minimum requis en Go (défaut : lu depuis config.yaml, repli 2.0 Go).
+
+    Returns:
+        tuple[bool, float, str]: (suffisant, libre_go, message)
+    """
+    if min_go_requis is None:
+        try:
+            min_go_requis = float(load_config().get('llm_provider', {}).get('min_disk_free_gb', 2.0))
+        except (ValueError, TypeError):
+            min_go_requis = 2.0
+
+    if not chemin_cible:
+        chemin_cible = os.path.expanduser(r'~\.ollama' if os.name == 'nt' else '~/.ollama')
+        if not os.path.exists(chemin_cible):
+            chemin_cible = os.path.expanduser('~')
+
+    try:
+        usage = shutil.disk_usage(chemin_cible)
+        libre_go = usage.free / (1024 ** 3)
+        if libre_go < min_go_requis:
+            msg = (
+                f"Espace disque insuffisant sur '{chemin_cible}' : "
+                f"{libre_go:.2f} Go disponibles, minimum requis : {min_go_requis:.2f} Go. "
+                f"Téléchargement ou chargement de modèle refusé (conformité B.5.1)."
+            )
+            return False, libre_go, msg
+        return True, libre_go, f"Espace disque suffisant : {libre_go:.2f} Go disponibles."
+    except Exception as e:
+        logger.warning(f"Vérification espace disque impossible sur '{chemin_cible}': {e}")
+        return True, 999.0, f"Vérification espace disque ignorée : {e}"
+
+def telecharger_modele(model_name: str, provider: str = 'ollama', min_go_requis: float | None = None) -> dict:
+    """Télécharge un modèle IA après validation préalable de l'espace disque disponible (B.5.1).
+
+    Args:
+        model_name: Identifiant du modèle (ex: 'llama3:8b', 'mistral').
+        provider: Nom du fournisseur ('ollama').
+        min_go_requis: Espace libre minimum requis en Go.
+
+    Raises:
+        OSError: Si l'espace disque est insuffisant (B.5.1).
+        ValueError: Si le fournisseur ne prend pas en charge le téléchargement.
+        Exception: En cas d'erreur réseau locale avec le fournisseur.
+    """
+    suffisant, libre_go, msg = verifier_espace_disque(min_go_requis=min_go_requis)
+    if not suffisant:
+        logger.error(f"Téléchargement refusé pour '{model_name}': {msg}")
+        raise OSError(msg)
+
+    if provider == 'ollama':
+        api_base = PROVIDERS.get('ollama', {}).get('api_base', 'http://127.0.0.1:11434')
+        resp = _http.post(f"{api_base}/api/pull", json={"name": model_name, "stream": False}, timeout=CHAT_TIMEOUT)
+        if resp.status_code >= 400:
+            raise Exception(f"Erreur téléchargement Ollama (HTTP {resp.status_code}): {resp.text[:200]}")
+        return resp.json() if resp.text else {"status": "success"}
+
+    raise ValueError(f"Téléchargement non supporté pour le fournisseur '{provider}'.")
+
 # --- GESTION DES MODÈLES (onglet Modèles du widget) ---
 def modeles_charges() -> dict:
     """Modèles Ollama présents en mémoire : {nom: {'vram_gb', 'ctx'}} (vide si non supporté)."""
@@ -543,8 +631,12 @@ def modeles_charges() -> dict:
     except (requests.RequestException, ValueError):
         return {}
 
-def charger_modele(model_name: str) -> bool:
+def charger_modele(model_name: str, verifier_disque: bool = True) -> bool:
     """Précharge le modèle en mémoire (Ollama). LM Studio charge à la première requête : rien à faire."""
+    if verifier_disque:
+        suffisant, libre_go, msg = verifier_espace_disque()
+        if not suffisant:
+            raise OSError(msg)
     if get_model_provider(model_name) != 'ollama':
         return False
     resp = _http.post(f"{PROVIDERS['ollama']['api_base']}/api/generate",

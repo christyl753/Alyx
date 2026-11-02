@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import queue
+import shutil
 import numpy as np
 import sounddevice as sd
 import threading
@@ -23,12 +24,58 @@ def _charger_port():
     except OSError:
         return 5001
 
+def _charger_min_disk_free():
+    chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml')
+    try:
+        with open(chemin, 'r', encoding='utf-8') as f:
+            cfg = yaml.safe_load(f) or {}
+            return float(cfg.get('server', {}).get('min_disk_free_gb', 1.0))
+    except (OSError, ValueError, TypeError):
+        return 1.0
+
+MIN_DISK_FREE_GB = _charger_min_disk_free()
+
+def verifier_espace_disque(chemin_cible=None, min_go_requis=None):
+    """Vérifie l'espace disque disponible avant téléchargement du modèle STT (B.5.1).
+
+    Args:
+        chemin_cible: Répertoire à tester (défaut : cache huggingface ou répertoire utilisateur).
+        min_go_requis: Espace libre minimum requis en Go (défaut : MIN_DISK_FREE_GB).
+
+    Returns:
+        tuple[bool, float, str]: (suffisant, libre_go, message)
+    """
+    if min_go_requis is None:
+        min_go_requis = MIN_DISK_FREE_GB
+    if not chemin_cible:
+        hf_home = os.environ.get('HF_HOME')
+        chemin_cible = hf_home if hf_home else os.path.expanduser('~')
+    try:
+        usage = shutil.disk_usage(chemin_cible)
+        libre_go = usage.free / (1024 ** 3)
+        if libre_go < min_go_requis:
+            msg = (
+                f"Espace disque insuffisant sur '{chemin_cible}' : "
+                f"{libre_go:.2f} Go disponibles, minimum requis : {min_go_requis:.2f} Go. "
+                f"Téléchargement STT refusé (conformité B.5.1)."
+            )
+            return False, libre_go, msg
+        return True, libre_go, f"Espace disque suffisant : {libre_go:.2f} Go disponibles."
+    except Exception as e:
+        return True, 999.0, f"Vérification espace disque ignorée : {e}"
+
 # --- CONFIGURATION ---
 SAMPLE_RATE = 16000
 WHISPER_MODEL_SIZE = "base"
 PORT = _charger_port()
 LANGUES_WHISPER = {'fr', 'en', 'es', 'de'}
 SEUIL_MUET = 0.0005  # crête max en dessous de laquelle le micro est considéré coupé
+
+PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+IS_ISOLATED = (
+    '.venv_stt' in sys.executable.lower()
+    or sys.version_info[:2] in ((3, 11), (3, 12))
+)
 
 _whisper_model = None
 _whisper_erreur = None
@@ -41,6 +88,12 @@ def _init_whisper():
     global _whisper_model, _whisper_erreur
     with _whisper_lock:
         if _whisper_model is None:
+            # Vérification de l'espace disque avant tout téléchargement (B.5.1)
+            suffisant, libre_go, err_msg = verifier_espace_disque()
+            if not suffisant:
+                _whisper_erreur = err_msg
+                print(f"[STT] Refus chargement : {err_msg}")
+                return None
             try:
                 from faster_whisper import WhisperModel
                 print(f"[STT] Chargement du modèle Whisper '{WHISPER_MODEL_SIZE}'...")
@@ -199,8 +252,13 @@ class STTHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == '/health':
-            self._envoyer_json(200, {"status": "ok", "model_ready": _whisper_model is not None,
-                                     "model_error": _whisper_erreur or ""})
+            self._envoyer_json(200, {
+                "status": "ok",
+                "model_ready": _whisper_model is not None,
+                "model_error": _whisper_erreur or "",
+                "python_version": PYTHON_VERSION,
+                "isolated_env": IS_ISOLATED,
+            })
         elif self.path == '/devices':
             if self._requete_navigateur():
                 self._envoyer_json(403, {"error": "forbidden"})
@@ -244,6 +302,8 @@ class STTHandler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     # Initial load of model on startup
     threading.Thread(target=_init_whisper, daemon=True).start()
+    if sys.version_info >= (3, 14):
+        print(f"[STT] Avertissement B.1.1: Python {PYTHON_VERSION} detecte. L'isolation dans .venv_stt (Python 3.11/3.12) est recommandee.")
 
     server = ThreadingHTTPServer(('127.0.0.1', PORT), STTHandler)
     server.daemon_threads = True

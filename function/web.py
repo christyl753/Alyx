@@ -1,5 +1,6 @@
 # Fichier : function/web.py
 import ipaddress
+import os
 import re
 import socket
 import urllib.parse
@@ -7,6 +8,23 @@ import urllib.request
 from core.logger import get_logger
 
 logger = get_logger('alyx.web')
+
+def _est_mode_air_gap() -> bool:
+    """Vérifie si Alyx est en mode air-gapped / hors-ligne (B.8.1)."""
+    env_val = os.environ.get('ALYX_AIR_GAPPED')
+    if env_val is not None:
+        return env_val.strip().lower() not in ('0', 'false', 'no', 'off')
+    try:
+        from core.llm_provider import load_config
+        cfg = load_config()
+        net_cfg = cfg.get('network', {})
+        if isinstance(net_cfg, dict) and 'air_gapped' in net_cfg:
+            return bool(net_cfg['air_gapped'])
+        if 'air_gapped' in cfg:
+            return bool(cfg['air_gapped'])
+    except Exception:
+        pass
+    return True
 
 def _est_ip_privee(ip_str: str) -> bool:
     try:
@@ -30,8 +48,23 @@ def _verifier_url_securisee(url: str) -> str:
     hostname = parsed.hostname
     if not hostname:
         raise ValueError("URL invalide : hôte manquant.")
-    if hostname.lower() in ('localhost', 'localhost.localdomain', 'ip6-localhost'):
+    clean_host = hostname.strip("[]").lower()
+    if clean_host in ('localhost', 'localhost.localdomain', 'ip6-localhost'):
         raise ValueError("Protection anti-SSRF : accès à localhost bloqué.")
+
+    # Si l'hôte est directement une adresse IP
+    is_ip = False
+    try:
+        ip_obj = ipaddress.ip_address(clean_host)
+        is_ip = True
+    except ValueError:
+        pass
+
+    if is_ip and _est_ip_privee(str(ip_obj)):
+        raise ValueError(f"Protection anti-SSRF : accès à l'adresse privée {clean_host} bloqué.")
+
+    if _est_mode_air_gap():
+        raise ValueError("Mode air-gapped actif : les requêtes réseau externes (WAN) sont strictement interdites (conformité B.8.1).")
 
     # Résolution DNS pour valider l'adresse IP réelle
     try:
@@ -53,7 +86,17 @@ def rechercher_web(requete: str) -> str:
     if not requete or not str(requete).strip():
         return "Erreur : Requête de recherche vide."
 
-    q = urllib.parse.quote_plus(str(requete).strip())
+    req_str = str(requete).strip()
+
+    if _est_mode_air_gap():
+        logger.info(f"Recherche web ignorée (mode air-gapped actif) pour : '{req_str}'")
+        return (
+            f"[MODE AIR-GAPPED / HORS-LIGNE]\n"
+            f"La recherche web est désactivée : Alyx fonctionne en environnement strictement local et étanche (air-gapped, conformité B.8.1).\n"
+            f"Aucune requête réseau externe (WAN) n'a été émise pour '{req_str}'."
+        )
+
+    q = urllib.parse.quote_plus(req_str)
     url_recherche = f"https://html.duckduckgo.com/html/?q={q}"
 
     try:

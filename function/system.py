@@ -186,6 +186,9 @@ def fermer_application(nom_app: str) -> str:
     if not processus_cibles:
         return f"Aucune instance active de '{nom_propre}' n'a été trouvée."
 
+    # Human-in-the-Loop : Veto utilisateur obligatoire avant fermeture d'application (B.6.4, B.7.4)
+    _demander_permission("FERMER l'application", nom_propre)
+
     instances_fermees = 0
 
     # Tentative de fermeture propre (SIGTERM)
@@ -1136,30 +1139,65 @@ def lire_presse_papiers() -> str:
 
 # --- TÂCHES AUTOMATISATION SYSTÈME (CAHIER DES CHARGES PROFIL C CHAPITRE 5) ---
 
+def _est_hote_externe(hote: str) -> bool:
+    """Vérifie si un hôte ou IP cible pointe vers le réseau externe (WAN)."""
+    import ipaddress
+    h = str(hote or "").lower().strip()
+    if h in ('localhost', '127.0.0.1', '::1', '0.0.0.0'):
+        return False
+    try:
+        ip = ipaddress.ip_address(h)
+        return not (ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved)
+    except ValueError:
+        return True
+
 def diagnostiquer_reseau(hote: str = "8.8.8.8") -> str:
     """Effectue un diagnostic réseau sans risque de saturation : ping 4 paquets et résolution DNS (Niveau 1).
+
+    En mode air-gapped (B.8.1), évite toute fuite de paquets vers l'extérieur (WAN).
 
     Args:
         hote: Hôte ou IP à tester (par défaut '8.8.8.8').
     """
     import socket
+    from .web import _est_mode_air_gap
+
     resultats = ["=== Diagnostic Réseau ==="]
     hote_propre = re.sub(r'[^a-zA-Z0-9.-]', '', str(hote).strip()) or "8.8.8.8"
+    est_air_gap = _est_mode_air_gap()
 
-    # 1. Test de résolution DNS
-    try:
-        ip = socket.gethostbyname("google.com")
-        resultats.append(f"• Résolution DNS : Opérationnelle (google.com -> {ip})")
-    except Exception as e:
-        resultats.append(f"• Résolution DNS : Échec ({e})")
+    if est_air_gap:
+        resultats.append("• État : Mode Air-Gapped actif (100% hors-ligne, conformité B.8.1)")
+        # 1. Test de résolution DNS locale uniquement
+        try:
+            ip = socket.gethostbyname("localhost")
+            resultats.append(f"• Résolution DNS locale : Opérationnelle (localhost -> {ip})")
+        except Exception as e:
+            resultats.append(f"• Résolution DNS locale : Échec ({e})")
+        resultats.append("• Résolution DNS WAN : Désactivée (protection air-gap, zéro fuite WAN)")
 
-    # 2. Mesure de latence par ping (4 paquets)
-    cmd = ["ping", "-n", "4", hote_propre] if sys.platform == "win32" else ["ping", "-c", "4", hote_propre]
+        # 2. Mesure de latence par ping (boucle locale si cible WAN)
+        if _est_hote_externe(hote_propre):
+            resultats.append(f"• Ping WAN ({hote_propre}) : Bloqué (mode air-gapped actif, aucune émission WAN)")
+            cible_ping = "127.0.0.1"
+        else:
+            cible_ping = hote_propre
+    else:
+        # 1. Test de résolution DNS externe
+        try:
+            ip = socket.gethostbyname("google.com")
+            resultats.append(f"• Résolution DNS : Opérationnelle (google.com -> {ip})")
+        except Exception as e:
+            resultats.append(f"• Résolution DNS : Échec ({e})")
+        cible_ping = hote_propre
+
+    # Mesure de latence par ping (4 paquets)
+    cmd = ["ping", "-n", "4", cible_ping] if sys.platform == "win32" else ["ping", "-c", "4", cible_ping]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=10)
         sortie = proc.stdout.strip()
         lignes = [l for l in sortie.splitlines() if any(k in l.lower() for k in ("moyenne", "average", "ms", "packet", "perte", "loss", "min/avg/max"))]
-        resultats.append(f"• Ping vers {hote_propre} :\n" + ("\n".join(lignes) if lignes else sortie[:400]))
+        resultats.append(f"• Ping vers {cible_ping} :\n" + ("\n".join(lignes) if lignes else sortie[:400]))
     except Exception as e:
         resultats.append(f"• Ping : Échec ({e})")
 

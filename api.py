@@ -25,6 +25,7 @@ from core.llm_provider import (
     modeles_charges,
     charger_modele,
     decharger_modele,
+    get_provider_semaphore,
 )
 from core import system_monitor
 from function import faire_parler, arreter_parole, executer_avec_permission
@@ -166,6 +167,17 @@ def _extraire_phrases(buffer):
             phrases.append(phrase)
 
 async def _stream_llm(session, model, contexte, tools, vocal):
+    """
+    Exécute un appel LLM streamé sous contrôle de sémaphore de concurrence (B.3.4).
+    """
+    provider = get_model_provider(model)
+    semaphore = get_provider_semaphore(provider)
+    async with semaphore:
+        if session.cancel.is_set():
+            return '', [], True
+        return await _stream_llm_internal(session, model, contexte, tools, vocal)
+
+async def _stream_llm_internal(session, model, contexte, tools, vocal):
     """
     Exécute un appel LLM streamé dans un thread producteur unique (pas un aller-retour
     thread-pool par token) et relaie les tokens à l'UI. Renvoie (contenu, tool_calls, annulé).
@@ -634,7 +646,17 @@ async def handler_client(websocket):
                 faire_parler(preferences.phrase_test(preferences.charger()['language']))
 
             elif msg_type == 'get_status':
-                await session.envoyer({"type": "provider_status", "status": get_provider_status()})
+                stt_health = await asyncio.to_thread(_appel_stt, '/health', timeout=1)
+                stt_online = isinstance(stt_health, dict) and stt_health.get('status') == 'ok'
+                await session.envoyer({
+                    "type": "provider_status",
+                    "status": get_provider_status(),
+                    "stt": {
+                        "status": "online" if stt_online else "offline",
+                        "model_ready": stt_health.get('model_ready', False) if isinstance(stt_health, dict) else False,
+                        "url": STT_URL,
+                    }
+                })
 
             elif msg_type == 'select_model':
                 new_model = data.get('model', '')

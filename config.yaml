@@ -3,6 +3,10 @@
 server:
   port: 8765
   stt_port: 5001
+  min_disk_free_gb: 1.0
+
+network:
+  air_gapped: true
 
 llm_provider:
   cache_ttl: 60
@@ -16,17 +20,22 @@ llm_provider:
   context_length: 4096
   enable_thinking: false
   dynamic_tool_routing: true
+  max_concurrency: 1
+  min_disk_free_gb: 2.0
 
 providers:
   - name: "ollama"
     api_base: "http://127.0.0.1:11434"
     priority: 1
     auto_start: true
+    max_concurrency: 1
   - name: "lmstudio"
     api_base: "http://127.0.0.1:1234"
     priority: 2
     auto_start: true
+    max_concurrency: 1
   - name: "nvidia"
     api_base: "http://127.0.0.1:8000"
     priority: 3
     auto_start: false
+    max_concurrency: 1
