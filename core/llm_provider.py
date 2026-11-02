@@ -11,6 +11,8 @@ import subprocess
 import uuid
 import socket
 import inspect
+import typing
+import types
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from ollama import Client as OllamaClient
@@ -274,6 +276,40 @@ def _parse_docstring(doc: str):
             params[courant] += ' ' + s
     return ' '.join(description), params
 
+def _extraire_enum_parametre(param, doc_desc: str) -> list[str] | None:
+    """Extrait les valeurs admissibles d'un argument borné depuis son type Literal ou sa docstring."""
+    origin = typing.get_origin(param.annotation)
+    if origin is typing.Literal:
+        return [str(a) for a in typing.get_args(param.annotation)]
+    if origin in (typing.Union, getattr(types, 'UnionType', None)):
+        for arg in typing.get_args(param.annotation):
+            if typing.get_origin(arg) is typing.Literal:
+                return [str(a) for a in typing.get_args(arg)]
+
+    if not doc_desc:
+        return None
+
+    cleaned = re.sub(r'\((?:ex|e\.g\.)\s*:[^)]*\)', '', doc_desc, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\b(?:ex|e\.g\.)\s*:[^.\n]*', '', cleaned, flags=re.IGNORECASE)
+    cleaned_sans_parentheses = re.sub(r"\([^'\"]*\)", '', cleaned)
+
+    m_prefix = re.search(
+        r'(?:(?:une?|un)\s+parmi|action\s+à\s+effectuer\s*:|choix\s*(?:possibles?)?\s*:|valeurs?\s*(?:possibles?)?\s*:)\s*([^.\n]+)',
+        cleaned_sans_parentheses,
+        re.IGNORECASE
+    )
+    texte_choix = m_prefix.group(1) if m_prefix else cleaned_sans_parentheses
+
+    if re.search(r"['\"][a-zA-Z0-9_.-]+['\"]\s*(?:,\s*['\"][a-zA-Z0-9_.-]+['\"])*\s*(?:,\s*)?(?:ou|or)\s*['\"][a-zA-Z0-9_.-]+['\"]", texte_choix, re.IGNORECASE) or m_prefix:
+        matches = re.findall(r"['\"]([a-zA-Z0-9_.-]+)['\"]", texte_choix)
+        enum_vals = []
+        for val in matches:
+            if val not in enum_vals:
+                enum_vals.append(val)
+        if len(enum_vals) >= 2:
+            return enum_vals
+    return None
+
 @lru_cache(maxsize=None)
 def _function_to_json_schema(func):
     sig = inspect.signature(func)
@@ -303,10 +339,14 @@ def _function_to_json_schema(func):
         elif param.annotation is float:
             param_type = "number"
 
-        schema["function"]["parameters"]["properties"][name] = {
+        prop = {
             "type": param_type,
             "description": docs_params.get(name, f"Paramètre {name}")
         }
+        enum_vals = _extraire_enum_parametre(param, docs_params.get(name, ""))
+        if enum_vals:
+            prop["enum"] = enum_vals
+        schema["function"]["parameters"]["properties"][name] = prop
         if param.default is inspect.Parameter.empty:
             schema["function"]["parameters"]["required"].append(name)
 

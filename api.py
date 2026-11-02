@@ -77,6 +77,8 @@ def _index_coupure_sure(recents, max_messages):
         prev_msg = recents[start_idx - 1]
         if msg.get('role') == 'tool' or prev_msg.get('tool_calls'):
             start_idx -= 1
+        elif msg.get('tool_calls') and prev_msg.get('role') == 'user':
+            start_idx -= 1
         else:
             break
     return start_idx
@@ -84,7 +86,7 @@ def _index_coupure_sure(recents, max_messages):
 def _messages_avec_fenetre(etat_systeme=None):
     # Prompt système reconstruit à chaque tour : langue choisie dans les réglages + ancrage temporel
     maintenant = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    contenu = ai.prompt_systeme(preferences.charger()['language'])
+    contenu = ai.prompt_systeme(preferences.charger()['language'], timestamp=maintenant)
     if "- Date et Heure locales :" not in contenu:
         contenu = f"{contenu}\n\n# Contexte temporel\n- Date et Heure locales : {maintenant}"
     if etat_systeme:
@@ -103,14 +105,12 @@ def _messages_avec_fenetre(etat_systeme=None):
 
     optimized = [system_prompt]
     for i, msg in enumerate(recents):
-        if i < last_user_idx:
-            if msg.get('role') in ['user', 'assistant'] and msg.get('content'):
-                optimized.append({'role': msg['role'], 'content': msg['content']})
+        if i == last_user_idx and etat_systeme and msg.get('role') == 'user':
+            msg_augmente = dict(msg)
+            msg_augmente['content'] = f"{msg.get('content', '')}\n\n[Contexte matériel actuel : {etat_systeme}]"
+            optimized.append(msg_augmente)
         else:
-            if i == last_user_idx and etat_systeme and msg.get('role') == 'user':
-                optimized.append({'role': 'user', 'content': f"{msg.get('content', '')}\n\n[Contexte matériel actuel : {etat_systeme}]"})
-            else:
-                optimized.append(msg)
+            optimized.append(msg)
 
     return optimized
 
