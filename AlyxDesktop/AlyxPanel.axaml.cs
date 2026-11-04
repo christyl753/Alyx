@@ -1144,10 +1144,12 @@ public partial class AlyxPanel : UserControl
 
     public void SyncStyleTabUI()
     {
+        PalCanopeeBtn.Classes.Set("active", _settings.WatercolorPalette == "canopee-ambre");
         PalDuoBtn.Classes.Set("active", _settings.WatercolorPalette == "watercolor-duo");
         PalBlueBtn.Classes.Set("active", _settings.WatercolorPalette == "watercolor-blue");
         PalRoseBtn.Classes.Set("active", _settings.WatercolorPalette == "watercolor-rose");
         PalInkBtn.Classes.Set("active", _settings.WatercolorPalette == "ink-minimal");
+        PalPrismBtn.Classes.Set("active", _settings.WatercolorPalette == "alyx-prism");
 
         ThemeLightBtn.Classes.Set("active", _settings.ThemeMode == "light");
         ThemeDarkBtn.Classes.Set("active", _settings.ThemeMode == "dark");
@@ -1164,10 +1166,12 @@ public partial class AlyxPanel : UserControl
         EcoModeTrack.Classes.Set("on", _settings.LowRamEcoMode);
     }
 
+    private void OnPaletteCanopeeClick(object? sender, RoutedEventArgs e) => SetPalette("canopee-ambre");
     private void OnPaletteDuoClick(object? sender, RoutedEventArgs e) => SetPalette("watercolor-duo");
     private void OnPaletteBlueClick(object? sender, RoutedEventArgs e) => SetPalette("watercolor-blue");
     private void OnPaletteRoseClick(object? sender, RoutedEventArgs e) => SetPalette("watercolor-rose");
     private void OnPaletteInkClick(object? sender, RoutedEventArgs e) => SetPalette("ink-minimal");
+    private void OnPalettePrismClick(object? sender, RoutedEventArgs e) => SetPalette("alyx-prism");
 
     private void SetPalette(string id)
     {

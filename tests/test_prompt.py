@@ -118,7 +118,7 @@ class TestSandbox(unittest.TestCase):
         for i in range(files.MAX_ENTREES_LISTE + 5):
             open(os.path.join(self.dossier, f"f{i:04d}.txt"), 'w').close()
         resultat = files.lister_fichiers(self.dossier)
-        self.assertIn("5 éléments non affichés", resultat)
+        self.assertIn("[Sortie tronquée : affichage des 50 premiers éléments sur", resultat)
         self.assertLessEqual(resultat.count("📄"), files.MAX_ENTREES_LISTE)
 
     def test_pdf_caracteres_hors_latin1(self):
@@ -308,6 +308,7 @@ class TestFonctionnalitesProfilC(unittest.TestCase):
     def test_historique_session_et_purge_90j(self):
         from core import history
         temp_hist = tempfile.mkdtemp(prefix="alyx_hist_")
+        orig_dossier = history._dossier_historique
         history._dossier_historique = lambda: temp_hist
         try:
             history.enregistrer_session("sess_test_1", "Combien font 2+2 ?", "4")
@@ -318,6 +319,7 @@ class TestFonctionnalitesProfilC(unittest.TestCase):
             self.assertIn("supprimée", res_suppr)
             self.assertIn("vide", history.consulter_historique())
         finally:
+            history._dossier_historique = orig_dossier
             shutil.rmtree(temp_hist, ignore_errors=True)
 
 

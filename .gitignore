@@ -37,6 +37,10 @@ AlyxDesktop/avalonia.log
 
 # Dev, agent et maquettes hors-runtime
 .agents/
+design/
+PROJECT.md
+TEST_INFRA.md
+TEST_READY.md
 design_handoff_jane/
 AUDIT.md
 

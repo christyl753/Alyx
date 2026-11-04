@@ -4,6 +4,7 @@ from pathlib import Path
 import platform
 import re
 import sys
+from typing import Callable
 from core.logger import get_logger
 from core.exceptions import PermissionRequiredException
 
@@ -94,8 +95,214 @@ outils_disponibles = {
 
 LISTE_FONCTIONS = list(outils_disponibles.values())
 
+# --- 1.1 ALIAS D'OUTILS & NORMALISATION D'ARGUMENTS ---
+ALIAS_OUTILS: dict[str, str] = {
+    # Fichiers & dossiers
+    'move_file': 'deplacer_fichier',
+    'move_files': 'deplacer_fichier',
+    'move': 'deplacer_fichier',
+    'mv': 'deplacer_fichier',
+    'deplacer_fichiers': 'deplacer_fichier',
+    'deplacer': 'deplacer_fichier',
+    'deplacement_fichier': 'deplacer_fichier',
+    'ranger_fichier': 'deplacer_fichier',
+    'ranger_fichiers': 'deplacer_fichier',
+
+    'list_files': 'lister_fichiers',
+    'list_file': 'lister_fichiers',
+    'list_dir': 'lister_fichiers',
+    'listdir': 'lister_fichiers',
+    'ls': 'lister_fichiers',
+    'dir': 'lister_fichiers',
+    'lister_fichier': 'lister_fichiers',
+    'lister_dossier': 'lister_fichiers',
+    'lister_repertoire': 'lister_fichiers',
+    'liste_fichiers': 'lister_fichiers',
+    'liste_dossier': 'lister_fichiers',
+
+    'read_file': 'lire_fichier_securise',
+    'cat': 'lire_fichier_securise',
+    'view_file': 'lire_fichier_securise',
+    'lire_fichier': 'lire_fichier_securise',
+    'lire_contenu_fichier': 'lire_fichier_securise',
+
+    'write_file': 'ecrire_fichier_securise',
+    'ecrire_fichier': 'ecrire_fichier_securise',
+    'enregistrer_fichier': 'ecrire_fichier_securise',
+
+    'delete_file': 'supprimer_fichier',
+    'delete_files': 'supprimer_fichier',
+    'remove_file': 'supprimer_fichier',
+    'rm': 'supprimer_fichier',
+    'trash_file': 'supprimer_fichier',
+    'supprimer_fichiers': 'supprimer_fichier',
+    'supprimer': 'supprimer_fichier',
+    'effacer_fichier': 'supprimer_fichier',
+
+    'create_file': 'creer_fichier',
+    'touch': 'creer_fichier',
+    'new_file': 'creer_fichier',
+    'creer_fichiers': 'creer_fichier',
+
+    'create_folder': 'creer_dossier',
+    'create_directory': 'creer_dossier',
+    'mkdir': 'creer_dossier',
+    'new_folder': 'creer_dossier',
+    'creer_repertoire': 'creer_dossier',
+    'creer_dossiers': 'creer_dossier',
+
+    'rename_file': 'renommer_fichier',
+    'rename': 'renommer_fichier',
+    'renommer_fichiers': 'renommer_fichier',
+    'renommer': 'renommer_fichier',
+
+    'find_duplicates': 'trouver_doublons',
+    'scan_duplicates': 'trouver_doublons',
+    'detecter_doublons': 'trouver_doublons',
+
+    'undo': 'annuler_derniere_action',
+    'revert': 'annuler_derniere_action',
+    'annuler': 'annuler_derniere_action',
+
+    # Applications & Système
+    'open_app': 'ouvrir_application',
+    'launch_app': 'ouvrir_application',
+    'start_app': 'ouvrir_application',
+    'lancer_application': 'ouvrir_application',
+
+    'close_app': 'fermer_application',
+    'kill_app': 'fermer_application',
+    'quit_app': 'fermer_application',
+    'arreter_application': 'fermer_application',
+
+    'list_apps': 'lister_apps_actives',
+    'get_running_apps': 'lister_apps_actives',
+    'lister_applications': 'lister_apps_actives',
+
+    'open_explorer': 'ouvrir_explorateur',
+    'open_folder': 'ouvrir_explorateur',
+    'explorer': 'ouvrir_explorateur',
+
+    'read_clipboard': 'lire_presse_papiers',
+    'get_clipboard': 'lire_presse_papiers',
+    'clipboard': 'lire_presse_papiers',
+
+    'find_process': 'rechercher_processus',
+    'search_process': 'rechercher_processus',
+    'ps': 'rechercher_processus',
+
+    'media_control': 'controler_media',
+    'control_media': 'controler_media',
+
+    'restart_pc': 'redemarrer_pc',
+    'reboot': 'redemarrer_pc',
+
+    'run_command': 'executer_commande_systeme',
+    'exec_command': 'executer_commande_systeme',
+    'cmd': 'executer_commande_systeme',
+
+    'web_search': 'rechercher_web',
+    'search_web': 'rechercher_web',
+}
+
+ARG_ALIASES: dict[str, dict[str, str]] = {
+    'deplacer_fichier': {
+        'source': 'chemin_source',
+        'src': 'chemin_source',
+        'file': 'chemin_source',
+        'file_path': 'chemin_source',
+        'source_path': 'chemin_source',
+        'chemin': 'chemin_source',
+        'destination': 'dossier_destination',
+        'dst': 'dossier_destination',
+        'target': 'dossier_destination',
+        'target_dir': 'dossier_destination',
+        'target_folder': 'dossier_destination',
+        'destination_folder': 'dossier_destination',
+        'dossier': 'dossier_destination',
+    },
+    'lister_fichiers': {
+        'path': 'dossier',
+        'folder': 'dossier',
+        'directory': 'dossier',
+        'dir': 'dossier',
+        'chemin': 'dossier',
+    },
+    'lire_fichier_securise': {
+        'file': 'chemin',
+        'file_path': 'chemin',
+        'path': 'chemin',
+    },
+    'supprimer_fichier': {
+        'file': 'chemin',
+        'file_path': 'chemin',
+        'path': 'chemin',
+    },
+    'creer_fichier': {
+        'file': 'chemin',
+        'file_path': 'chemin',
+        'path': 'chemin',
+    },
+    'creer_dossier': {
+        'folder': 'chemin',
+        'folder_path': 'chemin',
+        'directory': 'chemin',
+        'path': 'chemin',
+        'dossier': 'chemin',
+    },
+    'ecrire_fichier_securise': {
+        'file': 'chemin',
+        'file_path': 'chemin',
+        'path': 'chemin',
+        'text': 'contenu',
+        'content': 'contenu',
+    },
+    'renommer_fichier': {
+        'chemin': 'chemin_actuel',
+        'source': 'chemin_actuel',
+        'file': 'chemin_actuel',
+        'nouveau': 'nouveau_nom',
+        'new_name': 'nouveau_nom',
+        'name': 'nouveau_nom',
+    },
+}
+
+
+def resoudre_outil(nom_fonction: str, arguments: dict | None = None) -> tuple[Callable | None, str, dict]:
+    """Résout un nom d'outil (canonique ou alias) et normalise ses arguments."""
+    if not isinstance(nom_fonction, str):
+        nom_nettoye = str(nom_fonction or "").strip().lower().replace('-', '_')
+    else:
+        nom_nettoye = nom_fonction.strip().lower().replace('-', '_')
+
+    if nom_nettoye in outils_disponibles:
+        nom_canonique = nom_nettoye
+    elif nom_nettoye in ALIAS_OUTILS:
+        nom_canonique = ALIAS_OUTILS[nom_nettoye]
+    else:
+        nom_canonique = nom_nettoye
+
+    fonction = outils_disponibles.get(nom_canonique)
+
+    args_entrants = dict(arguments) if arguments else {}
+    alias_map = ARG_ALIASES.get(nom_canonique, {})
+    args_normalises = dict(args_entrants)
+
+    if alias_map:
+        for k, v in list(args_entrants.items()):
+            k_clean = k.strip().lower().replace('-', '_') if isinstance(k, str) else k
+            if k_clean in alias_map:
+                canon_k = alias_map[k_clean]
+                if canon_k not in args_normalises or args_normalises[canon_k] is None:
+                    args_normalises[canon_k] = v
+                if k != canon_k:
+                    args_normalises.pop(k, None)
+
+    return fonction, nom_canonique, args_normalises
+
 # --- ROUTAGE DYNAMIQUE D'OUTILS (< 1 ms) & DÉTECTION CONTEXTE MATÉRIEL ---
 _DOMAINES_OUTILS = (
+    # Médias & Volume (Audio / Streaming)
     (
         re.compile(
             r'\b(?:spotify|deezer|youtube|yt|soundcloud|'
@@ -109,104 +316,83 @@ _DOMAINES_OUTILS = (
             r'suivante?s?|pr[eé]c[eé]dente?s?|next|previous|prev|skip|'
             r'siguiente[s]?|anterior(?:es)?|pasa[rn]?|'
             r'n(?:[aä]|ae)chste[a-z]*|vorherige[a-z]*|weiter|zur(?:[uü]|ue)ck|(?:[uü]|ue)berspringen|'
-            r'volume|volumen|lautst(?:[aä]|ae)rke[a-z]*|son|audio|sonido|ton|sound|'
-            r'sourdine|muet|mute|unmute|silencio|stumm|'
+            r'volume|volumen|lautst(?:[aä]|ae)rke[a-z]*|lautstärkeregelung|lautstärkeeinstellung|lautstärkeregler|'
+            r'son|audio|sonido|ton|sound|'
+            r'sourdine|muet|mute|unmute|silencio|stumm[a-z]*|'
             r'[eé]coute[rzs]?|listen|escuch[a-z]*|h(?:[oö]|oe)r[a-z]*|'
             r'medias?|m[eé]dias?|medien|medios?)\b',
             re.IGNORECASE,
         ),
-        (rechercher_ou_jouer_media, controler_media, ouvrir_application, fermer_application),
+        (controler_media, rechercher_ou_jouer_media, ouvrir_application, fermer_application),
     ),
+    # Presse-papiers
     (
         re.compile(
-            r'\b(?:ouvr[eir][a-z]*|open|lance[rzs]?|launch|start|d[eé]marre[rzs]?|'
-            r'abr[eir][a-z]*|inicia[rn]?|ejecuta[rn]?|(?:[oö]|oe)ffn[a-z]*|ausf(?:[uü]|ue)hr[a-z]*|'
-            r'ferme[rzs]?|close|quitte[rzs]?|quit|exit|kill|arr[eê]te[rzs]?|terminate|'
-            r'cierra[rn]?|quita[rn]?|mata[rn]?|schlie(?:[sß]|ss)[a-z]*|beend[a-z]*|t(?:[oö]|oe)t[a-z]*|'
-            r'apps?|applis?|applications?|programmes?|logiciels?|software|'
-            r'aplicaci[oó]n(?:es)?|anwendun[a-z]*|programme?|'
-            r'fen[eê]tres?|windows?|ventanas?|fenster|'
-            r'explorateur|explorer|explorador|dateimanager|'
+            r'\b(?:presse[- ]papiers?|clipboard|portapapeles|zwischenablage|'
             r'copi[eé][es]?|copier|copy|copia[rn]?|kopier[a-z]*|'
-            r'colle[rzs]?|paste|pega[rn]?|einf(?:[uü]|ue)g[a-z]*|'
-            r'presse[- ]papiers?|clipboard|portapapeles|zwischenablage)\b',
+            r'colle[rzs]?|paste|pega[rn]?|einf(?:[uü]|ue)g[a-z]*)\b',
             re.IGNORECASE,
         ),
-        (ouvrir_application, fermer_application, lister_apps_actives, ouvrir_explorateur, rechercher_ou_jouer_media, lire_presse_papiers),
+        (lire_presse_papiers,),
     ),
+    # Télémétrie
     (
         re.compile(
-            r'\b(?:fichiers?|files?|dossiers?|folders?|r[eé]pertoires?|director(?:y|ies)|'
-            r'archivos?|ficheros?|carpetas?|directorios?|'
-            r'datei[a-z]*|ordner|verzeichnis(?:se)?|'
-            r'documents?|docs?|pdfs?|notes?|textes?|texts?|notas?|notizen?|'
-            r'bureau|desktop|escritorio|schreibtisch|'
-            r't[eé]l[eé]chargements?|downloads?|descargas?|heruntergeladen|'
-            r'cr[eé]e[rzs]?|create|make|crea[rn]?|erstell[a-z]*|anleg[a-z]*|'
-            r'[eé]cri[stve][a-z]*|write|escrib[a-z]*|schreib[a-z]*|'
-            r'li[st][a-z]*|lire|read|le[aer][a-z]*|les[a-z]*|'
-            r'supprime[rzs]?|efface[rzs]?|delete|remove|erase|'
-            r'borra[rn]?|elimina[rn]?|suprim[a-z]*|l(?:[oö]|oe)sch[a-z]*|entfern[a-z]*|'
-            r'corbeille|trash|recycle bin|papelera|papierkorb|'
-            r'renomme[rzs]?|rename|renombra[rn]?|umbenenn[a-z]*|'
-            r'd[eé]place[rzs]?|move|muev[a-z]*|mover|traslada[rn]?|verschieb[a-z]*|'
-            r'liste[rzs]?|list|mostrar|auflist[a-z]*|'
-            r'doublons?|duplicates?|duplicados?|(?:datei)?duplikat[a-z]*|doppelte|'
-            r'undo|annule[rzs]?|restaure[rzs]?|revert|deshaz|deshacer|r(?:[uü]|ue)ckg(?:[aä]|ae)ngig|'
-            r'sauvegarde[rzs]?|save|guarda[rn]?|speicher[nt]?)\b',
+            r'\b(?:t[eé]l[eé]m[eé]trie|telemetry|telemetr[ií]a|telemetrie|diagtrack)\b',
             re.IGNORECASE,
         ),
-        (
-            creer_fichier, creer_dossier, lister_fichiers, renommer_fichier, deplacer_fichier,
-            supprimer_fichier, lire_fichier_securise, ecrire_fichier_securise, generer_pdf,
-            trouver_doublons, annuler_derniere_action, analyser_telechargements,
-            ouvrir_explorateur, lire_presse_papiers,
-        ),
+        (desactiver_telemetrie_pc,),
     ),
+    # Réseau & Connexion
     (
         re.compile(
-            r'\b(?:recherche[rzs]?|cherche[rzs]?|trouve[rzs]?|search|lookup|find|'
-            r'busc[aoe][a-z]*|buscar|encuentr[a-z]*|such[a-z]*|recherchier[a-z]*|'
-            r'google|web|internet|en ligne|online|en l[ií]nea|'
-            r'infos?|nouvelles?|actualit[eé]s?|news|noticias|nachrichten|'
-            r'm[eé]t[eé]o|weather|clima|wetter|'
-            r'qui est|qu est ce|who is|what is|qui[eé]n es|qu[eé] es|wer ist|was ist|'
-            r'site|page|website|webseite|p[aá]gina)\b',
+            r'\b(?:r[eé]seau|network|red|netzwerk[a-z]*|netzwerkdiagnose|ping|dns|flushdns|'
+            r'connexion|conexi[oó]n|verbindung[a-z]*|wifi|wi-fi|ethernet|ip|ssid|diagnos[a-z]*|diagnosti[a-z]*)\b',
             re.IGNORECASE,
         ),
-        (rechercher_web, lire_presse_papiers),
+        (diagnostiquer_reseau, reparer_reseau, executer_commande_systeme),
     ),
+    # Services système
     (
         re.compile(
-            r'\b(?:cpu|processeur|processor|procesador|prozessor[a-z]*|coeurs?|cores?|'
-            r'ram|m[eé]moire|memory|memoria|arbeitsspeicher|speicher[a-z]*|'
-            r'gpu|vram|carte graphique|tarjeta gr[aá]fica|grafikkarte[a-z]*|nvidia|radeon|'
-            r'disques?|stockage|disk(?:s)?|storage|drives?|ssd|hdd|discos?|almacenamiento|festplatte[a-z]*|speicherplatz|'
-            r'batterie|battery|bater[ií]a|akku(?:stand)?|autonomie|charge|'
-            r'temp[eé]rature|temperature|temperatura|chauffe|surchauffe|calienta|heiss|heiß|(?:[uü]|ue)berhitzung|'
-            r'mat[eé]riel|hardware|ventilateur|fan(?:s)?|l(?:[uü]|ue)fter|'
-            r'processus|process(?:es)?|procesos?|prozess[a-z]*|pids?|'
-            r'services?|systemd|servicios?|dienst(?:e)?|'
-            r't[aâ]ches?|tasks?|tareas?|aufgabe(?:n)?|planifi[a-z]*|scheduled|zeitplan|cron|timers?|'
-            r'd[eé]marr[a-z]*|startup[a-z]*|autostart[a-z]*|boot|inicio|'
-            r'commandes?|commands?|comandos?|befehle?|powershell|terminal|bash|cmd|registre|registry|'
-            r'red[eé]marre[rzs]?|reboot|restart|reinicia[rn]?|neustart[a-z]*|'
-            r'admin|administrateur|administrator|administrador|syst[eé]me|system|sistema|'
-            r'mises? [aà] jour|updates?|upgrade|actualiz[a-z]*|aktualisier[a-z]*|winget|pacman|apt|dnf|'
-            r'r[eé]seau|network|red|netzwerk[a-z]*|ping|dns|flushdns|connexion|conexi[oó]n|verbindung[a-z]*|wifi|wi-fi|ethernet|ip|ssid|diagnos[a-z]*|diagnosti[a-z]*|'
-            r't[eé]l[eé]m[eé]trie|telemetry|telemetr[ií]a|telemetrie|diagtrack|'
-            r'horloge|clock|reloj|uhrzeit|fuseau|timezone|zeitzone|'
-            r'lent|lenteurs?|slow|lento|rame[rzs]?|lag|freeze|'
-            r'performances?|rendimiento|leistung|auslastung)\b',
+            r'\b(?:services?|systemd|servicios?|dienst(?:e)?)\b',
             re.IGNORECASE,
         ),
-        (
-            desactiver_telemetrie_pc, rechercher_processus, lister_services, gerer_service,
-            lister_taches_planifiees, gerer_tache_planifiee, lister_apps_demarrage,
-            gerer_app_demarrage, executer_commande_systeme, fermer_application, redemarrer_pc,
-            mettre_a_jour_logiciels, nettoyer_caches, reparer_reseau, diagnostiquer_reseau,
-        ),
+        (lister_services, gerer_service),
     ),
+    # Tâches planifiées
+    (
+        re.compile(
+            r'\b(?:t[aâ]ches?|tasks?|tareas?|aufgabe(?:n)?|planifi[a-z]*|scheduled|programadas?|zeitplan|cron|timers?)\b',
+            re.IGNORECASE,
+        ),
+        (lister_taches_planifiees, gerer_tache_planifiee),
+    ),
+    # Applications au démarrage
+    (
+        re.compile(
+            r'\b(?:d[eé]marr[a-z]*|startup[a-z]*|autostart[a-z]*|autostartprogramme|boot|inicio)\b',
+            re.IGNORECASE,
+        ),
+        (lister_apps_demarrage, gerer_app_demarrage),
+    ),
+    # Mises à jour logicielles
+    (
+        re.compile(
+            r'\b(?:mises? [aà] jour|updates?|upgrade|actualiz[a-z]*|aktualisier[a-z]*|winget|pacman|apt|dnf)\b',
+            re.IGNORECASE,
+        ),
+        (mettre_a_jour_logiciels, executer_commande_systeme),
+    ),
+    # Redémarrage PC
+    (
+        re.compile(
+            r'\b(?:red[eé]marre[rzs]?|reboot|restart|reinicia[rn]?|neustart[a-z]*)\b',
+            re.IGNORECASE,
+        ),
+        (redemarrer_pc,),
+    ),
+    # Nettoyage & Caches (Maintenance)
     (
         re.compile(
             r'\b(?:netto[iy][a-z]*|clean[a-z]*|limpi[a-z]*|(?:[a-z]+)?bereinig[a-z]*|s(?:[aä]|ae)uber[a-z]*|'
@@ -215,39 +401,194 @@ _DOMAINES_OUTILS = (
             r'inutiles?|junk|basura|m(?:[uü]|ue)ll|datenm(?:[uü]|ue)ll|'
             r'lib[eé]rer|free(?: up)?|liberar|freigeben|'
             r'optimis[a-z]*|optimi[sz][a-z]*|optimier[a-z]*|'
-            r'maintenance|mantenimiento|(?:[a-z]+)?wartung[a-z]*)\b',
+            r'maintenance|mantenimiento|(?:[a-z]+)?wartung[a-z]*|'
+            r'festplattenbereinigung|speicherbereinigung|systemwartung)\b',
             re.IGNORECASE,
         ),
-        (
-            nettoyer_caches,
-            desactiver_telemetrie_pc,
-            supprimer_fichier,
-            trouver_doublons,
-            analyser_telechargements,
-            lister_fichiers,
-            deplacer_fichier,
-            lister_apps_demarrage,
-            gerer_app_demarrage,
-            mettre_a_jour_logiciels,
-            executer_commande_systeme,
-            rechercher_processus,
-            fermer_application,
-            reparer_reseau,
-            diagnostiquer_reseau,
-            gerer_service,
+        (nettoyer_caches, supprimer_fichier, trouver_doublons, analyser_telechargements),
+    ),
+    # Applications actives & Gestion fenêtres
+    (
+        re.compile(
+            r'\b(?:(?:apps?|applis?|applications?|fen[eê]tres?|windows?|ventanas?|fenster)\s+(?:actives?|ouvertes?)|running\s+apps?|fen[eê]tres?\s+ouvertes?|laufende[n]?\s+anwendungen)\b',
+            re.IGNORECASE,
         ),
+        (lister_apps_actives, ouvrir_application, fermer_application),
+    ),
+    # Explorateur de fichiers
+    (
+        re.compile(
+            r'\b(?:explorateur|explorer|explorador|dateimanager)\b',
+            re.IGNORECASE,
+        ),
+        (ouvrir_explorateur, lister_fichiers),
+    ),
+    # Organisation, Déplacement et Rangement de fichiers
+    (
+        re.compile(
+            r'\b(?:d[eé]place[rzs]?|move|muev[a-z]*|mover|traslada[rn]?|verschieb[a-z]*|'
+            r'range[rzs]?|trie[rzs]?|organis[a-z]*|class[a-z]*)\b',
+            re.IGNORECASE,
+        ),
+        (deplacer_fichier, lister_fichiers, creer_dossier, renommer_fichier),
+    ),
+    # Recherche de doublons
+    (
+        re.compile(
+            r'\b(?:doublons?|duplicates?|duplicados?|(?:datei)?duplikat[a-z]*|dateiduplikate|doppelte)\b',
+            re.IGNORECASE,
+        ),
+        (trouver_doublons, lister_fichiers, supprimer_fichier),
+    ),
+    # Génération et manipulation PDF
+    (
+        re.compile(
+            r'\b(?:pdf|pdfs?)\b',
+            re.IGNORECASE,
+        ),
+        (generer_pdf, lire_fichier_securise, lister_fichiers),
+    ),
+    # Analyse des téléchargements
+    (
+        re.compile(
+            r'\b(?:analy[sz][a-z]*|examine[rzs]?|scan[a-z]*)\b.*\b(?:t[eé]l[eé]chargements?|downloads?|descargas?|heruntergeladen)\b|\b(?:t[eé]l[eé]chargements?|downloads?|descargas?|heruntergeladen)\b.*\b(?:analy[sz][a-z]*|examine[rzs]?|scan[a-z]*)\b',
+            re.IGNORECASE,
+        ),
+        (analyser_telechargements, lister_fichiers, ouvrir_explorateur),
+    ),
+
+
+    # Annulation d'action / Revert
+    (
+        re.compile(
+            r'\b(?:undo|annule[rzs]?|restaure[rzs]?|revert|deshaz|deshacer|r(?:[uü]|ue)ckg(?:[aä]|ae)ngig)\b',
+            re.IGNORECASE,
+        ),
+        (annuler_derniere_action, lister_fichiers),
+    ),
+    # Suppression / Corbeille
+    (
+        re.compile(
+            r'\b(?:supprime[rzs]?|efface[rzs]?|delete|remove|erase|'
+            r'borra[rn]?|elimina[rn]?|suprim[a-z]*|l(?:[oö]|oe)sch[a-z]*|entfern[a-z]*|'
+            r'corbeille|trash|recycle bin|papelera|papierkorb)\b',
+            re.IGNORECASE,
+        ),
+        (supprimer_fichier, lister_fichiers, annuler_derniere_action),
+    ),
+    # Renommage de fichiers
+    (
+        re.compile(
+            r'\b(?:renomme[rzs]?|rename|renombra[rn]?|umbenenn[a-z]*)\b',
+            re.IGNORECASE,
+        ),
+        (renommer_fichier, lister_fichiers),
+    ),
+    # Lecture de fichiers
+    (
+        re.compile(
+            r'\b(?:lis|lit|lisons|lisez|lisent|lire|lecture|read|reading|leer|le[ey][a-z]*|lesen|liest|gelesen|consulte[rzs]?|dateiinhalt)\b',
+            re.IGNORECASE,
+        ),
+        (lire_fichier_securise, ecrire_fichier_securise, lister_fichiers),
+    ),
+
+    # Écriture dans les fichiers
+    (
+        re.compile(
+            r'\b(?:[eé]cri[stve][a-z]*|write|escrib[a-z]*|schreib[a-z]*)\b',
+            re.IGNORECASE,
+        ),
+        (ecrire_fichier_securise, creer_fichier, lire_fichier_securise, lister_fichiers),
+    ),
+    # Création de fichiers ou dossiers
+    (
+        re.compile(
+            r'\b(?:cr[eé]e[rzs]?|create|make|crea[rn]?|erstell[a-z]*|anleg[a-z]*)\b',
+            re.IGNORECASE,
+        ),
+        (creer_fichier, creer_dossier, lister_fichiers),
+    ),
+    # Recherche Web
+    (
+        re.compile(
+            r'\b(?:google|web|internet|en ligne|online|en l[ií]nea|'
+            r'infos?|nouvelles?|actualit[eé]s?|news|noticias|nachrichten|'
+            r'm[eé]t[eé]o|weather|clima|wetter|'
+            r'qui est|qu est ce|who is|what is|qui[eé]n es|qu[eé] es|wer ist|was ist|'
+            r'site|website|webseite|p[aá]gina|wikipedia|wiki)\b|'
+            r'\b(?:recherche[rzs]?|cherche[rzs]?|search|lookup)\b.*\b(?:web|internet|en ligne|online|google)\b',
+            re.IGNORECASE,
+        ),
+        (rechercher_web, lire_presse_papiers),
+    ),
+
+    # Applications & Cycle de vie fenêtres
+    (
+        re.compile(
+            r'\b(?:ouvr[eir][a-z]*|open|lance[rzs]?|launch|start|d[eé]marre[rzs]?|'
+            r'abr[eir][a-z]*|inicia[rn]?|ejecuta[rn]?|(?:[oö]|oe)ffn[a-z]*|ausf(?:[uü]|ue)hr[a-z]*|'
+            r'ferme[rzs]?|close|quitte[rzs]?|quit|exit|kill|arr[eê]te[rzs]?|terminate|'
+            r'cierra[rn]?|quita[rn]?|mata[rn]?|schlie(?:[sß]|ss)[a-z]*|beend[a-z]*|t(?:[oö]|oe)t[a-z]*|'
+            r'apps?|applis?|applications?|programmes?|logiciels?|software|'
+            r'aplicaci[oó]n(?:es)?|anwendun[a-z]*|programme?|'
+            r'fen[eê]tres?|windows?|ventanas?|fenster)\b',
+            re.IGNORECASE,
+        ),
+        (ouvrir_application, fermer_application, lister_apps_actives, ouvrir_explorateur),
+    ),
+    # Matériel & Processus système
+    (
+        re.compile(
+            r'\b(?:cpu|processeur|processor|procesador|prozessor[a-z]*|prozessorauslastung|hintergrundprozess|coeurs?|cores?|'
+            r'ram|m[eé]moire|memory|memoria|arbeitsspeicher|speicher[a-z]*|'
+            r'gpu|vram|carte graphique|tarjeta gr[aá]fica|grafikkarte[a-z]*|nvidia|radeon|'
+            r'disques?|stockage|disk(?:s)?|storage|drives?|ssd|hdd|discos?|almacenamiento|festplatte[a-z]*|speicherplatz|'
+            r'batterie|battery|bater[ií]a|akku(?:stand)?|autonomie|charge|'
+            r'temp[eé]rature|temperature|temperatura|chauffe|surchauffe|calienta|heiss|heiß|(?:[uü]|ue)berhitzung|'
+            r'mat[eé]riel|hardware|ventilateur|fan(?:s)?|l(?:[uü]|ue)fter|'
+            r'processus|process(?:es)?|procesos?|prozess[a-z]*|pids?|'
+            r'horloge|clock|reloj|uhrzeit|fuseau|timezone|zeitzone|'
+            r'lent|lenteurs?|slow|lento|rame[rzs]?|lag|freeze|'
+            r'performances?|rendimiento|leistung|auslastung)\b',
+            re.IGNORECASE,
+        ),
+        (rechercher_processus, fermer_application, executer_commande_systeme),
+    ),
+    # Fichiers générique / Navigation / Dateiverwaltung
+    (
+        re.compile(
+            r'\b(?:fichiers?|files?|dossiers?|folders?|r[eé]pertoires?|director(?:y|ies)|'
+            r'archivos?|ficheros?|carpetas?|directorios?|'
+            r'datei[a-z]*|ordner|verzeichnis(?:se)?|dateiverwaltung|'
+            r'documents?|docs?|notes?|textes?|texts?|notas?|notizen?|'
+            r'bureau|desktop|escritorio|schreibtisch)\b',
+            re.IGNORECASE,
+        ),
+        (lister_fichiers, deplacer_fichier, creer_dossier, ouvrir_explorateur, lire_presse_papiers),
+    ),
+
+    # Commandes système / Terminal
+    (
+        re.compile(
+            r'\b(?:commandes?|commands?|comandos?|befehle?|powershell|terminal|bash|cmd|registre|registry|'
+            r'admin|administrateur|administrator|administrador|syst[eé]me|system|sistema)\b',
+            re.IGNORECASE,
+        ),
+        (executer_commande_systeme,),
     ),
 )
 
+
 _KIT_BASE_POLYVALENT = [
     ouvrir_application,
-    rechercher_ou_jouer_media,
-    controler_media,
-    rechercher_processus,
     lister_fichiers,
     lire_presse_papiers,
-    executer_commande_systeme,
+    rechercher_processus,
 ]
+
+MAX_OUTILS_ROUTAGE = 6
+BUDGET_MAX_OUTILS = 1000
 
 _REGEX_BESOIN_ETAT_SYSTEME = re.compile(
     r'\b(?:cpu|processeur|processor|procesador|prozessor[a-z]*|coeurs?|cores?|'
@@ -274,7 +615,7 @@ def _load_cached_config():
 
 
 def selectionner_outils_pertinents(user_input: str) -> list:
-    """Sélectionne en < 1 ms le sous-ensemble d'outils pertinent pour la requête utilisateur."""
+    """Selectionne le sous-ensemble d'outils pertinent pour la requete utilisateur."""
     if not _load_cached_config().get('llm_provider', {}).get('dynamic_tool_routing', True):
         return LISTE_FONCTIONS
 
@@ -287,8 +628,19 @@ def selectionner_outils_pertinents(user_input: str) -> list:
                 if fn not in vus:
                     vus.add(fn)
                     selection.append(fn)
+                    if len(selection) >= MAX_OUTILS_ROUTAGE:
+                        break
+        if len(selection) >= MAX_OUTILS_ROUTAGE:
+            break
 
-    return selection if selection else list(_KIT_BASE_POLYVALENT)
+    if not selection:
+        selection = list(_KIT_BASE_POLYVALENT)
+
+    from core.token_counter import estimer_tokens_outils
+    while len(selection) > 1 and estimer_tokens_outils(selection) > BUDGET_MAX_OUTILS:
+        selection.pop()
+
+    return selection
 
 
 def besoin_etat_systeme(user_input: str) -> bool:
@@ -309,7 +661,7 @@ def _detecter_os_nom() -> str:
 
 # --- 2. INITIALISATION DE L'AGENT ---
 PROMPT_BASE = """# Identité & Mission
-Tu es Alyx, un assistant système de bureau intelligent, efficace, souverain et 100% hors-ligne (air-gapped).
+Tu es Alyx, assistant système de bureau souverain et 100% hors-ligne (air-gapped).
 - Système d'exploitation : {os_nom}
 - Répertoire utilisateur : {user_home}
 - Langue active : {langue_label}
@@ -318,23 +670,28 @@ Tu es Alyx, un assistant système de bureau intelligent, efficace, souverain et 
 - Date et Heure locales : {date_heure}
 
 # Directives Opérationnelles
-- **Exécution 100% locale (Air-gapped)** : Aucune donnée ne quitte cette machine. N'effectue aucun appel réseau externe et ne fais référence à aucun service cloud distant. Tu fonctionnes exclusivement en environnement local déconnecté.
-- **Ancrage factuel & Zéro hallucination** : Fonde chaque réponse uniquement sur l'état vérifié du système et les retours d'outils. Si une information est manquante ou incertaine, indique expressément [Information manquante] au lieu de supposer ou d'inventer.
-- **Concision stricte** : Formule des réponses directes, denses et sans bavardage. Élimine les formules de politesse, excuses, flatteries et phrases d'introduction superflues. Moins tu parles, plus tu es efficace.
-- **Honnêteté opérationnelle** : Si une action demandée n'est pas automatisable ou ne réussit que partiellement, signale immédiatement la limite technique exacte en une phrase au lieu de prétendre que tout est accompli. Ne simule jamais une exécution d'action.
+- **Air-gapped local** : Zéro fuite réseau. Aucun appel externe ni service cloud.
+- **Ancrage factuel** : Fonde les réponses sur les faits et retours d'outils. Si une info manque, indique expressément [Information manquante].
+- **Concision** : Réponses directes, sans politesses, excuses ni phrases d'introduction.
+- **Honnêteté** : Si une action est impossible ou partielle, signale la limite technique. Ne simule jamais une exécution.
 
 # Utilisation des Outils
-- **Action système = Appel d'outil JSON impératif** : Si l'utilisateur demande une action ou consultation sur le système (fichiers, applications, processus, médias, réseau), appelle IMPÉRATIVEMENT la fonction JSON correspondante. Ne réponds JAMAIS par du texte narratif (ex: « Ouverture en cours... », « Je ferme l'application ») sans avoir appelé l'outil.
-- **Exécution multi-outils simultanée** : Lorsque la demande comporte plusieurs actions (ex: « ferme Firefox et ouvre Discord »), appelle TOUS les outils requis en même temps dans le même tour.
-- **Paramètres précis & Périmètre autorisé** : Renseigne scrupuleusement les arguments requis selon les schémas d'outils. Respecte le bac à sable du répertoire utilisateur ({user_home}) ; ne cible aucun chemin sensible ou interdit hors périmètre.
-- **Modèle Yield/Resume (HITL)** : Les actions critiques ou destructrices (supprimer un fichier, fermer un processus protégé, redémarrer l'ordinateur) déclenchent une demande de confirmation utilisateur (PermissionRequiredException). Suspends l'action et attends la décision explicite de l'utilisateur sans chercher à contourner ce contrôle.
-- **Exploitation des retours d'outils** : Utilise le contenu retourné par le rôle `tool` pour formuler ta réponse finale. En cas d'erreur ou d'échec rapporté par un outil, transmets le constat technique exact sans le masquer.
+- **Appel impératif** : Toute action ou consultation système requiert l'appel de fonction JSON idoine. Jamais de texte narratif sans outil.
+- **Multi-outils** : Pour plusieurs actions, émets tous les outils requis dans le même tour.
+- **Périmètre** : Respecte les schémas et le bac à sable ({user_home}).
+- **Modèle Yield/Resume (HITL)** : Actions critiques soumises à confirmation (PermissionRequiredException). Suspends et attends la décision utilisateur.
+- **Retours d'outils** : Transmets les résultats réels et erreurs techniques sans les masquer.
+
+# Tâches par Lots & Manipulation de Fichiers
+- **Méthode** : 1) `lister_fichiers` sans wildcard `*` pour identifier les cibles. 2) Émettre chaque `deplacer_fichier` dans le même tour sans s'arrêter au premier.
+- **Exemple** : Ranger des fichiers -> lister le dossier puis déplacer tous les éléments ciblés.
 
 # Format de Réponse
-- **Style Néo-brutaliste** : Ton direct, percutant, factuel et sans fioritures. Réponds sans phrase d'introduction ni conclusion cérémonieuse.
-- **Mise en forme Markdown** : Structure tes réponses en Markdown quand c'est utile (titres ##, listes à puces, **gras**, `code` pour commandes/chemins/processus, tableaux comparatifs).
-- **Formules mathématiques en LaTeX** : Écris obligatoirement les formules inline entre $...$ et les formules bloc entre $$...$$ afin de garantir la compatibilité avec la synthèse vocale (TTS).
-- **Préservation linguistique absolue** : {consigne_langue} Conserve TOUJOURS cette langue de réponse, même après l'exécution d'un outil ayant retourné des logs ou messages en anglais. Ne bascule jamais vers une autre langue sans consigne explicite."""
+- **Style Néo-brutaliste** : Ton direct, percutant et sans fioritures.
+- **Structure Markdown** : Utilise le format Markdown (listes, gras, code, tableaux) selon besoin.
+- **Formules LaTeX** : Écris les maths inline en $...$ et en bloc en $$...$$ pour la synthèse vocale.
+- **Langue** : {consigne_langue} Réponds toujours dans la langue de l'utilisateur."""
+
 
 
 def prompt_systeme(langue: str = 'fr', timestamp: str | None = None) -> str:
@@ -367,19 +724,30 @@ messages: list[dict] = [{'role': 'system', 'content': prompt_systeme('fr')}]
 MODEL = 'Aucun modèle'
 
 
+def tronquer_sortie_outil(resultat, max_chars: int = 4000) -> str:
+    """Sanitiseur défensif : tronque les sorties volumineuses d'outils avant injection dans le contexte."""
+    if resultat is None:
+        return ""
+    resultat_str = str(resultat)
+    if len(resultat_str) > max_chars:
+        return resultat_str[:max_chars] + f"\n[Sortie tronquée : affichage des {max_chars} premiers caractères sur {len(resultat_str)}]"
+    return resultat_str
+
+
 def _executer_outil_cli(nom_fonction, arguments):
-    fonction = outils_disponibles.get(nom_fonction)
+    fonction, nom_canonique, args_normalises = resoudre_outil(nom_fonction, arguments)
     if fonction is None:
         return f"Erreur: Outil {nom_fonction} introuvable."
     try:
-        return fonction(**arguments)
+        res = fonction(**args_normalises)
     except PermissionRequiredException as e:
         reponse = input(f"     [Permission requise : {e.action} -> {e.cible}. Autoriser ? (o/N)] ").strip().lower()
         if reponse not in ('o', 'oui', 'y', 'yes'):
             return "L'utilisateur a refusé cette action."
-        return executer_avec_permission(fonction, arguments)
+        res = executer_avec_permission(fonction, args_normalises)
     except TypeError as e:
-        return f"Erreur: arguments invalides pour {nom_fonction} ({e})."
+        return f"Erreur: arguments invalides pour {nom_canonique} ({e})."
+    return tronquer_sortie_outil(res)
 
 
 def lancer_cli():
@@ -442,7 +810,7 @@ def lancer_cli():
                     resultat_execution = _executer_outil_cli(nom_fonction, arguments)
                     messages.append({
                         'role': 'tool',
-                        'content': str(resultat_execution),
+                        'content': tronquer_sortie_outil(resultat_execution),
                         'name': nom_fonction,
                         'tool_name': nom_fonction,
                         'tool_call_id': tool_call['id']

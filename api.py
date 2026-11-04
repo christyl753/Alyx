@@ -12,7 +12,7 @@ import psutil
 
 from core.exceptions import PermissionRequiredException
 import ai
-from ai import messages, LISTE_FONCTIONS, outils_disponibles
+from ai import messages, LISTE_FONCTIONS, outils_disponibles, resoudre_outil
 from core.llm_provider import (
     lister_modeles_disponibles,
     get_provider_status,
@@ -32,6 +32,15 @@ from function import faire_parler, arreter_parole, executer_avec_permission
 from function import tts
 from core import preferences
 from core.logger import get_logger
+from core.token_counter import (
+    estimer_tokens_texte,
+    estimer_tokens_message,
+    estimer_tokens_outils,
+    estimer_tokens_tools,
+    CONTEXT_LENGTH,
+    HEADROOM_TOKENS,
+    MAX_INPUT_TOKENS,
+)
 
 logger = get_logger('alyx.ws_api')
 
@@ -83,28 +92,308 @@ def _index_coupure_sure(recents, max_messages):
             break
     return start_idx
 
-def _messages_avec_fenetre(etat_systeme=None):
+def _partitionner_en_tours(recents: list[dict]) -> list[list[dict]]:
+    """Partitionne la liste des messages récents en tours de conversation atomiques.
+    Un tour commence par un message 'user' (ou le premier message s'il n'est pas 'user')
+    et regroupe tous les messages 'assistant' et 'tool' consécutifs associés.
+    Garantit qu'aucun tool_call n'est jamais séparé de ses réponses 'tool'."""
+    if not recents:
+        return []
+    tours = []
+    tour_courant = []
+    for msg in recents:
+        if msg.get('role') == 'user' and tour_courant:
+            tours.append(tour_courant)
+            tour_courant = [msg]
+        else:
+            tour_courant.append(msg)
+    if tour_courant:
+        tours.append(tour_courant)
+    return tours
+
+
+def _condenser_retour_outil(nom_outil: str, contenu: str, max_chars: int = 150) -> str:
+    """Tier 1 : Condense le contenu textuel d'un outil ancien.
+    Conserve les éléments sémantiques clés (statut, nombre d'éléments, chemins)."""
+    if not contenu:
+        return ""
+    contenu_str = str(contenu).strip()
+    if len(contenu_str) <= max_chars:
+        return contenu_str
+
+    nom = (nom_outil or '').lower()
+    lignes = [l.strip() for l in contenu_str.splitlines() if l.strip()]
+
+    if 'lister' in nom:
+        premiere = lignes[0] if lignes else "Fichiers listés"
+        return f"{premiere}\n[... {len(lignes)-1} éléments détaillés omis dans l'historique ancien ...]"
+
+    if 'lire' in nom:
+        return f"[Contenu du fichier lu : {len(contenu_str)} car. / {len(lignes)} lignes — omis pour l'historique ancien]"
+
+    if 'commande' in nom or 'systeme' in nom:
+        apercu = " ".join(lignes[:2])[:max_chars]
+        return f"{apercu}...\n[... sortie condensée ({len(contenu_str)} car.) ...]"
+
+    premiere = lignes[0][:max_chars] if lignes else contenu_str[:max_chars]
+    return f"{premiere}...\n[... résultat d'outil condensé ({len(contenu_str)} car. au total) ...]"
+
+
+def _resumer_tour_evince(tour: list[dict]) -> str:
+    """Tier 2 : Extrait l'intention utilisateur, les actions d'outils et le résultat
+    d'un tour complet avant éviction."""
+    user_prompt = ""
+    actions = []
+    assistant_resultat = ""
+
+    for msg in tour:
+        role = msg.get('role')
+        if role == 'user' and not user_prompt:
+            texte = (msg.get('content') or '').strip()
+            if "\n\n[Contexte matériel" in texte:
+                texte = texte.split("\n\n[Contexte matériel")[0].strip()
+            user_prompt = texte[:120] + ("..." if len(texte) > 120 else "")
+
+        elif role == 'assistant':
+            if msg.get('tool_calls'):
+                for tc in msg['tool_calls']:
+                    fn = tc.get('function', {})
+                    nom_fn = fn.get('name', 'outil')
+                    args = fn.get('arguments', {})
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except Exception:
+                            args = {}
+                    arg_str = ", ".join(f"{k}={v}" for k, v in list(args.items())[:2]) if isinstance(args, dict) else ""
+                    actions.append(f"{nom_fn}({arg_str[:60]})" if arg_str else nom_fn)
+            elif msg.get('content'):
+                contenu_a = (msg.get('content') or '').strip()
+                if contenu_a:
+                    assistant_resultat = contenu_a[:100] + ("..." if len(contenu_a) > 100 else "")
+
+    parties = []
+    if user_prompt:
+        parties.append(f"Demande : « {user_prompt} »")
+    if actions:
+        parties.append(f"Actions : {', '.join(actions)}")
+    if assistant_resultat:
+        parties.append(f"Résultat : {assistant_resultat}")
+
+    return " | ".join(parties) if parties else "Échange archivé"
+
+
+def _compiler_note_faits_cles(faits: list[str], max_tokens: int = 400) -> str:
+    """Compile la liste des faits extraits en note structurée bornée (max_tokens)."""
+    if not faits or max_tokens < 60:
+        return ""
+
+    header = "## Faits clés mémorisés des échanges précédents\n"
+    if estimer_tokens_texte(header) > max_tokens:
+        return ""
+
+    # Test avec tous les faits
+    lignes = [f"• {f}" for f in faits]
+    note = header + "\n".join(lignes)
+    if estimer_tokens_texte(note) <= max_tokens:
+        return note
+
+    # Élagage itératif des faits les plus anciens (on conserve les k plus récents)
+    for k in range(len(faits) - 1, 0, -1):
+        nb_omis = len(faits) - k
+        lignes = [f"• [... {nb_omis} échanges antérieurs plus anciens archivés ...]"]
+        lignes.extend(f"• {f}" for f in faits[-k:])
+        note = header + "\n".join(lignes)
+        if estimer_tokens_texte(note) <= max_tokens:
+            return note
+
+    # Si même un seul fait ne rentre pas, tester uniquement la ligne d'archivage
+    lignes = [f"• [... {len(faits)} échanges antérieurs plus anciens archivés ...]"]
+    note = header + "\n".join(lignes)
+    if estimer_tokens_texte(note) <= max_tokens:
+        return note
+
+    return ""
+
+
+def _messages_avec_fenetre(etat_systeme=None, tools=None):
     # Prompt système reconstruit à chaque tour : langue choisie dans les réglages + ancrage temporel
     maintenant = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    contenu = ai.prompt_systeme(preferences.charger()['language'], timestamp=maintenant)
-    if "- Date et Heure locales :" not in contenu:
-        contenu = f"{contenu}\n\n# Contexte temporel\n- Date et Heure locales : {maintenant}"
-    if etat_systeme:
-        pass  # system_prompt reste 100% statique pour préserver le KV-Cache d'Ollama/LM Studio
-    system_prompt = {'role': 'system', 'content': contenu}
+    contenu_systeme = ai.prompt_systeme(preferences.charger()['language'], timestamp=maintenant)
+    if "- Date et Heure locales :" not in contenu_systeme:
+        contenu_systeme = f"{contenu_systeme}\n\n# Contexte temporel\n- Date et Heure locales : {maintenant}"
+
+    system_prompt = {'role': 'system', 'content': contenu_systeme}
     if len(messages) <= 1:
         return [system_prompt]
+
     recents = messages[1:]
 
-    if len(recents) > MAX_CONTEXT_MESSAGES:
-        recents = recents[_index_coupure_sure(recents, MAX_CONTEXT_MESSAGES):]
+    tokens_systeme_base = estimer_tokens_message(system_prompt)
+    tokens_systeme = tokens_systeme_base
+    BUDGET_MAX_OUTILS = 1000
+    if tools and estimer_tokens_outils(tools) > BUDGET_MAX_OUTILS:
+        while len(tools) > 1 and estimer_tokens_outils(tools) > BUDGET_MAX_OUTILS:
+            tools.pop()
+    tokens_tools = estimer_tokens_outils(tools) if tools else 0
 
-    last_user_idx = len(recents) - 1
-    while last_user_idx >= 0 and recents[last_user_idx].get('role') != 'user':
+
+    tours = _partitionner_en_tours(recents)
+    if not tours:
+        return [system_prompt]
+
+    # Découpage : les 2 derniers tours forment la fenêtre verbatim (Tier 3)
+    NB_TOURS_RECENTS_VERBATIM = 2
+    idx_separation = max(0, len(tours) - NB_TOURS_RECENTS_VERBATIM)
+    anciens_tours = [[dict(m) for m in t] for t in tours[:idx_separation]]
+    recents_tours = [[dict(m) for m in t] for t in tours[idx_separation:]]
+
+    def _tokens_des_tours(liste_tours):
+        return sum(sum(estimer_tokens_message(m) for m in t) for t in liste_tours)
+
+    def _nb_messages_total():
+        return sum(len(t) for t in anciens_tours) + sum(len(t) for t in recents_tours)
+
+    tokens_anciens = _tokens_des_tours(anciens_tours)
+    tokens_recents = _tokens_des_tours(recents_tours)
+    total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+
+    # Tier 1 : Compactage des outils dans les tours anciens
+    if anciens_tours:
+        for t in anciens_tours:
+            for msg in t:
+                if msg.get('role') == 'tool':
+                    msg['content'] = _condenser_retour_outil(
+                        msg.get('name') or msg.get('tool_name', ''),
+                        msg.get('content', '')
+                    )
+        tokens_anciens = _tokens_des_tours(anciens_tours)
+        total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+
+    # Tier 2 : Éviction progressive des tours anciens et mémorisation des faits
+    faits_evinces = []
+    while (total_tokens > MAX_INPUT_TOKENS or _nb_messages_total() > MAX_CONTEXT_MESSAGES) and anciens_tours:
+        tour_a_evincer = anciens_tours.pop(0)
+        fait = _resumer_tour_evince(tour_a_evincer)
+        faits_evinces.append(fait)
+        tokens_anciens = _tokens_des_tours(anciens_tours)
+        total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+
+    note_faits = ""
+    if faits_evinces:
+        # Compiler note_faits avec un budget cible de 500 tokens
+        note_faits = _compiler_note_faits_cles(faits_evinces, max_tokens=500)
+        if note_faits:
+            system_prompt['content'] = f"{contenu_systeme}\n\n{note_faits}"
+            tokens_systeme = estimer_tokens_message(system_prompt)
+            total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+
+        # Si l'ajout de la note fait dépasser le budget, continuer d'évincer les anciens tours
+        while (total_tokens > MAX_INPUT_TOKENS or _nb_messages_total() > MAX_CONTEXT_MESSAGES) and anciens_tours:
+            tour_a_evincer = anciens_tours.pop(0)
+            fait = _resumer_tour_evince(tour_a_evincer)
+            faits_evinces.append(fait)
+            tokens_anciens = _tokens_des_tours(anciens_tours)
+            total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+
+        # Si anciens_tours est vide et que total_tokens dépasse encore, réduire note_faits
+        if total_tokens > MAX_INPUT_TOKENS:
+            headroom_note = MAX_INPUT_TOKENS - (tokens_systeme_base + tokens_tools + tokens_anciens + tokens_recents)
+            if headroom_note >= 60:
+                note_faits = _compiler_note_faits_cles(faits_evinces, max_tokens=min(500, headroom_note))
+            else:
+                note_faits = ""
+
+            if note_faits:
+                system_prompt['content'] = f"{contenu_systeme}\n\n{note_faits}"
+            else:
+                system_prompt['content'] = contenu_systeme
+            tokens_systeme = estimer_tokens_message(system_prompt)
+            total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+
+    # Filet de sécurité d'urgence : si même les tours récents dépassent (Tier 3)
+    if total_tokens > MAX_INPUT_TOKENS or _nb_messages_total() > MAX_CONTEXT_MESSAGES:
+        while (total_tokens > MAX_INPUT_TOKENS or _nb_messages_total() > MAX_CONTEXT_MESSAGES) and len(recents_tours) > 1:
+            tour_evince = recents_tours.pop(0)
+            fait = _resumer_tour_evince(tour_evince)
+            faits_evinces.append(fait)
+            tokens_recents = _tokens_des_tours(recents_tours)
+            total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+
+        # Si l'éviction de tours récents a libéré de l'espace pour note_faits, la rétablir/ajuster
+        if faits_evinces:
+            headroom_note = MAX_INPUT_TOKENS - (tokens_systeme_base + tokens_tools + tokens_anciens + tokens_recents)
+            if headroom_note >= 60:
+                note_faits = _compiler_note_faits_cles(faits_evinces, max_tokens=min(500, headroom_note))
+                if note_faits:
+                    system_prompt['content'] = f"{contenu_systeme}\n\n{note_faits}"
+                else:
+                    system_prompt['content'] = contenu_systeme
+            else:
+                note_faits = ""
+                system_prompt['content'] = contenu_systeme
+            tokens_systeme = estimer_tokens_message(system_prompt)
+            total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+
+    # Filet de sécurité ultime si un seul tour récent dépasse encore MAX_INPUT_TOKENS (Tier 4)
+    if total_tokens > MAX_INPUT_TOKENS and recents_tours:
+        for t in recents_tours:
+            for m in t:
+                if m.get('role') == 'tool':
+                    m['content'] = _condenser_retour_outil(
+                        m.get('name') or m.get('tool_name', ''),
+                        m.get('content', '')
+                    )
+        tokens_recents = _tokens_des_tours(recents_tours)
+        total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+
+        if total_tokens > MAX_INPUT_TOKENS:
+            notice = "\n[... invite utilisateur tronquée pour respecter le budget de 3296 tokens ...]"
+            tokens_notice = estimer_tokens_texte(notice) + 10
+            tokens_autres = tokens_systeme + tokens_tools + tokens_anciens
+            for t in recents_tours:
+                for m in t:
+                    if m.get('role') != 'user':
+                        tokens_autres += estimer_tokens_message(m)
+                    else:
+                        tokens_autres += 4
+            MIN_USER_PROMPT_FLOOR = 300
+            budget_dispo = max(MIN_USER_PROMPT_FLOOR, MAX_INPUT_TOKENS - tokens_autres - tokens_notice)
+            for t in recents_tours:
+                for m in t:
+                    if m.get('role') == 'user' and isinstance(m.get('content'), str):
+                        c = m['content']
+                        tokens_c = estimer_tokens_texte(c)
+                        if tokens_c > budget_dispo and tokens_c > MIN_USER_PROMPT_FLOOR:
+                            while estimer_tokens_texte(c) > budget_dispo and len(c) > 10:
+                                ratio = budget_dispo / max(1, estimer_tokens_texte(c))
+                                nouveau_len = max(10, int(len(c) * ratio * 0.95))
+                                if nouveau_len >= len(c):
+                                    nouveau_len = len(c) - 10
+                                c = c[:nouveau_len]
+                            m['content'] = c + notice
+
+            tokens_recents = _tokens_des_tours(recents_tours)
+            total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+
+        if total_tokens > MAX_INPUT_TOKENS and note_faits:
+            system_prompt['content'] = contenu_systeme
+            tokens_systeme = estimer_tokens_message(system_prompt)
+            total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+
+    # Aplatissement des messages retenus
+    messages_retenus = []
+    for t in anciens_tours:
+        messages_retenus.extend(t)
+    for t in recents_tours:
+        messages_retenus.extend(t)
+
+    last_user_idx = len(messages_retenus) - 1
+    while last_user_idx >= 0 and messages_retenus[last_user_idx].get('role') != 'user':
         last_user_idx -= 1
 
     optimized = [system_prompt]
-    for i, msg in enumerate(recents):
+    for i, msg in enumerate(messages_retenus):
         if i == last_user_idx and etat_systeme and msg.get('role') == 'user':
             msg_augmente = dict(msg)
             msg_augmente['content'] = f"{msg.get('content', '')}\n\n[Contexte matériel actuel : {etat_systeme}]"
@@ -252,11 +541,20 @@ async def _stream_llm_internal(session, model, contexte, tools, vocal):
 
 
 # --- BOUCLE AGENTIQUE ---
+def tronquer_sortie_outil(resultat, max_chars: int = 4000) -> str:
+    """Sanitiseur défensif : tronque les sorties volumineuses d'outils avant injection dans le contexte."""
+    if resultat is None:
+        return ""
+    resultat_str = str(resultat)
+    if len(resultat_str) > max_chars:
+        return resultat_str[:max_chars] + f"\n[Sortie tronquée : affichage des {max_chars} premiers caractères sur {len(resultat_str)}]"
+    return resultat_str
+
 def _ajouter_resultat(tool_call, resultat):
     nom = tool_call['function']['name']
     messages.append({
         'role': 'tool',
-        'content': str(resultat),
+        'content': tronquer_sortie_outil(resultat),
         'name': nom,
         'tool_name': nom,
         'tool_call_id': tool_call['id'],
@@ -275,17 +573,17 @@ async def _executer_outils(session, tool_calls, debut, vocal, iteration, index_a
         arguments = tool_call['function'].get('arguments') or {}
         await session.envoyer({"type": "system_action", "content": f"Exécution de {nom_fonction}..."})
 
-        fonction = outils_disponibles.get(nom_fonction)
+        fonction, nom_canonique, arguments_normalises = resoudre_outil(nom_fonction, arguments)
         if fonction is None:
             resultat = f"Erreur: Outil {nom_fonction} introuvable."
         else:
             try:
                 if i == index_autorise:
-                    resultat = await asyncio.to_thread(executer_avec_permission, fonction, arguments)
+                    resultat = await asyncio.to_thread(executer_avec_permission, fonction, arguments_normalises)
                 else:
-                    resultat = await asyncio.to_thread(fonction, **arguments)
+                    resultat = await asyncio.to_thread(fonction, **arguments_normalises)
             except PermissionRequiredException as e:
-                logger.warning(f"Permission requise pour l'outil {nom_fonction}.")
+                logger.warning(f"Permission requise pour l'outil {nom_canonique}.")
                 session.pending = {'tool_calls': tool_calls, 'index': i, 'vocal': vocal, 'iteration': iteration}
                 await session.envoyer({
                     "type": "action_required",
@@ -295,24 +593,44 @@ async def _executer_outils(session, tool_calls, debut, vocal, iteration, index_a
                 })
                 return 'suspendu'
             except TypeError as e:
-                resultat = f"Erreur: arguments invalides pour {nom_fonction} ({e})."
+                resultat = f"Erreur: arguments invalides pour {nom_canonique} ({e})."
             except Exception as e:
-                logger.error(f"Erreur outil {nom_fonction}: {e}", exc_info=True)
-                resultat = f"Erreur lors de l'exécution de {nom_fonction}: {e}"
+                logger.error(f"Erreur outil {nom_canonique}: {e}", exc_info=True)
+                resultat = f"Erreur lors de l'exécution de {nom_canonique}: {e}"
         _ajouter_resultat(tool_call, resultat)
     return 'ok'
 
 async def _terminer(session):
     _tronquer_historique()
+    session_id = getattr(session, 'id', 'session_active')
     try:
         from core import history
         u = next((m['content'] for m in reversed(messages) if m.get('role') == 'user'), '')
         a = next((m.get('content', '') for m in reversed(messages) if m.get('role') == 'assistant'), '')
         if u and a:
-            history.enregistrer_session(getattr(session, 'id', 'session_active'), u, a)
+            history.enregistrer_session(session_id, u, a)
+        # Sauvegarde atomique complète du contexte de session
+        history.sauvegarder_etat_session(messages, session_id=session_id)
     except Exception as e:
         logger.debug(f'Erreur enregistrement historique: {e}')
     await session.envoyer({"type": "done", "tps": session.tps, "provider": get_model_provider(ai.MODEL)})
+
+def restaurer_etat_session(session_id: str = "session_active") -> int:
+    """Restaure les tours de conversation depuis l'état persistant sur le disque.
+    Conserve le prompt système frais (messages[0]) et réinjecte les tours précédents."""
+    try:
+        from core import history
+        etat = history.charger_etat_session(session_id)
+        if etat:
+            tours = [m for m in etat if m.get('role') != 'system']
+            if tours:
+                del messages[1:]
+                messages.extend(tours)
+                logger.info(f"État de session '{session_id}' restauré ({len(tours)} messages).")
+                return len(tours)
+    except Exception as e:
+        logger.warning(f"Erreur restauration état de session '{session_id}': {e}")
+    return 0
 
 async def _etat_systeme():
     try:
@@ -329,7 +647,7 @@ async def _executer_tour(session, vocal, iteration=0):
     etat_tour = await _etat_systeme() if ai.besoin_etat_systeme(dernier_user) else None
     while True:
         tools = outils_tour if iteration < MAX_ITERATIONS_OUTILS else None
-        contexte = _messages_avec_fenetre(etat_tour)
+        contexte = _messages_avec_fenetre(etat_tour, tools=tools)
         contenu, tool_calls, annule = await _stream_llm(session, model, contexte, tools, vocal)
 
         if annule:
@@ -356,7 +674,7 @@ def _abandonner_attente(session):
             _ajouter_resultat(tool_call, "Action non validée par l'utilisateur (abandonnée).")
 
 async def handle_chat(session, data):
-    user_input = (data.get('prompt') or '').strip()
+    user_input = str(data.get('prompt') or '').strip()
     mode_vocal = bool(data.get('vocal', False))
 
     if mode_vocal and not user_input:
@@ -567,8 +885,11 @@ async def handler_client(websocket):
         async for message_brut in websocket:
             try:
                 data = json.loads(message_brut)
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
                 logger.error("Message JSON invalide reçu.")
+                continue
+            if not isinstance(data, dict):
+                logger.error("Message JSON non-dictionnaire reçu.")
                 continue
             msg_type = data.get('type', 'chat')
 
@@ -593,6 +914,11 @@ async def handler_client(websocket):
                 session.cancel.set()
                 session.pending = None
                 del messages[1:]
+                try:
+                    from core import history
+                    history.reinitialiser_etat_session(getattr(session, 'id', 'session_active'))
+                except Exception as e:
+                    logger.warning(f"Erreur réinitialisation état persistant session: {e}")
                 await session.envoyer({"type": "history_cleared"})
 
             elif msg_type == 'get_models':
@@ -687,6 +1013,9 @@ async def handler_client(websocket):
 async def demarrer_serveur_alyx():
     global _arret
     _arret = asyncio.Event()
+
+    # Restauration synchrone immédiate de l'état de session active (<2 ms)
+    restaurer_etat_session("session_active")
 
     # Précharger les modèles en arrière-plan
     def _preload():

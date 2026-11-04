@@ -987,8 +987,9 @@ def executer_commande_systeme(commande: str, admin: bool = False) -> str:
         except Exception as e:
             return f"Erreur d'exécution : {e}"
 
-    if len(sortie) > 4000:
-        sortie = sortie[:4000] + "\n...[Sortie tronquée à 4000 caractères]"
+    taille_brute = len(sortie)
+    if taille_brute > 4000:
+        sortie = sortie[:4000] + f"\n[Sortie tronquée : affichage des 4000 premiers caractères sur {taille_brute}]"
     if not sortie:
         sortie = f"Commande exécutée (code retour: {code}, aucune sortie texte)."
     return sortie

@@ -699,6 +699,19 @@
             <StackPanel Spacing="10">
               <TextBlock Text="Nuances Aquarelle &amp; Encre" FontSize="12" FontWeight="SemiBold" />
               <UniformGrid Columns="2" Margin="0,2,0,0">
+                <Button x:Name="PalCanopeeBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteCanopeeClick">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
+                      <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                          <GradientStop Color="#384C48" Offset="0" />
+                          <GradientStop Color="#FBA620" Offset="1" />
+                        </LinearGradientBrush>
+                      </Border.Background>
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="★ Canopée &amp; Ambre" Margin="8,0,0,0" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  </Grid>
+                </Button>
                 <Button x:Name="PalDuoBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteDuoClick">
                   <Grid ColumnDefinitions="Auto,*">
                     <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
@@ -749,6 +762,20 @@
                       </Border.Background>
                     </Border>
                     <TextBlock Grid.Column="1" Text="Encre Noire &amp; Pastel" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  </Grid>
+                </Button>
+                <Button x:Name="PalPrismBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPalettePrismClick">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
+                      <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                          <GradientStop Color="#0284C7" Offset="0" />
+                          <GradientStop Color="#6366F1" Offset="0.5" />
+                          <GradientStop Color="#EC4899" Offset="1" />
+                        </LinearGradientBrush>
+                      </Border.Background>
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="★ Prisme Alyx" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                   </Grid>
                 </Button>
               </UniformGrid>

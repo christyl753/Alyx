@@ -50,6 +50,7 @@ CB_MAX_FAILURES = llm_config.get('circuit_breaker_max_failures', 3)
 CB_COOLDOWN = llm_config.get('circuit_breaker_cooldown', 30)
 PROVIDER_STARTUP_TIMEOUT = llm_config.get('provider_startup_timeout', 10)
 CONTEXT_LENGTH = llm_config.get('context_length', 4096)
+HEADROOM_TOKENS = llm_config.get('headroom_tokens', 800)
 ENABLE_THINKING = bool(llm_config.get('enable_thinking', False))
 MAX_CONCURRENCY = int(llm_config.get('max_concurrency', 1))
 
@@ -514,13 +515,24 @@ def _stream_openai(provider, model_name, messages_list, tools, enregistrer_ferme
         "model": model_name,
         "messages": _to_openai_messages(messages_list),
         "temperature": 0.7,
-        "stream": True
+        "stream": True,
+        "max_tokens": HEADROOM_TOKENS,
+        "num_ctx": CONTEXT_LENGTH,
     }
     schemas = _tools_to_schemas(tools)
     if schemas:
         payload['tools'] = schemas
 
-    resp = _post_stream(provider, f"{api_base}/v1/chat/completions", payload, enregistrer_fermeture)
+    url = f"{api_base}/v1/chat/completions"
+    try:
+        resp = _post_stream(provider, url, payload, enregistrer_fermeture)
+    except Exception as e:
+        if "HTTP 400" in str(e) and "num_ctx" in payload:
+            logger.debug(f"Repli OpenAI/LM Studio sans le paramètre 'num_ctx' pour {model_name}: {e}")
+            payload_compat = {k: v for k, v in payload.items() if k != "num_ctx"}
+            resp = _post_stream(provider, url, payload_compat, enregistrer_fermeture)
+        else:
+            raise
 
     accumulateur = {}  # index -> {'id', 'name', 'arguments'}
     try:

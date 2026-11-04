@@ -2,6 +2,8 @@
 import json
 import os
 import sys
+import tempfile
+import threading
 import time
 from datetime import datetime, timedelta
 from core.logger import get_logger
@@ -9,14 +11,19 @@ from core.logger import get_logger
 logger = get_logger('alyx.history')
 
 RETENTION_JOURS = 90
+_session_lock = threading.Lock()
 
 def _dossier_historique() -> str:
+    """Résolution du répertoire selon l'OS (Multi-OS B.8).
+    - Windows : %APPDATA%\\Alyx\\history
+    - Linux   : ~/.config/Alyx/history (ou $XDG_CONFIG_HOME/Alyx/history)
+    """
     if sys.platform == "win32":
-        base = os.environ.get('APPDATA', os.path.expanduser('~'))
+        base = os.environ.get('APPDATA') or os.path.expanduser('~')
     else:
-        base = os.path.expanduser('~/.config')
+        base = os.environ.get('XDG_CONFIG_HOME') or os.path.expanduser('~/.config')
     dossier = os.path.join(base, 'Alyx', 'history')
-    os.makedirs(dossier, exist_ok=True)
+    os.makedirs(dossier, mode=0o700, exist_ok=True)
     return dossier
 
 def purger_historique_ancien(retention_jours: int = RETENTION_JOURS) -> int:
@@ -107,4 +114,158 @@ def supprimer_historique() -> str:
         return f"Succès : {supprimes} sessions d'historique supprimées."
     except Exception as e:
         return f"Erreur lors de la suppression de l'historique : {e}"
+
+
+def _sanitiser_session_id(session_id: str) -> str:
+    """Anti-traversée de répertoire stricte."""
+    if not session_id or not isinstance(session_id, str):
+        return "session_active"
+    nom = os.path.basename(session_id.strip())
+    nom_propre = "".join(c for c in nom if c.isalnum() or c in ("-", "_")).strip()
+    return nom_propre or "session_active"
+
+
+def _chemin_etat_session(session_id: str = "session_active") -> str:
+    """Retourne le chemin absolu sécurisé du fichier d'état."""
+    dossier = _dossier_historique()
+    session_id_propre = _sanitiser_session_id(session_id)
+    nom_fichier = "active_session_state.json" if session_id_propre == "session_active" else f"{session_id_propre}_state.json"
+    chemin = os.path.abspath(os.path.join(dossier, nom_fichier))
+    dossier_abs = os.path.abspath(dossier)
+    if not chemin.startswith(dossier_abs):
+        raise ValueError(f"Traversée de répertoire détectée : {chemin} hors de {dossier_abs}")
+    return chemin
+
+
+def sauvegarder_etat_session(messages: list[dict], session_id: str = "session_active") -> bool:
+    """Sauvegarde atomique de l'état du contexte (M1 - R1)."""
+    if not isinstance(messages, list):
+        logger.warning(f"sauvegarder_etat_session : type invalide pour messages ({type(messages)})")
+        return False
+
+    with _session_lock:
+        temp_path = None
+        try:
+            chemin_final = _chemin_etat_session(session_id)
+            dossier = os.path.dirname(chemin_final)
+            os.makedirs(dossier, mode=0o700, exist_ok=True)
+
+            payload = {
+                "version": 1,
+                "session_id": session_id,
+                "saved_at": time.time(),
+                "saved_at_iso": datetime.now().isoformat(),
+                "message_count": len(messages),
+                "messages": messages,
+            }
+
+            fd, temp_path = tempfile.mkstemp(
+                prefix="active_session_",
+                suffix=".tmp",
+                dir=dossier,
+            )
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+
+            # Remplacement atomique avec retry loop (5 tentatives, 10ms backoff pour Windows)
+            remplace = False
+            derniere_err = None
+            for tentative in range(5):
+                try:
+                    os.replace(temp_path, chemin_final)
+                    remplace = True
+                    temp_path = None
+                    break
+                except (PermissionError, OSError) as pe:
+                    derniere_err = pe
+                    time.sleep(0.01)
+
+            if not remplace:
+                raise derniere_err or OSError(f"Impossible de remplacer atomiquement {chemin_final}")
+
+            return True
+        except Exception as e:
+            logger.warning(f"Erreur sauvegarde atomique session '{session_id}' : {e}")
+            return False
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+
+
+def charger_etat_session(session_id: str = "session_active", max_age_heures: int = 24) -> list[dict] | None:
+    """Charge et restaure l'état du contexte depuis le disque (M1 - R1)."""
+    with _session_lock:
+        try:
+            chemin = _chemin_etat_session(session_id)
+            if not os.path.isfile(chemin):
+                return None
+
+            if max_age_heures > 0:
+                mtime = os.path.getmtime(chemin)
+                age_secondes = time.time() - mtime
+                if age_secondes > (max_age_heures * 3600):
+                    logger.info(f"Session '{session_id}' expirée ({age_secondes / 3600:.1f}h > {max_age_heures}h).")
+                    return None
+
+            data = None
+            derniere_err = None
+            for tentative in range(5):
+                try:
+                    with open(chemin, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    break
+                except (PermissionError, OSError) as pe:
+                    derniere_err = pe
+                    time.sleep(0.01)
+
+            if data is None and derniere_err is not None:
+                raise derniere_err
+
+            if isinstance(data, dict):
+                saved_at = data.get("saved_at")
+                if max_age_heures > 0 and isinstance(saved_at, (int, float)):
+                    if (time.time() - saved_at) > (max_age_heures * 3600):
+                        logger.info(f"Session '{session_id}' expirée selon timestamp payload.")
+                        return None
+                messages = data.get("messages")
+            elif isinstance(data, list):
+                messages = data
+            else:
+                raise ValueError(f"Payload JSON racine invalide ({type(data).__name__})")
+
+            if not isinstance(messages, list):
+                raise ValueError(f"Le champ 'messages' n'est pas une liste ({type(messages).__name__})")
+
+            if any(not isinstance(m, dict) for m in messages):
+                raise ValueError("La liste de messages contient des éléments non-dictionnaires")
+
+            return messages
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
+            logger.warning(f"Fichier d'état de session corrompu ({session_id}) : {e}")
+            try:
+                os.remove(_chemin_etat_session(session_id))
+            except OSError:
+                pass
+            return None
+        except Exception as e:
+            logger.warning(f"Erreur lecture état session ({session_id}) : {e}")
+            return None
+
+
+def reinitialiser_etat_session(session_id: str = "session_active") -> None:
+    """Supprime l'état persisté sur disque."""
+    with _session_lock:
+        try:
+            chemin = _chemin_etat_session(session_id)
+            if os.path.isfile(chemin):
+                os.remove(chemin)
+                logger.debug(f"État de session réinitialisé : {chemin}")
+        except OSError as e:
+            logger.warning(f"Erreur suppression état session ({session_id}) : {e}")
+
 

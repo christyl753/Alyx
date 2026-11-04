@@ -259,7 +259,13 @@ def processus(limite: int = 40) -> dict:
         'alyx': pid in pids_alyx,
     } for pid, nom, cpu, ram in liste]
     items.sort(key=lambda p: (p['cpu'], p['mem_mb']), reverse=True)
-    return {'total': len(items), 'items': items[:limite]}
+    selection = items[:limite]
+    if limite > 0 and not any(p['alyx'] for p in selection):
+        procs_alyx = [p for p in items if p['alyx']]
+        if procs_alyx:
+            selection = (selection[:-1] if len(selection) == limite else selection) + [procs_alyx[0]]
+            selection.sort(key=lambda p: (p['cpu'], p['mem_mb']), reverse=True)
+    return {'total': len(items), 'items': selection}
 
 def terminer_processus(pid: int) -> tuple:
     """Termine un processus depuis l'UI (SIGTERM puis SIGKILL). Refuse les processus protégés et Alyx."""

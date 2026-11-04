@@ -1,4 +1,5 @@
 # Fichier : function/files.py
+import json
 import os
 import shutil
 import threading
@@ -9,13 +10,13 @@ from core.exceptions import PermissionRequiredException
 logger = get_logger('alyx.files')
 
 # Taille maximale lue par lire_fichier_securise (le contenu part dans le contexte du LLM)
-TAILLE_MAX_LECTURE = 100 * 1024
+TAILLE_MAX_LECTURE = 8 * 1024
 
 # Permission accordée par l'utilisateur pour l'appel d'outil en cours (par thread)
 _permission_ctx = threading.local()
 
 # Nombre maximal d'entrées renvoyées par lister_fichiers (le résultat part dans le contexte du LLM)
-MAX_ENTREES_LISTE = 200
+MAX_ENTREES_LISTE = 50
 
 # Journal d'actions réversibles (déplacements, suppressions) pour l'annulation (undo)
 _JOURNAL_ANNULATION: list[dict] = []
@@ -213,6 +214,7 @@ def creer_dossier(chemin: str) -> str:
 
 def lister_fichiers(dossier: str = "~") -> str:
     """Liste les fichiers et dossiers présents dans un répertoire.
+    À utiliser systématiquement en amont des opérations par lots pour identifier les chemins réels exacts sans utiliser de wildcard (*).
 
     Args:
         dossier: Chemin du dossier à lister (ex: '~/Documents'). Par défaut le dossier utilisateur.
@@ -238,7 +240,7 @@ def lister_fichiers(dossier: str = "~") -> str:
                 type_e = "📄"
             lignes.append(f"{type_e} {e.name}")
         if len(elements) > MAX_ENTREES_LISTE:
-            lignes.append(f"[... {len(elements) - MAX_ENTREES_LISTE} éléments non affichés]")
+            lignes.append(f"[Sortie tronquée : affichage des {MAX_ENTREES_LISTE} premiers éléments sur {len(elements)}]")
         return "\n".join(lignes) + "\n"
     except PermissionError:
         return f"Erreur: permission refusée pour lire '{chemin}'."
@@ -276,13 +278,37 @@ def renommer_fichier(chemin_actuel: str, nouveau_nom: str) -> str:
     except Exception as e:
         return f"Erreur lors du renommage : {str(e)}"
 
-def deplacer_fichier(chemin_source: str, dossier_destination: str) -> str:
-    """Déplace un fichier ou dossier vers un autre dossier.
+def deplacer_fichier(chemin_source: str | list[str] | tuple[str, ...], dossier_destination: str) -> str:
+    """Déplace un ou plusieurs fichiers ou dossiers vers un autre dossier.
+    Pour les traitements par lots, émettre plusieurs appels d'outil simultanés ou fournir la liste des chemins exacts découverts.
 
     Args:
-        chemin_source: Chemin du fichier ou dossier à déplacer.
+        chemin_source: Chemin exact du fichier/dossier à déplacer, ou liste de chemins sources.
         dossier_destination: Dossier de destination existant.
     """
+    if isinstance(chemin_source, str) and chemin_source.strip().startswith('[') and chemin_source.strip().endswith(']'):
+        try:
+            parsed = json.loads(chemin_source)
+            if isinstance(parsed, (list, tuple)):
+                chemin_source = parsed
+        except Exception:
+            pass
+
+    if isinstance(chemin_source, (list, tuple)):
+        if not chemin_source:
+            return "Aucun fichier spécifié à déplacer."
+        succes = 0
+        erreurs = []
+        for src in chemin_source:
+            res = deplacer_fichier(src, dossier_destination)
+            if "avec succès" in res:
+                succes += 1
+            else:
+                erreurs.append(res)
+        if erreurs:
+            return f"{succes}/{len(chemin_source)} fichiers déplacés vers '{dossier_destination}'. Erreurs : {'; '.join(erreurs)}"
+        return f"{succes} fichiers déplacés avec succès vers '{dossier_destination}'."
+
     try:
         source = _resoudre_chemin(chemin_source, ecriture=True)
         destination_dossier = _resoudre_chemin(dossier_destination, ecriture=True)
@@ -353,7 +379,7 @@ def lire_fichier_securise(chemin: str) -> str:
             return f"Erreur : '{chemin}' semble être un fichier binaire, lecture refusée."
         contenu = brut.decode('utf-8', errors='replace')
         if taille > TAILLE_MAX_LECTURE:
-            contenu += f"\n[... contenu tronqué : {TAILLE_MAX_LECTURE // 1024} Ko lus sur {taille // 1024} Ko]"
+            contenu += f"\n[Sortie tronquée : affichage des {len(brut)} premiers octets sur {taille}]"
         return f"Contenu de {chemin} :\n{contenu}"
     except Exception as e:
         return f"Erreur lors de la lecture : {str(e)}"

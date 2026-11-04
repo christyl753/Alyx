@@ -30,7 +30,7 @@ public sealed class WidgetSettings
     public IdlePresenceMode IdleMode { get; set; } = IdlePresenceMode.EdgeTab;
     public EdgeDockSide DockSide { get; set; } = EdgeDockSide.Right;
     public double? EdgeTabY { get; set; }
-    public string WatercolorPalette { get; set; } = "watercolor-duo";
+    public string WatercolorPalette { get; set; } = "canopee-ambre";
     public string ThemeMode { get; set; } = "light";
     public int WidgetOpacityPercent { get; set; } = 96;
     public bool LowRamEcoMode { get; set; } = false;

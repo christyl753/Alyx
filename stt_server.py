@@ -69,6 +69,7 @@ SAMPLE_RATE = 16000
 WHISPER_MODEL_SIZE = "base"
 PORT = _charger_port()
 LANGUES_WHISPER = {'fr', 'en', 'es', 'de'}
+LANGUES_WHISPER_STABLES = {'fr', 'en'}
 SEUIL_MUET = 0.0005  # crête max en dessous de laquelle le micro est considéré coupé
 
 PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"

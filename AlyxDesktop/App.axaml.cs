@@ -58,6 +58,10 @@ public partial class App : Application
 
         switch (settings.WatercolorPalette)
         {
+            case "canopee-ambre":
+                primaryHex = "#384C48";
+                secondaryHex = "#FBA620";
+                break;
             case "watercolor-blue":
                 primaryHex = "#0284C7";
                 secondaryHex = "#7DD3FC";
@@ -70,10 +74,17 @@ public partial class App : Application
                 primaryHex = isDark ? "#E4E4E7" : "#18181B";
                 secondaryHex = "#F472B6";
                 break;
-            case "watercolor-duo":
-            default:
+            case "alyx-prism":
                 primaryHex = "#0284C7";
                 secondaryHex = "#EC4899";
+                break;
+            case "watercolor-duo":
+                primaryHex = "#0284C7";
+                secondaryHex = "#EC4899";
+                break;
+            default:
+                primaryHex = "#384C48";
+                secondaryHex = "#FBA620";
                 break;
         }
 
@@ -92,11 +103,22 @@ public partial class App : Application
 
         if (isDark)
         {
-            Current.Resources["Bg"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#0D0E12"));
-            Current.Resources["Surface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#11131A"));
-            Current.Resources["PanelSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(242, 17, 19, 26));
-            Current.Resources["Ink"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F5F6FA"));
-            Current.Resources["Ink2"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#D4D4D8"));
+            if (settings.WatercolorPalette == "canopee-ambre")
+            {
+                Current.Resources["Bg"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#1F2C2A"));
+                Current.Resources["Surface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#243230"));
+                Current.Resources["PanelSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(242, 31, 44, 42));
+                Current.Resources["Ink"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F6EED9"));
+                Current.Resources["Ink2"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#E2D8BF"));
+            }
+            else
+            {
+                Current.Resources["Bg"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#0D0E12"));
+                Current.Resources["Surface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#11131A"));
+                Current.Resources["PanelSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(242, 17, 19, 26));
+                Current.Resources["Ink"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F5F6FA"));
+                Current.Resources["Ink2"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#D4D4D8"));
+            }
             Current.Resources["TextBody"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#E4E4E7"));
             Current.Resources["Muted"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#A1A1AA"));
             Current.Resources["Faint"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#71717A"));
@@ -110,11 +132,22 @@ public partial class App : Application
         }
         else
         {
-            Current.Resources["Bg"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FAF9F6"));
-            Current.Resources["Surface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FFFFFF"));
-            Current.Resources["PanelSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FFFFFF"));
-            Current.Resources["Ink"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#14151A"));
-            Current.Resources["Ink2"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#27272A"));
+            if (settings.WatercolorPalette == "canopee-ambre")
+            {
+                Current.Resources["Bg"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F6EED9"));
+                Current.Resources["Surface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FBF6EA"));
+                Current.Resources["PanelSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F6EED9"));
+                Current.Resources["Ink"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#384C48"));
+                Current.Resources["Ink2"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#243230"));
+            }
+            else
+            {
+                Current.Resources["Bg"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FAF9F6"));
+                Current.Resources["Surface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FFFFFF"));
+                Current.Resources["PanelSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FFFFFF"));
+                Current.Resources["Ink"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#14151A"));
+                Current.Resources["Ink2"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#27272A"));
+            }
             Current.Resources["TextBody"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#3F3F46"));
             Current.Resources["Muted"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#71717A"));
             Current.Resources["Faint"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#A1A1AA"));

@@ -9,11 +9,14 @@ from core.logger import get_logger
 
 logger = get_logger('alyx.preferences')
 
+# Voix vocales stables prises en charge (STT Whisper & TTS)
+LANGUES_VOIX_STABLES = {'fr', 'en'}
+
 # Langues de réponse proposées : libellé, consigne ajoutée au prompt système, phrase de test de la voix
 LANGUES = {
     'fr': ('Français', "Réponds toujours en français.", "Bonjour, je suis Alyx. Voici ma voix."),
     'en': ('English', "Always answer in English.", "Hello, I am Alyx. This is my voice."),
-    'es': ('Español', "Responde siempre en español.", "Hola, soy Alyx. Esta es mi voz."),
+    'es': ('Español', "Responde siempre en español.", "Hola, soy Alyx. Hola, soy Alyx. Esta es mi voz."),
     'de': ('Deutsch', "Antworte immer auf Deutsch.", "Hallo, ich bin Alyx. Das ist meine Stimme."),
 }
 
