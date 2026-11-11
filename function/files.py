@@ -3,6 +3,8 @@ import json
 import os
 import shutil
 import threading
+import ctypes
+from functools import lru_cache
 from fpdf import FPDF
 from core.logger import get_logger
 from core.exceptions import PermissionRequiredException
@@ -129,6 +131,122 @@ def _est_dans(chemin_reel: str, dossier_reel: str) -> bool:
     except ValueError:  # lecteurs différents sous Windows
         return False
 
+_WINDOWS_KNOWN_FOLDERS = {
+    "documents": "{FDD39AD0-238F-46AF-ADB4-6C85480369C7}",
+    "downloads": "{374DE290-123F-4565-9164-39C4925E467B}",
+    "desktop": "{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}",
+    "pictures": "{33E28130-4E1E-4676-835A-98395C3BC3BB}",
+}
+_WINDOWS_KNOWN_FOLDER_NAMES = {
+    "documents": "Documents", "downloads": "Downloads", "desktop": "Desktop", "pictures": "Pictures",
+}
+_WINDOWS_KNOWN_FOLDER_ALIASES = {
+    "documents": "documents", "document": "documents", "mes documents": "documents",
+    "downloads": "downloads", "download": "downloads", "téléchargements": "downloads",
+    "telechargements": "downloads", "téléchargement": "downloads", "telechargement": "downloads",
+    "desktop": "desktop", "bureau": "desktop",
+    "pictures": "pictures", "picture": "pictures", "images": "pictures", "image": "pictures",
+}
+
+@lru_cache(maxsize=4)
+def _windows_known_folder(folder: str) -> str | None:
+    """Retourne le chemin réel d'un dossier connu, y compris s'il est redirigé vers OneDrive."""
+    if os.name != "nt" or folder not in _WINDOWS_KNOWN_FOLDERS:
+        return None
+
+    class GUID(ctypes.Structure):
+        _fields_ = [
+            ("Data1", ctypes.c_uint32), ("Data2", ctypes.c_uint16),
+            ("Data3", ctypes.c_uint16), ("Data4", ctypes.c_ubyte * 8),
+        ]
+
+    guid = GUID()
+    ole32 = ctypes.windll.ole32
+    shell32 = ctypes.windll.shell32
+    ole32.CLSIDFromString.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(GUID)]
+    ole32.CLSIDFromString.restype = ctypes.c_long
+    if ole32.CLSIDFromString(_WINDOWS_KNOWN_FOLDERS[folder], ctypes.byref(guid)) != 0:
+        return None
+
+    path = ctypes.c_wchar_p()
+    shell32.SHGetKnownFolderPath.argtypes = [ctypes.POINTER(GUID), ctypes.c_uint32, ctypes.c_void_p, ctypes.POINTER(ctypes.c_wchar_p)]
+    shell32.SHGetKnownFolderPath.restype = ctypes.c_long
+    ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+    result = shell32.SHGetKnownFolderPath(ctypes.byref(guid), 0, None, ctypes.byref(path))
+    if result != 0 or not path.value:
+        return None
+    try:
+        return os.path.abspath(path.value)
+    finally:
+        ole32.CoTaskMemFree(ctypes.cast(path, ctypes.c_void_p))
+
+@lru_cache(maxsize=1)
+def _windows_onedrive_roots() -> tuple[str, ...]:
+    if os.name != "nt":
+        return ()
+    candidates = [
+        value for key, value in os.environ.items()
+        if key.casefold() in {"onedrive", "onedrivecommercial", "onedriveconsumer"} and value
+    ]
+    conventional = os.path.join(os.path.expanduser("~"), "OneDrive")
+    if os.path.isdir(conventional):
+        candidates.append(conventional)
+    roots = []
+    for candidate in candidates:
+        path = os.path.abspath(os.path.expandvars(os.path.expanduser(candidate)))
+        if os.path.isdir(path) and path not in roots:
+            roots.append(path)
+    return tuple(roots)
+
+def _resoudre_dossier_connu(chemin: str) -> str:
+    """Résout ~/Documents, ~/Downloads, etc. vers l'emplacement Windows configuré."""
+    expanded = os.path.abspath(os.path.expanduser(str(chemin).strip()))
+    if os.name != "nt":
+        return expanded
+
+    home = os.path.abspath(os.path.expanduser("~"))
+    try:
+        relatif = os.path.relpath(expanded, home)
+    except ValueError:
+        return expanded
+    morceaux = relatif.replace("/", "\\").split("\\")
+    if not morceaux or morceaux[0] in (".", ".."):
+        return expanded
+    folder = _WINDOWS_KNOWN_FOLDER_ALIASES.get(morceaux[0].casefold())
+    if not folder:
+        return expanded
+    racine = _windows_known_folder(folder)
+    onedrive_folders = [
+        os.path.join(onedrive_root, _WINDOWS_KNOWN_FOLDER_NAMES[folder])
+        for onedrive_root in _windows_onedrive_roots()
+        if os.path.isdir(os.path.join(onedrive_root, _WINDOWS_KNOWN_FOLDER_NAMES[folder]))
+    ]
+    if len(onedrive_folders) == 1:
+        racine = onedrive_folders[0]
+    elif len(onedrive_folders) > 1:
+        matching = [path for path in onedrive_folders if racine and _est_dans(_normaliser(racine), _normaliser(path))]
+        if len(matching) == 1:
+            racine = matching[0]
+        else:
+            raise PermissionError(f"Plusieurs comptes OneDrive contiennent '{_WINDOWS_KNOWN_FOLDER_NAMES[folder]}'; Alyx ne choisit pas un emplacement au hasard.")
+    if not racine:
+        raise PermissionError(f"Impossible de déterminer l'emplacement Windows configuré pour '{morceaux[0]}'. Le chemin n'a pas été deviné.")
+    return os.path.abspath(os.path.join(racine, *morceaux[1:]))
+
+def _racines_utilisateur_autorisees() -> list[str]:
+    racines = [os.path.expanduser("~")]
+    if os.name == "nt":
+        for onedrive_root in _windows_onedrive_roots():
+            for name in _WINDOWS_KNOWN_FOLDER_NAMES.values():
+                path = os.path.join(onedrive_root, name)
+                if os.path.isdir(path):
+                    racines.append(path)
+        for folder in _WINDOWS_KNOWN_FOLDERS:
+            path = _windows_known_folder(folder)
+            if path:
+                racines.append(path)
+    return list(dict.fromkeys(_normaliser(path) for path in racines))
+
 def _zones_sensibles() -> list:
     """Emplacements où une écriture permettrait d'exécuter du code ou de voler des clés."""
     home = os.path.expanduser("~")
@@ -151,12 +269,11 @@ def _resoudre_chemin(chemin: str, ecriture: bool = False) -> str:
     """Résout un chemin utilisateur (~, relatif) en chemin absolu propre et applique le sandboxing."""
     if chemin is None or not str(chemin).strip():
         raise PermissionError("Erreur : chemin de fichier manquant.")
-    chemin_absolu = os.path.abspath(os.path.expanduser(str(chemin).strip()))
-    home_dir = _normaliser(os.path.expanduser("~"))
+    chemin_absolu = _resoudre_dossier_connu(str(chemin))
 
     # Sandboxing: le chemin réel (liens symboliques résolus) doit être dans le dossier utilisateur
     chemin_reel = _normaliser(chemin_absolu)
-    if not _est_dans(chemin_reel, home_dir):
+    if not any(_est_dans(chemin_reel, racine) for racine in _racines_utilisateur_autorisees()):
         logger.warning(f"Tentative d'accès hors sandbox bloquée: {chemin_absolu}")
         raise PermissionError(f"Accès refusé : Le chemin '{chemin_absolu}' est en dehors de votre répertoire utilisateur autorisé.")
 
@@ -225,6 +342,7 @@ def creer_dossier(chemin: str) -> str:
 def lister_fichiers(dossier: str = "~") -> str:
     """Liste les fichiers et dossiers présents dans un répertoire.
     À utiliser systématiquement en amont des opérations par lots pour identifier les chemins réels exacts sans utiliser de wildcard (*).
+    Sous Windows, ~/Documents, ~/Downloads, ~/Desktop et ~/Pictures sont résolus par les emplacements connus configurés par Windows, y compris leur redirection OneDrive. Réutiliser les chemins réels renvoyés; ne pas inventer un chemin OneDrive.
 
     Args:
         dossier: Chemin du dossier à lister (ex: '~/Documents'). Par défaut le dossier utilisateur.
@@ -291,6 +409,7 @@ def renommer_fichier(chemin_actuel: str, nouveau_nom: str) -> str:
 def deplacer_fichier(chemin_source: str | list[str] | tuple[str, ...], dossier_destination: str) -> str:
     """Déplace un ou plusieurs fichiers ou dossiers vers un autre dossier.
     Pour les traitements par lots, émettre plusieurs appels d'outil simultanés ou fournir la liste des chemins exacts découverts.
+    Demande une confirmation avant tout déplacement. Les alias de dossiers connus Windows sont résolus vers leur emplacement configuré, y compris OneDrive.
 
     Args:
         chemin_source: Chemin exact du fichier/dossier à déplacer, ou liste de chemins sources.
@@ -307,6 +426,13 @@ def deplacer_fichier(chemin_source: str | list[str] | tuple[str, ...], dossier_d
     if isinstance(chemin_source, (list, tuple)):
         if not chemin_source:
             return "Aucun fichier spécifié à déplacer."
+        cible = "; ".join(str(src) for src in chemin_source)
+        if len(cible) > 3000:
+            cible = cible[:3000] + f" … ({len(chemin_source)} éléments au total)"
+        _demander_permission(
+            "DÉPLACER UN LOT DE FICHIERS",
+            f"Sources : {cible}\nDestination : {dossier_destination}"
+        )
         succes = 0
         erreurs = []
         for src in chemin_source:
@@ -329,6 +455,8 @@ def deplacer_fichier(chemin_source: str | list[str] | tuple[str, ...], dossier_d
         return f"Erreur: '{source}' n'existe pas."
     if not os.path.isdir(destination_dossier):
         return f"Erreur: le dossier de destination '{destination_dossier}' n'existe pas."
+
+    _demander_permission("DÉPLACER UN FICHIER OU DOSSIER", f"{source}\n→ {destination_dossier}")
 
     try:
         destination_finale = os.path.join(destination_dossier, os.path.basename(source))

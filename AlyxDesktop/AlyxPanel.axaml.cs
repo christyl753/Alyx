@@ -25,6 +25,23 @@ namespace AlyxDesktop;
 public partial class AlyxPanel : UserControl
 {
     private static readonly CultureInfo Fr = CultureInfo.GetCultureInfo("fr-FR");
+    private static readonly (string Id, string Name, string ColorA, string ColorB)[] VisualStyleDefinitions =
+    {
+        ("canopee-ambre", "★ Canopée & Ambre", "#384C48", "#FBA620"),
+        ("watercolor", "Aquarelle", "#38BDF8", "#EC4899"),
+        ("kde", "KDE Breeze", "#3DAEE9", "#EFF0F1"),
+        ("gnome", "GNOME Adwaita", "#3584E4", "#FAFAFA"),
+        ("sketch", "Dessin Pastel", "#38BDF8", "#F9A8D4"),
+        ("sticker", "Sticker Pop", "#EC4899", "#38BDF8"),
+        ("win7", "Win7 Aero", "#0284C7", "#BAE6FD"),
+        ("school", "Scolaire Cahier", "#4338CA", "#FDE047"),
+        ("office", "Bureau Pro", "#292524", "#D6CFC2"),
+        ("bento-pearl", "Bento Perle", "#CBD5E1", "#FFFFFF"),
+        ("bauhaus", "Nordique Doux", "#1D3557", "#E2DDD5"),
+        ("eink", "E-Ink Mat", "#1C1C1C", "#F5F4F0"),
+        ("tactile", "Céramique", "#0284C7", "#F2F3F5"),
+        ("alyx-prism", "★ Prisme Alyx", "#0284C7", "#EC4899"),
+    };
 
     private BackendClient? _backend;
     private WidgetSettings _settings = new();
@@ -116,6 +133,7 @@ public partial class AlyxPanel : UserControl
         UpdateClock(force: true);
         _clockTimer.Start();
         BuildTiles();
+        BuildVisualStyleChoices();
         BuildWidgetModeChips();
         RefreshComposer();
     }
@@ -1142,8 +1160,60 @@ public partial class AlyxPanel : UserControl
 
     // ================= Onglet Style & Apparence Aquarelle =================
 
+    private void BuildVisualStyleChoices()
+    {
+        foreach (var style in VisualStyleDefinitions)
+        {
+            var swatch = new Border
+            {
+                Width = 22,
+                Height = 22,
+                CornerRadius = new CornerRadius(11),
+                BorderThickness = new Thickness(1),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(48, 0, 0, 0)),
+                ClipToBounds = true,
+                Background = new LinearGradientBrush
+                {
+                    StartPoint = new RelativePoint(0, 0.5, RelativeUnit.Relative),
+                    EndPoint = new RelativePoint(1, 0.5, RelativeUnit.Relative),
+                    GradientStops = new GradientStops
+                    {
+                        new GradientStop(Color.Parse(style.ColorA), 0),
+                        new GradientStop(Color.Parse(style.ColorA), 0.5),
+                        new GradientStop(Color.Parse(style.ColorB), 0.5),
+                        new GradientStop(Color.Parse(style.ColorB), 1),
+                    }
+                }
+            };
+            var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 9, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+            content.Children.Add(swatch);
+            content.Children.Add(new TextBlock
+            {
+                Text = style.Name,
+                FontSize = 11.5,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis
+            });
+
+            var button = new Button
+            {
+                Tag = style.Id,
+                Content = content,
+                Height = 44,
+                Margin = new Thickness(3)
+            };
+            button.Classes.Add("flat");
+            button.Classes.Add("visual-style-option");
+            button.Click += (_, _) => SetVisualStyle(style.Id);
+            VisualStyleChoices.Children.Add(button);
+        }
+    }
+
     public void SyncStyleTabUI()
     {
+        foreach (var button in VisualStyleChoices.Children.OfType<Button>())
+            button.Classes.Set("selected", button.Tag is string id && id == _settings.ActiveVisualStyle);
+
         PalCanopeeBtn.Classes.Set("active", _settings.WatercolorPalette == "canopee-ambre");
         PalDuoBtn.Classes.Set("active", _settings.WatercolorPalette == "watercolor-duo");
         PalBlueBtn.Classes.Set("active", _settings.WatercolorPalette == "watercolor-blue");
@@ -1172,6 +1242,25 @@ public partial class AlyxPanel : UserControl
     private void OnPaletteRoseClick(object? sender, RoutedEventArgs e) => SetPalette("watercolor-rose");
     private void OnPaletteInkClick(object? sender, RoutedEventArgs e) => SetPalette("ink-minimal");
     private void OnPalettePrismClick(object? sender, RoutedEventArgs e) => SetPalette("alyx-prism");
+
+    private void SetVisualStyle(string id)
+    {
+        if (id == _settings.ActiveVisualStyle) return;
+        _settings.ActiveVisualStyle = id;
+        _settings.WatercolorPalette = id switch
+        {
+            "canopee-ambre" => "canopee-ambre",
+            "sticker" => "watercolor-rose",
+            "office" or "eink" => "ink-minimal",
+            "alyx-prism" => "alyx-prism",
+            "watercolor" or "sketch" or "school" or "bento-pearl" => "watercolor-duo",
+            _ => "watercolor-blue"
+        };
+        _settings.Save();
+        App.ApplyStyleSettings(_settings);
+        SyncStyleTabUI();
+        StyleSettingsChanged?.Invoke(_settings);
+    }
 
     private void SetPalette(string id)
     {

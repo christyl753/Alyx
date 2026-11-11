@@ -45,3 +45,12 @@ design_handoff_jane/
 AUDIT.md
 
 dist/
+
+# Versionner les règles et skills agent du projet (le reste de .agents reste ignoré)
+!.agents/
+.agents/*
+!.agents/AGENTS.md
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/*/
+!.agents/skills/*/SKILL.md

@@ -48,6 +48,7 @@ from function import (
     nettoyer_caches,
     analyser_telechargements,
     mettre_a_jour_logiciels,
+    analyser_journaux_crash,
     creer_rappel,
     lister_rappels,
     supprimer_rappel,
@@ -107,6 +108,7 @@ outils_disponibles = {
     'nettoyer_caches': nettoyer_caches,
     'analyser_telechargements': analyser_telechargements,
     'mettre_a_jour_logiciels': mettre_a_jour_logiciels,
+    'analyser_journaux_crash': analyser_journaux_crash,
     'controler_media': controler_media,
     'redemarrer_pc': redemarrer_pc,
 }
@@ -477,6 +479,16 @@ _DOMAINES_OUTILS = (
             re.IGNORECASE,
         ),
         (lister_services, gerer_service),
+    ),
+    # Journaux système et recherche de sources de crash
+    (
+        re.compile(
+            r'\b(?:journaux?|logs?|event\s*viewer|observateur d[’\']év[eé]nements|'
+            r'crash(?:es)?|plantages?|pannes?|coredumps?|core dumps?|journalctl|'
+            r'identifier.*(?:erreur|crash|plantage)|(?:erreur|crash|plantage).*(?:source|cause))\b',
+            re.IGNORECASE,
+        ),
+        (analyser_journaux_crash, executer_commande_systeme),
     ),
     # Tâches planifiées
     (

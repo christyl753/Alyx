@@ -6,6 +6,7 @@
   <Application.Resources>
     <!-- Typographie : Rubik SemiBold (Néo-brutalisme UI), Manrope, JetBrains Mono (données/code), Fredoka Medium (horloge) -->
     <FontFamily x:Key="UiFont">avares://AlyxDesktop/Assets/Fonts#Rubik, avares://AlyxDesktop/Assets/Fonts#Manrope, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif</FontFamily>
+    <FontFamily x:Key="StyleUiFont">avares://AlyxDesktop/Assets/Fonts#Rubik, avares://AlyxDesktop/Assets/Fonts#Manrope, Segoe UI, sans-serif</FontFamily>
     <FontFamily x:Key="MonoFont">avares://AlyxDesktop/Assets/Fonts#JetBrains Mono, Fira Code, Consolas, monospace</FontFamily>
     <FontFamily x:Key="DisplayFont">avares://AlyxDesktop/Assets/Fonts#Rubik, avares://AlyxDesktop/Assets/Fonts#Fredoka Medium, avares://AlyxDesktop/Assets/Fonts#Manrope, sans-serif</FontFamily>
 
@@ -57,6 +58,18 @@
     <!-- Tokens Néo-Brutalistes Canopée (Actifs par défaut) -->
     <SolidColorBrush x:Key="Bg" Color="#F6EED9" />
     <SolidColorBrush x:Key="Surface" Color="#FBF6EA" />
+    <SolidColorBrush x:Key="CardSurface" Color="#FBF6EA" />
+    <SolidColorBrush x:Key="ChipSurface" Color="#FBF6EA" />
+    <SolidColorBrush x:Key="StyleBorder" Color="#384C48" />
+    <SolidColorBrush x:Key="WidgetBorder" Color="#384C48" />
+    <SolidColorBrush x:Key="PrimaryButton" Color="#384C48" />
+    <SolidColorBrush x:Key="PrimaryButtonText" Color="#F6EED9" />
+    <CornerRadius x:Key="CardCornerRadius">24</CornerRadius>
+    <CornerRadius x:Key="WidgetCornerRadius">28</CornerRadius>
+    <CornerRadius x:Key="ChipCornerRadius">999</CornerRadius>
+    <CornerRadius x:Key="PrimaryButtonCornerRadius">999</CornerRadius>
+    <Thickness x:Key="CardBorderThickness">1</Thickness>
+    <Thickness x:Key="WidgetBorderThickness">1</Thickness>
     <!-- Surface opaque pour éviter les fuites de texte en arrière-plan -->
     <SolidColorBrush x:Key="PanelSurface" Color="#F6EED9" />
     <SolidColorBrush x:Key="NodeSurface" Color="#FBF6EA" />
@@ -119,7 +132,7 @@
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink}" />
       <Setter Property="Template">
         <ControlTemplate>
           <ContentPresenter Name="PART_Flat"
@@ -140,19 +153,19 @@
       <Setter Property="Opacity" Value=".45" />
     </Style>
     <Style Selector="Button.flat.hover-fill:pointerover">
-      <Setter Property="Background" Value="{StaticResource Fill07}" />
-      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="Background" Value="{DynamicResource Fill07}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink}" />
     </Style>
     <Style Selector="Button.flat.hover-accent:pointerover">
-      <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
-      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink}" />
     </Style>
     <Style Selector="Button.flat.hover-danger:pointerover">
-      <Setter Property="Background" Value="{StaticResource DangerTint}" />
-      <Setter Property="Foreground" Value="{StaticResource Danger}" />
+      <Setter Property="Background" Value="{DynamicResource DangerTint}" />
+      <Setter Property="Foreground" Value="{DynamicResource Danger}" />
     </Style>
     <Style Selector="Button.flat.hover-ink:pointerover">
-      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink}" />
     </Style>
 
     <!-- Champ de saisie sans habillage (le cadre est porté par le parent) -->
@@ -161,9 +174,9 @@
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="0,3" />
       <Setter Property="MinHeight" Value="21" />
-      <Setter Property="Foreground" Value="{StaticResource Ink}" />
-      <Setter Property="CaretBrush" Value="{StaticResource Ink}" />
-      <Setter Property="SelectionBrush" Value="{StaticResource AccentBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink}" />
+      <Setter Property="CaretBrush" Value="{DynamicResource Ink}" />
+      <Setter Property="SelectionBrush" Value="{DynamicResource AccentBorder}" />
     </Style>
     <Style Selector="TextBox.bare:pointerover /template/ Border#PART_BorderElement">
       <Setter Property="Background" Value="Transparent" />
@@ -174,19 +187,19 @@
       <Setter Property="BorderThickness" Value="0" />
     </Style>
     <Style Selector="TextBox.bare /template/ TextBlock#PART_Watermark">
-      <Setter Property="Foreground" Value="{StaticResource Faint}" />
+      <Setter Property="Foreground" Value="{DynamicResource Faint}" />
     </Style>
 
     <!-- Texte sélectionnable des messages -->
     <Style Selector="SelectableTextBlock">
-      <Setter Property="SelectionBrush" Value="{StaticResource AccentBorder}" />
+      <Setter Property="SelectionBrush" Value="{DynamicResource AccentBorder}" />
     </Style>
 
     <!-- « Alyx réfléchit » : trois points pulsés -->
     <Style Selector="Ellipse.jdot">
       <Setter Property="Width" Value="5" />
       <Setter Property="Height" Value="5" />
-      <Setter Property="Fill" Value="{StaticResource Accent}" />
+      <Setter Property="Fill" Value="{DynamicResource Accent}" />
       <Style.Animations>
         <Animation Duration="0:0:1.2" IterationCount="Infinite">
           <KeyFrame Cue="0%"><Setter Property="Opacity" Value=".2" /></KeyFrame>

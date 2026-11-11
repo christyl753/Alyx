@@ -36,6 +36,7 @@ from .system import (
     lire_presse_papiers,
     copier_presse_papiers,
     diagnostiquer_reseau,
+    analyser_journaux_crash,
     reparer_reseau,
     nettoyer_caches,
     analyser_telechargements,

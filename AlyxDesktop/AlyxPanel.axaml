@@ -3,15 +3,15 @@
              xmlns:c="using:AlyxDesktop.Controls"
              xmlns:m="using:AlyxDesktop.Models"
              x:Class="AlyxDesktop.AlyxPanel"
-             FontFamily="{StaticResource UiFont}"
-             Foreground="{StaticResource Ink}">
+             FontFamily="{DynamicResource StyleUiFont}"
+             Foreground="{DynamicResource Ink}">
 
   <UserControl.Styles>
     <Style Selector="TextBlock.key">
       <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
       <Setter Property="FontSize" Value="9.5" />
       <Setter Property="LetterSpacing" Value="0.76" />
-      <Setter Property="Foreground" Value="{StaticResource Faint}" />
+      <Setter Property="Foreground" Value="{DynamicResource Faint}" />
     </Style>
     <Style Selector="TextBlock.val">
       <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
@@ -21,12 +21,12 @@
       <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
       <Setter Property="FontSize" Value="10" />
       <Setter Property="LetterSpacing" Value="1" />
-      <Setter Property="Foreground" Value="{StaticResource Faint}" />
+      <Setter Property="Foreground" Value="{DynamicResource Faint}" />
     </Style>
     <Style Selector="TextBlock.sub">
       <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
       <Setter Property="FontSize" Value="10.5" />
-      <Setter Property="Foreground" Value="{StaticResource Faint}" />
+      <Setter Property="Foreground" Value="{DynamicResource Faint}" />
     </Style>
     <Style Selector="TextBlock.big">
       <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
@@ -34,10 +34,28 @@
     </Style>
     <Style Selector="Border.card">
       <Setter Property="Padding" Value="14" />
-      <Setter Property="CornerRadius" Value="12" />
-      <Setter Property="Background" Value="{StaticResource Fill035}" />
-      <Setter Property="BorderBrush" Value="{StaticResource Hair6}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CardCornerRadius}" />
+      <Setter Property="Background" Value="{DynamicResource CardSurface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource StyleBorder}" />
+      <Setter Property="BorderThickness" Value="{DynamicResource CardBorderThickness}" />
+    </Style>
+    <Style Selector="Button.visual-style-option">
+      <Setter Property="Background" Value="{DynamicResource Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Hair8}" />
       <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.visual-style-option:pointerover">
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+      <Setter Property="Background" Value="{DynamicResource Fill035}" />
+    </Style>
+    <Style Selector="Button.visual-style-option.selected">
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+      <Setter Property="Background" Value="{DynamicResource AccentTint}" />
+      <Setter Property="BorderThickness" Value="2" />
     </Style>
     <!-- Sélecteur de format dans l'en-tête (Card / Side / Overlay) -->
     <Style Selector="Button.layout-pill">
@@ -45,7 +63,7 @@
       <Setter Property="Height" Value="22" />
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+      <Setter Property="Foreground" Value="{DynamicResource Muted}" />
       <Setter Property="Transitions">
         <Transitions>
           <BrushTransition Property="Background" Duration="0:0:0.15" />
@@ -53,61 +71,62 @@
       </Setter>
     </Style>
     <Style Selector="Button.layout-pill:pointerover">
-      <Setter Property="Background" Value="{StaticResource Fill04}" />
-      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="Background" Value="{DynamicResource Fill04}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink}" />
     </Style>
     <Style Selector="Button.layout-pill.active">
-      <Setter Property="Background" Value="{StaticResource AccentActivePill}" />
-      <Setter Property="Foreground" Value="{StaticResource AccentDeep}" />
+      <Setter Property="Background" Value="{DynamicResource AccentActivePill}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentDeep}" />
     </Style>
     <!-- Onglets -->
     <Style Selector="Button.tab">
       <Setter Property="Padding" Value="0,0,0,10" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+      <Setter Property="Foreground" Value="{DynamicResource Muted}" />
       <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0,0,0,2" />
     </Style>
     <Style Selector="Button.tab:pointerover">
-      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink}" />
     </Style>
     <Style Selector="Button.tab.active">
-      <Setter Property="Foreground" Value="{StaticResource Ink}" />
-      <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
     </Style>
     <!-- Puces de suggestion -->
     <Style Selector="Button.chip">
       <Setter Property="Padding" Value="11,6" />
-      <Setter Property="CornerRadius" Value="999" />
-      <Setter Property="BorderBrush" Value="{StaticResource Hair10}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ChipCornerRadius}" />
+      <Setter Property="Background" Value="{DynamicResource ChipSurface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource StyleBorder}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="FontSize" Value="12" />
-      <Setter Property="Foreground" Value="{StaticResource Ink2}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink2}" />
     </Style>
     <Style Selector="Button.chip.on">
-      <Setter Property="Background" Value="{StaticResource AccentTint}" />
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBorder}" />
-      <Setter Property="Foreground" Value="{StaticResource AccentDeep}" />
+      <Setter Property="Background" Value="{DynamicResource AccentTint}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentDeep}" />
     </Style>
     <Style Selector="Button.voice">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="Button.voice:pointerover">
-      <Setter Property="Background" Value="{StaticResource Fill04}" />
+      <Setter Property="Background" Value="{DynamicResource Fill04}" />
     </Style>
     <Style Selector="Button.voice.selected">
-      <Setter Property="Background" Value="{StaticResource AccentTint05}" />
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBorder35}" />
+      <Setter Property="Background" Value="{DynamicResource AccentTint05}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBorder35}" />
     </Style>
     <!-- Tuiles de réglages rapides -->
     <Style Selector="Button.tile">
       <Setter Property="Padding" Value="12" />
       <Setter Property="CornerRadius" Value="12" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Background" Value="{StaticResource Fill035}" />
-      <Setter Property="BorderBrush" Value="{StaticResource Hair6}" />
+      <Setter Property="Background" Value="{DynamicResource Fill035}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Hair6}" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Left" />
       <Setter Property="Transitions">
@@ -117,23 +136,23 @@
       </Setter>
     </Style>
     <Style Selector="Button.tile.on">
-      <Setter Property="Background" Value="{StaticResource AccentTint}" />
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBorder}" />
+      <Setter Property="Background" Value="{DynamicResource AccentTint}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBorder}" />
     </Style>
     <Style Selector="Button.tile TextBlock.tl">
       <Setter Property="FontSize" Value="13" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink}" />
     </Style>
     <Style Selector="Button.tile.on TextBlock.tl">
-      <Setter Property="Foreground" Value="{StaticResource AccentDeep}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentDeep}" />
     </Style>
     <Style Selector="Button.tile TextBlock.ts">
       <Setter Property="FontSize" Value="11" />
-      <Setter Property="Foreground" Value="{StaticResource Faint}" />
+      <Setter Property="Foreground" Value="{DynamicResource Faint}" />
     </Style>
     <Style Selector="Button.tile.on TextBlock.ts">
-      <Setter Property="Foreground" Value="{StaticResource AccentText}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentText}" />
     </Style>
     <!-- Interrupteurs des préférences -->
     <Style Selector="Border.track">
@@ -143,7 +162,7 @@
       <Setter Property="Background" Value="{StaticResource Hair14}" />
     </Style>
     <Style Selector="Border.track.on">
-      <Setter Property="Background" Value="{StaticResource Accent}" />
+      <Setter Property="Background" Value="{DynamicResource Accent}" />
     </Style>
     <Style Selector="Border.knob">
       <Setter Property="Width" Value="16" />
@@ -165,25 +184,26 @@
     <!-- Boutons secondaires -->
     <Style Selector="Button.outline">
       <Setter Property="Padding" Value="12,6" />
-      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="CornerRadius" Value="{DynamicResource PrimaryButtonCornerRadius}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="BorderBrush" Value="{StaticResource Hair12}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Hair12}" />
       <Setter Property="FontSize" Value="12" />
-      <Setter Property="Foreground" Value="{StaticResource Ink2}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink2}" />
     </Style>
     <Style Selector="Button.outline:pointerover">
       <Setter Property="BorderBrush" Value="#4D16181A" />
-      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink}" />
     </Style>
     <Style Selector="Button.solid">
       <Setter Property="Padding" Value="12,6" />
-      <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="Background" Value="{StaticResource Fill07}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource PrimaryButtonCornerRadius}" />
+      <Setter Property="Background" Value="{DynamicResource PrimaryButton}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonText}" />
       <Setter Property="FontSize" Value="12" />
       <Setter Property="MinWidth" Value="64" />
     </Style>
     <Style Selector="Border.row:pointerover">
-      <Setter Property="Background" Value="{StaticResource Fill04}" />
+      <Setter Property="Background" Value="{DynamicResource Fill04}" />
     </Style>
     <Style Selector="ScrollViewer">
       <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
@@ -198,15 +218,15 @@
       <StackPanel Grid.Column="1" Margin="10,0,8,0" Spacing="3" VerticalAlignment="Center">
         <TextBlock Text="Alyx" FontFamily="{StaticResource DisplayFont}" FontSize="26" FontWeight="SemiBold" LetterSpacing="0.8" LineHeight="26" />
         <Grid ColumnDefinitions="Auto,*">
-          <Ellipse x:Name="ModelDot" Width="6" Height="6" Fill="{StaticResource Faint}" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="1" x:Name="ModelLine" Margin="6,0,0,0" Text="Connexion au moteur…" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" />
+          <Ellipse x:Name="ModelDot" Width="6" Height="6" Fill="{DynamicResource Faint}" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" x:Name="ModelLine" Margin="6,0,0,0" Text="Connexion au moteur…" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" />
         </Grid>
       </StackPanel>
       <StackPanel Grid.Column="2" Margin="0,0,8,0" Spacing="1" HorizontalAlignment="Right" VerticalAlignment="Center">
         <TextBlock x:Name="ClockText" Text="00:00" FontFamily="{StaticResource DisplayFont}" FontSize="28" FontWeight="Medium" HorizontalAlignment="Right" />
-        <TextBlock x:Name="DateText" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+        <TextBlock x:Name="DateText" FontSize="11" Foreground="{DynamicResource Muted}" HorizontalAlignment="Right" />
       </StackPanel>
-      <Border Grid.Column="3" Padding="2" CornerRadius="8" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1" VerticalAlignment="Center">
+      <Border Grid.Column="3" Padding="2" CornerRadius="8" Background="{DynamicResource Fill04}" BorderBrush="{DynamicResource Hair8}" BorderThickness="1" VerticalAlignment="Center">
         <StackPanel x:Name="LayoutBar" Orientation="Horizontal" Spacing="2">
           <Button x:Name="LayoutCardBtn" Classes="flat layout-pill active" Tag="card" ToolTip.Tip="Carte (Ctrl+1)" AutomationProperties.Name="Carte" Click="OnLayoutPillClick">
             <Canvas Width="14" Height="11">
@@ -229,7 +249,7 @@
         </StackPanel>
       </Border>
       <Button Grid.Column="4" Classes="flat hover-fill" Width="28" Height="28" CornerRadius="8" Margin="6,0,0,0" VerticalAlignment="Center"
-              Foreground="{StaticResource Muted}" ToolTip.Tip="Fermer (Échap)" AutomationProperties.Name="Fermer" Click="OnCloseClick">
+              Foreground="{DynamicResource Muted}" ToolTip.Tip="Fermer (Échap)" AutomationProperties.Name="Fermer" Click="OnCloseClick">
         <TextBlock Text="×" FontSize="18" LineHeight="18" />
       </Button>
     </Grid>
@@ -296,35 +316,35 @@
               <ItemsControl.DataTemplates>
                 <DataTemplate DataType="m:UserMessage">
                   <Grid ColumnDefinitions="18*,82*">
-                    <Border Grid.Column="1" HorizontalAlignment="Right" Padding="13,9" CornerRadius="14,14,4,14" Background="{StaticResource Fill07}">
+                    <Border Grid.Column="1" HorizontalAlignment="Right" Padding="13,9" CornerRadius="14,14,4,14" Background="{DynamicResource Fill07}">
                       <SelectableTextBlock Text="{Binding Text}" FontSize="13.5" LineHeight="20" TextWrapping="Wrap" />
                     </Border>
                   </Grid>
                 </DataTemplate>
                 <DataTemplate DataType="m:AlyxMessage">
                   <StackPanel Spacing="5" HorizontalAlignment="Stretch">
-                    <TextBlock Text="ALYX" FontFamily="{StaticResource MonoFont}" FontSize="10" LetterSpacing="1.2" Foreground="{StaticResource AccentText}" />
+                    <TextBlock Text="ALYX" FontFamily="{StaticResource MonoFont}" FontSize="10" LetterSpacing="1.2" Foreground="{DynamicResource AccentText}" />
                     <c:MarkdownView Markdown="{Binding Text}" />
                   </StackPanel>
                 </DataTemplate>
                 <DataTemplate DataType="m:ActionMessage">
-                  <TextBlock Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Faint}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{DynamicResource Faint}" TextWrapping="Wrap" />
                 </DataTemplate>
                 <DataTemplate DataType="m:ErrorMessage">
-                  <TextBlock Text="{Binding Text}" FontSize="12.5" Foreground="{StaticResource Danger}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding Text}" FontSize="12.5" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" />
                 </DataTemplate>
                 <DataTemplate DataType="m:PermissionRequest">
-                  <Border Padding="14" CornerRadius="14" BorderThickness="1" BorderBrush="{StaticResource AccentBorder35}" Background="{StaticResource AccentTint05}">
+                  <Border Padding="14" CornerRadius="14" BorderThickness="1" BorderBrush="{DynamicResource AccentBorder35}" Background="{DynamicResource AccentTint05}">
                     <StackPanel Spacing="8">
-                      <TextBlock Text="VALIDATION REQUISE" FontFamily="{StaticResource MonoFont}" FontSize="10" LetterSpacing="1" Foreground="{StaticResource AccentText}" />
+                      <TextBlock Text="VALIDATION REQUISE" FontFamily="{StaticResource MonoFont}" FontSize="10" LetterSpacing="1" Foreground="{DynamicResource AccentText}" />
                       <TextBlock Text="{Binding Action}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                      <TextBlock Text="{Binding Target}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding Target}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
                       <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding Pending}">
-                        <Button Classes="flat" Padding="14,7" CornerRadius="8" Background="{StaticResource Ink}" Foreground="White" FontSize="12" FontWeight="SemiBold"
+                        <Button Classes="flat" Padding="14,7" CornerRadius="8" Background="{DynamicResource Ink}" Foreground="White" FontSize="12" FontWeight="SemiBold"
                                 Content="Autoriser" Click="OnPermissionAccept" />
                         <Button Classes="flat outline" Content="Refuser" Click="OnPermissionReject" />
                       </StackPanel>
-                      <TextBlock Text="{Binding Decision}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Faint}"
+                      <TextBlock Text="{Binding Decision}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{DynamicResource Faint}"
                                  IsVisible="{Binding !Pending}" />
                     </StackPanel>
                   </Border>
@@ -337,7 +357,7 @@
                 <Ellipse Classes="jdot d2" />
                 <Ellipse Classes="jdot d3" />
               </StackPanel>
-              <TextBlock x:Name="ThinkingText" Text="Alyx réfléchit" FontSize="12" Foreground="{StaticResource Muted}" />
+              <TextBlock x:Name="ThinkingText" Text="Alyx réfléchit" FontSize="12" Foreground="{DynamicResource Muted}" />
             </StackPanel>
           </StackPanel>
         </ScrollViewer>
@@ -349,30 +369,30 @@
           <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Un modèle plus léger ?" Click="OnSuggestionClick" />
         </WrapPanel>
 
-        <Border Grid.Row="2" Padding="14,10,14,12" BorderBrush="{StaticResource Hair6}" BorderThickness="0,1,0,0">
+        <Border Grid.Row="2" Padding="14,10,14,12" BorderBrush="{DynamicResource Hair6}" BorderThickness="0,1,0,0">
           <StackPanel MaxWidth="720" HorizontalAlignment="Stretch" Spacing="6">
-            <Border x:Name="Composer" CornerRadius="12" Padding="12,8,8,8" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
+            <Border x:Name="Composer" CornerRadius="12" Padding="12,8,8,8" Background="{DynamicResource Fill04}" BorderBrush="{DynamicResource Hair8}" BorderThickness="1">
               <Border.Transitions>
                 <Transitions><BrushTransition Property="BorderBrush" Duration="0:0:0.16" /></Transitions>
               </Border.Transitions>
               <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBox x:Name="Input" Classes="bare" Watermark="Demande à Alyx…" FontSize="13.5" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="96" VerticalAlignment="Center" />
                 <Button x:Name="MicButton" Grid.Column="1" Classes="flat hover-fill" Width="30" Height="30" CornerRadius="9" Margin="6,0,0,0" VerticalAlignment="Bottom"
-                        Foreground="{StaticResource Muted}" ToolTip.Tip="Parler à Alyx" AutomationProperties.Name="Parler à Alyx" Click="OnMicClick">
+                        Foreground="{DynamicResource Muted}" ToolTip.Tip="Parler à Alyx" AutomationProperties.Name="Parler à Alyx" Click="OnMicClick">
                   <Path Data="M6 1.5a2 2 0 0 1 2 2v3a2 2 0 0 1-4 0v-3a2 2 0 0 1 2-2zM2.5 6.2a3.5 3.5 0 0 0 7 0M6 9.7v1.8" Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.3" StrokeLineCap="Round" Width="12" Height="13" Stretch="Uniform" />
                 </Button>
                 <Button x:Name="SendButton" Grid.Column="2" Classes="flat" Width="30" Height="30" CornerRadius="9" Margin="6,0,0,0" VerticalAlignment="Bottom"
                         Background="{StaticResource Fill12}" ToolTip.Tip="Envoyer" AutomationProperties.Name="Envoyer" Click="OnSendClick">
                   <Panel>
                     <TextBlock x:Name="SendGlyph" Text="↑" FontSize="15" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    <Rectangle x:Name="StopGlyph" Width="9" Height="9" RadiusX="2" RadiusY="2" Fill="{StaticResource Ink}" IsVisible="False" />
+                    <Rectangle x:Name="StopGlyph" Width="9" Height="9" RadiusX="2" RadiusY="2" Fill="{DynamicResource Ink}" IsVisible="False" />
                   </Panel>
                 </Button>
               </Grid>
             </Border>
             <Grid ColumnDefinitions="*,Auto">
-              <TextBlock x:Name="RuntimeLine" Text="Local" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Faint}" TextTrimming="CharacterEllipsis" />
-              <TextBlock Grid.Column="1" Text="Entrée pour envoyer" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Faint}" />
+              <TextBlock x:Name="RuntimeLine" Text="Local" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{DynamicResource Faint}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="1" Text="Entrée pour envoyer" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{DynamicResource Faint}" />
             </Grid>
           </StackPanel>
         </Border>
@@ -384,27 +404,27 @@
           <Border Classes="card" Margin="0,0,10,10">
             <StackPanel Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="CPU" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
+                <TextBlock Text="CPU" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ink2}" VerticalAlignment="Bottom" />
                 <TextBlock Grid.Column="1" Classes="big" x:Name="CpuValue" Text="—" />
               </Grid>
-              <c:BarHistory x:Name="CpuBars" Height="38" BarBrush="{StaticResource Accent}" />
+              <c:BarHistory x:Name="CpuBars" Height="38" BarBrush="{DynamicResource Accent}" />
               <TextBlock Classes="sub" x:Name="CpuSub" />
             </StackPanel>
           </Border>
           <Border Classes="card" Margin="0,0,10,10">
             <StackPanel Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Mémoire" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
+                <TextBlock Text="Mémoire" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ink2}" VerticalAlignment="Bottom" />
                 <TextBlock Grid.Column="1" Classes="big" x:Name="RamValue" Text="—" />
               </Grid>
-              <c:BarHistory x:Name="RamBars" Height="38" BarBrush="{StaticResource Ink}" />
+              <c:BarHistory x:Name="RamBars" Height="38" BarBrush="{DynamicResource Ink}" />
               <TextBlock Classes="sub" x:Name="RamSub" />
             </StackPanel>
           </Border>
           <Border Classes="card" Margin="0,0,10,10">
             <StackPanel Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="GPU" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
+                <TextBlock Text="GPU" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ink2}" VerticalAlignment="Bottom" />
                 <TextBlock Grid.Column="1" Classes="big" x:Name="GpuValue" Text="—" />
               </Grid>
               <c:BarHistory x:Name="GpuBars" Height="38" BarBrush="{StaticResource GpuChart}" />
@@ -414,8 +434,8 @@
           <Border Classes="card" Margin="0,0,10,10">
             <StackPanel Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Réseau" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" />
-                <TextBlock Grid.Column="1" x:Name="NetName" FontSize="11" Foreground="{StaticResource Muted}" />
+                <TextBlock Text="Réseau" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ink2}" />
+                <TextBlock Grid.Column="1" x:Name="NetName" FontSize="11" Foreground="{DynamicResource Muted}" />
               </Grid>
               <Grid ColumnDefinitions="*,*">
                 <StackPanel Spacing="2">
@@ -433,11 +453,11 @@
           <Border Classes="card" Margin="0,0,10,10">
             <StackPanel Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Batterie" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" VerticalAlignment="Bottom" />
+                <TextBlock Text="Batterie" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ink2}" VerticalAlignment="Bottom" />
                 <TextBlock Grid.Column="1" Classes="big" x:Name="BatValue" Text="—" />
               </Grid>
               <Border x:Name="BatTrack" Height="8" CornerRadius="4" Background="{StaticResource Fill08}" ClipToBounds="True">
-                <Border x:Name="BatFill" HorizontalAlignment="Left" Width="0" CornerRadius="4" Background="{StaticResource Ink}">
+                <Border x:Name="BatFill" HorizontalAlignment="Left" Width="0" CornerRadius="4" Background="{DynamicResource Ink}">
                   <Border.Transitions>
                     <Transitions><DoubleTransition Property="Width" Duration="0:0:0.6" /></Transitions>
                   </Border.Transitions>
@@ -452,8 +472,8 @@
       <!-- Tâches -->
       <Grid x:Name="TasksView" IsVisible="False" RowDefinitions="Auto,*">
         <Grid ColumnDefinitions="*,Auto" Margin="18,12,18,8">
-          <TextBlock x:Name="ProcCount" FontSize="11" Foreground="{StaticResource Muted}" />
-          <TextBlock Grid.Column="1" Text="TRIÉ PAR CPU" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Muted}" />
+          <TextBlock x:Name="ProcCount" FontSize="11" Foreground="{DynamicResource Muted}" />
+          <TextBlock Grid.Column="1" Text="TRIÉ PAR CPU" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{DynamicResource Muted}" />
         </Grid>
         <ScrollViewer Grid.Row="1">
           <ItemsControl x:Name="ProcessList" Margin="10,0,10,10">
@@ -464,20 +484,20 @@
                     <StackPanel Spacing="1" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" Classes.alyx="{Binding IsAlyx}">
                         <TextBlock.Styles>
-                          <Style Selector="TextBlock.alyx"><Setter Property="Foreground" Value="{StaticResource AccentText}" /></Style>
+                          <Style Selector="TextBlock.alyx"><Setter Property="Foreground" Value="{DynamicResource AccentText}" /></Style>
                         </TextBlock.Styles>
                       </TextBlock>
-                      <TextBlock Text="{Binding PidText}" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Faint}" />
+                      <TextBlock Text="{Binding PidText}" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{DynamicResource Faint}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0" VerticalAlignment="Center">
                       <Border Width="42" Height="4" CornerRadius="2" Background="{StaticResource Fill08}" ClipToBounds="True">
-                        <Border HorizontalAlignment="Left" Width="{Binding BarWidth}" Background="{StaticResource Accent}" />
+                        <Border HorizontalAlignment="Left" Width="{Binding BarWidth}" Background="{DynamicResource Accent}" />
                       </Border>
                       <TextBlock Text="{Binding CpuText}" Width="36" TextAlignment="Right" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                     </StackPanel>
-                    <TextBlock Grid.Column="2" Margin="10,0,0,0" Text="{Binding MemText}" TextAlignment="Right" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Ink2}" />
+                    <TextBlock Grid.Column="2" Margin="10,0,0,0" Text="{Binding MemText}" TextAlignment="Right" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource Ink2}" />
                     <Button Grid.Column="3" Margin="10,0,0,0" Classes="flat hover-danger" Padding="0,4" CornerRadius="6" HorizontalAlignment="Stretch" FontSize="11"
-                            Foreground="{StaticResource Muted}" Content="Fin" ToolTip.Tip="Terminer le processus" Click="OnKillClick" />
+                            Foreground="{DynamicResource Muted}" Content="Fin" ToolTip.Tip="Terminer le processus" Click="OnKillClick" />
                   </Grid>
                 </Border>
               </DataTemplate>
@@ -489,13 +509,13 @@
       <!-- Modèles -->
       <ScrollViewer x:Name="ModelsView" IsVisible="False">
         <StackPanel Spacing="14" Margin="16">
-          <Border x:Name="LoadedCard" Padding="16" CornerRadius="14" BorderThickness="1" BorderBrush="{StaticResource AccentBorder35}" Background="{StaticResource AccentTint05}">
+          <Border x:Name="LoadedCard" Padding="16" CornerRadius="14" BorderThickness="1" BorderBrush="{DynamicResource AccentBorder35}" Background="{DynamicResource AccentTint05}">
             <StackPanel Spacing="12">
               <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="3">
-                  <TextBlock x:Name="LoadedLabel" Text="ACTIF" FontFamily="{StaticResource MonoFont}" FontSize="10" LetterSpacing="1" Foreground="{StaticResource AccentText}" />
+                  <TextBlock x:Name="LoadedLabel" Text="ACTIF" FontFamily="{StaticResource MonoFont}" FontSize="10" LetterSpacing="1" Foreground="{DynamicResource AccentText}" />
                   <TextBlock x:Name="LoadedName" Text="—" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                  <TextBlock x:Name="LoadedMeta" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Muted}" />
+                  <TextBlock x:Name="LoadedMeta" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource Muted}" />
                 </StackPanel>
                 <Button x:Name="UnloadButton" Grid.Column="1" Classes="flat outline" VerticalAlignment="Top" Content="Décharger" Click="OnUnloadClick" />
               </Grid>
@@ -514,7 +534,7 @@
                 </StackPanel>
               </Grid>
               <Border x:Name="VramTrack" Height="6" CornerRadius="3" Background="{StaticResource Fill08}" ClipToBounds="True">
-                <Border x:Name="VramFill" HorizontalAlignment="Left" Width="0" Background="{StaticResource Accent}" />
+                <Border x:Name="VramFill" HorizontalAlignment="Left" Width="0" Background="{DynamicResource Accent}" />
               </Border>
             </StackPanel>
           </Border>
@@ -527,7 +547,7 @@
                     <Grid ColumnDefinitions="*,Auto">
                       <StackPanel Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding Meta}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Faint}" />
+                        <TextBlock Text="{Binding Meta}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{DynamicResource Faint}" />
                       </StackPanel>
                       <Button Grid.Column="1" Margin="12,0,0,0" Classes="flat solid" Content="{Binding ButtonText}" IsEnabled="{Binding !Loading}" Click="OnLoadModelClick" />
                     </Grid>
@@ -535,10 +555,10 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <TextBlock x:Name="NoModels" IsVisible="False" Margin="4,8" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap"
+            <TextBlock x:Name="NoModels" IsVisible="False" Margin="4,8" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap"
                        Text="Aucun autre modèle trouvé. Installez-en avec « ollama pull » ou depuis LM Studio." />
             <Button Classes="flat hover-accent" Margin="0,6,0,0" Padding="12" CornerRadius="10" HorizontalAlignment="Stretch"
-                    BorderBrush="{StaticResource Hair14}" BorderThickness="1" FontSize="12" Foreground="{StaticResource Muted}"
+                    BorderBrush="{StaticResource Hair14}" BorderThickness="1" FontSize="12" Foreground="{DynamicResource Muted}"
                     Content="Actualiser la liste des modèles" Click="OnRefreshModelsClick" />
           </StackPanel>
         </StackPanel>
@@ -550,12 +570,12 @@
           <UniformGrid x:Name="TileGrid" Columns="3" Margin="0,0,-8,-8" />
           <StackPanel Spacing="12">
             <Grid ColumnDefinitions="80,*,46">
-              <TextBlock Text="Volume" FontSize="12" Foreground="{StaticResource Ink2}" VerticalAlignment="Center" />
+              <TextBlock Text="Volume" FontSize="12" Foreground="{DynamicResource Ink2}" VerticalAlignment="Center" />
               <Slider x:Name="VolumeSlider" Grid.Column="1" Margin="10,0,0,0" Minimum="0" Maximum="100" VerticalAlignment="Center" />
               <TextBlock x:Name="VolumeText" Grid.Column="2" Text="—" FontFamily="{StaticResource MonoFont}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center" />
             </Grid>
             <Grid ColumnDefinitions="80,*,46">
-              <TextBlock Text="Luminosité" FontSize="12" Foreground="{StaticResource Ink2}" VerticalAlignment="Center" />
+              <TextBlock Text="Luminosité" FontSize="12" Foreground="{DynamicResource Ink2}" VerticalAlignment="Center" />
               <Slider x:Name="BrightnessSlider" Grid.Column="1" Margin="10,0,0,0" Minimum="0" Maximum="100" VerticalAlignment="Center" />
               <TextBlock x:Name="BrightnessText" Grid.Column="2" Text="—" FontFamily="{StaticResource MonoFont}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center" />
             </Grid>
@@ -565,15 +585,15 @@
             <StackPanel Spacing="12">
               <TextBlock Classes="label10" Text="VOIX ET LANGUE" Margin="0,8,0,0" />
               <StackPanel Spacing="6">
-                <TextBlock Text="Langue des réponses" FontSize="12" Foreground="{StaticResource Ink2}" />
+                <TextBlock Text="Langue des réponses" FontSize="12" Foreground="{DynamicResource Ink2}" />
                 <WrapPanel x:Name="LanguageChips" />
               </StackPanel>
               <StackPanel Spacing="4">
-                <TextBlock Text="Voix d'Alyx" FontSize="12" Foreground="{StaticResource Ink2}" />
+                <TextBlock Text="Voix d'Alyx" FontSize="12" Foreground="{DynamicResource Ink2}" />
                 <Border x:Name="NoLanguageVoice" IsVisible="False" Padding="12,10" CornerRadius="10" BorderThickness="1"
-                        BorderBrush="{StaticResource AccentBorder35}" Background="{StaticResource AccentTint05}" Margin="0,2,0,4">
+                        BorderBrush="{DynamicResource AccentBorder35}" Background="{DynamicResource AccentTint05}" Margin="0,2,0,4">
                   <StackPanel Spacing="8">
-                    <TextBlock x:Name="NoLanguageVoiceText" FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource Ink2}" />
+                    <TextBlock x:Name="NoLanguageVoiceText" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource Ink2}" />
                     <Button x:Name="InstallVoicesButton" Classes="flat outline" HorizontalAlignment="Left" Content="Installer des voix…" Click="OnInstallVoicesClick" />
                   </StackPanel>
                 </Border>
@@ -586,9 +606,9 @@
                         <Grid ColumnDefinitions="*,Auto">
                           <StackPanel Spacing="2">
                             <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding Meta}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Faint}" />
+                            <TextBlock Text="{Binding Meta}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{DynamicResource Faint}" />
                           </StackPanel>
-                          <Ellipse Grid.Column="1" Width="8" Height="8" Fill="{StaticResource Accent}" VerticalAlignment="Center" IsVisible="{Binding Selected}" />
+                          <Ellipse Grid.Column="1" Width="8" Height="8" Fill="{DynamicResource Accent}" VerticalAlignment="Center" IsVisible="{Binding Selected}" />
                         </Grid>
                       </Button>
                     </DataTemplate>
@@ -596,7 +616,7 @@
                 </ItemsControl>
               </StackPanel>
               <Grid ColumnDefinitions="80,*,46">
-                <TextBlock Text="Vitesse" FontSize="12" Foreground="{StaticResource Ink2}" VerticalAlignment="Center" />
+                <TextBlock Text="Vitesse" FontSize="12" Foreground="{DynamicResource Ink2}" VerticalAlignment="Center" />
                 <Slider x:Name="RateSlider" Grid.Column="1" Margin="10,0,0,0" Minimum="-10" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
                 <TextBlock x:Name="RateText" Grid.Column="2" Text="×1.0" FontFamily="{StaticResource MonoFont}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center" />
               </Grid>
@@ -604,17 +624,17 @@
                 <Grid ColumnDefinitions="*,Auto">
                   <StackPanel Spacing="2">
                     <TextBlock Text="Lire toutes les réponses à voix haute" FontSize="13" />
-                    <TextBlock Text="Sinon, Alyx ne parle qu'en mode vocal (micro)" FontSize="11" Foreground="{StaticResource Faint}" />
+                    <TextBlock Text="Sinon, Alyx ne parle qu'en mode vocal (micro)" FontSize="11" Foreground="{DynamicResource Faint}" />
                   </StackPanel>
                   <Border x:Name="SpeakAllTrack" Grid.Column="1" Classes="track" VerticalAlignment="Center"><Border Classes="knob" /></Border>
                 </Grid>
               </Button>
               <Button Classes="flat outline" HorizontalAlignment="Left" Content="▶  Écouter la voix" Click="OnTestVoiceClick" />
               <StackPanel Spacing="4" Margin="0,6,0,0">
-                <TextBlock Text="Micro" FontSize="12" Foreground="{StaticResource Ink2}" />
+                <TextBlock Text="Micro" FontSize="12" Foreground="{DynamicResource Ink2}" />
                 <Border x:Name="MicHint" IsVisible="False" Padding="12,10" CornerRadius="10" BorderThickness="1"
-                        BorderBrush="{StaticResource AccentBorder35}" Background="{StaticResource AccentTint05}" Margin="0,2,0,4">
-                  <TextBlock x:Name="MicHintText" FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource Ink2}" />
+                        BorderBrush="{DynamicResource AccentBorder35}" Background="{DynamicResource AccentTint05}" Margin="0,2,0,4">
+                  <TextBlock x:Name="MicHintText" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource Ink2}" />
                 </Border>
                 <ItemsControl x:Name="MicList">
                   <ItemsControl.ItemTemplate>
@@ -625,9 +645,9 @@
                         <Grid ColumnDefinitions="*,Auto">
                           <StackPanel Spacing="2">
                             <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding Meta}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Faint}" />
+                            <TextBlock Text="{Binding Meta}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{DynamicResource Faint}" />
                           </StackPanel>
-                          <Ellipse Grid.Column="1" Width="8" Height="8" Fill="{StaticResource Accent}" VerticalAlignment="Center" IsVisible="{Binding Selected}" />
+                          <Ellipse Grid.Column="1" Width="8" Height="8" Fill="{DynamicResource Accent}" VerticalAlignment="Center" IsVisible="{Binding Selected}" />
                         </Grid>
                       </Button>
                     </DataTemplate>
@@ -636,10 +656,10 @@
                 <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,0">
                   <Button x:Name="MicTestButton" Classes="flat outline" Content="🎙  Tester le micro" Click="OnTestMicrophoneClick" />
                   <Border x:Name="MicLevel" Width="90" Height="4" CornerRadius="2" Background="{StaticResource Fill12}" VerticalAlignment="Center" IsVisible="False">
-                    <Border x:Name="MicLevelFill" Width="0" CornerRadius="2" Background="{StaticResource Accent}" HorizontalAlignment="Left" />
+                    <Border x:Name="MicLevelFill" Width="0" CornerRadius="2" Background="{DynamicResource Accent}" HorizontalAlignment="Left" />
                   </Border>
                 </StackPanel>
-                <TextBlock x:Name="MicTestText" FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource Ink2}" IsVisible="False" />
+                <TextBlock x:Name="MicTestText" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource Ink2}" IsVisible="False" />
               </StackPanel>
             </StackPanel>
           </Border>
@@ -647,11 +667,11 @@
             <StackPanel Spacing="4">
               <TextBlock Classes="label10" Text="ALYX" Margin="0,8,0,4" />
               <StackPanel Spacing="6" Margin="0,4,0,6">
-                <TextBlock Text="Style d'ouverture" FontSize="12" Foreground="{StaticResource Ink2}" />
+                <TextBlock Text="Style d'ouverture" FontSize="12" Foreground="{DynamicResource Ink2}" />
                 <WrapPanel x:Name="EntryModeChips" />
               </StackPanel>
               <StackPanel Spacing="6" Margin="0,0,0,6">
-                <TextBlock Text="Présence sur le bureau" FontSize="12" Foreground="{StaticResource Ink2}" />
+                <TextBlock Text="Présence sur le bureau" FontSize="12" Foreground="{DynamicResource Ink2}" />
                 <WrapPanel x:Name="IdleModeChips" />
               </StackPanel>
               <Button x:Name="FollowPref" AutomationProperties.Name="L'œil suit le curseur" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,9" Click="OnFollowPrefClick">
@@ -668,8 +688,8 @@
               </Button>
               <Grid ColumnDefinitions="*,Auto" Margin="0,9">
                 <TextBlock Text="Raccourci d'ouverture" FontSize="13" VerticalAlignment="Center" />
-                <Border Grid.Column="1" Padding="8,3" CornerRadius="6" BorderBrush="{StaticResource Hair12}" BorderThickness="1">
-                  <TextBlock x:Name="ShortcutText" Text="Alt + J" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Ink2}" />
+                <Border Grid.Column="1" Padding="8,3" CornerRadius="6" BorderBrush="{DynamicResource Hair12}" BorderThickness="1">
+                  <TextBlock x:Name="ShortcutText" Text="Alt + J" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource Ink2}" />
                 </Border>
               </Grid>
             </StackPanel>
@@ -682,14 +702,14 @@
         <StackPanel MaxWidth="720" HorizontalAlignment="Stretch" Spacing="16" Margin="16">
 
           <!-- Aperçu du Logo Loupe & Œil Aquarelle -->
-          <Border Classes="card" Background="{StaticResource WatercolorCardWash}">
+          <Border Classes="card" Background="{DynamicResource WatercolorCardWash}">
             <Grid ColumnDefinitions="Auto,*">
-              <Border Width="64" Height="64" CornerRadius="18" Background="#F2FFFFFF" BorderBrush="{StaticResource Hair8}" BorderThickness="1" Margin="0,0,14,0" VerticalAlignment="Center">
+              <Border Width="64" Height="64" CornerRadius="18" Background="#F2FFFFFF" BorderBrush="{DynamicResource Hair8}" BorderThickness="1" Margin="0,0,14,0" VerticalAlignment="Center">
                 <c:AlyxEye Width="52" Height="52" HorizontalAlignment="Center" VerticalAlignment="Center" />
               </Border>
               <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
                 <TextBlock Text="Logo Loupe &amp; Œil Aquarelle" FontSize="14" FontWeight="SemiBold" />
-                <TextBlock Text="Trait d'encre minimaliste avec double lavis bleu céleste et rose pétale au cœur de la lentille." FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" LineHeight="16" />
+                <TextBlock Text="Trait d'encre minimaliste avec double lavis bleu céleste et rose pétale au cœur de la lentille." FontSize="11" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" LineHeight="16" />
               </StackPanel>
             </Grid>
           </Border>
@@ -697,9 +717,11 @@
           <!-- Nuances Aquarelle & Encre -->
           <Border Classes="card">
             <StackPanel Spacing="10">
+              <TextBlock Text="Style visuel" FontSize="12" FontWeight="SemiBold" />
+              <UniformGrid x:Name="VisualStyleChoices" Columns="2" Margin="-3,0,-3,2" />
               <TextBlock Text="Nuances Aquarelle &amp; Encre" FontSize="12" FontWeight="SemiBold" />
               <UniformGrid Columns="2" Margin="0,2,0,0">
-                <Button x:Name="PalCanopeeBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteCanopeeClick">
+                <Button x:Name="PalCanopeeBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{DynamicResource Hair8}" Click="OnPaletteCanopeeClick">
                   <Grid ColumnDefinitions="Auto,*">
                     <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
                       <Border.Background>
@@ -712,7 +734,7 @@
                     <TextBlock Grid.Column="1" Text="★ Canopée &amp; Ambre" Margin="8,0,0,0" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                   </Grid>
                 </Button>
-                <Button x:Name="PalDuoBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteDuoClick">
+                <Button x:Name="PalDuoBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{DynamicResource Hair8}" Click="OnPaletteDuoClick">
                   <Grid ColumnDefinitions="Auto,*">
                     <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
                       <Border.Background>
@@ -725,7 +747,7 @@
                     <TextBlock Grid.Column="1" Text="Aquarelle Bleu &amp; Rose" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                   </Grid>
                 </Button>
-                <Button x:Name="PalBlueBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteBlueClick">
+                <Button x:Name="PalBlueBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{DynamicResource Hair8}" Click="OnPaletteBlueClick">
                   <Grid ColumnDefinitions="Auto,*">
                     <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
                       <Border.Background>
@@ -738,7 +760,7 @@
                     <TextBlock Grid.Column="1" Text="Bleu Aquarelle Pur" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                   </Grid>
                 </Button>
-                <Button x:Name="PalRoseBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteRoseClick">
+                <Button x:Name="PalRoseBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{DynamicResource Hair8}" Click="OnPaletteRoseClick">
                   <Grid ColumnDefinitions="Auto,*">
                     <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
                       <Border.Background>
@@ -751,7 +773,7 @@
                     <TextBlock Grid.Column="1" Text="Rose Pétale &amp; Encre" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                   </Grid>
                 </Button>
-                <Button x:Name="PalInkBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteInkClick">
+                <Button x:Name="PalInkBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{DynamicResource Hair8}" Click="OnPaletteInkClick">
                   <Grid ColumnDefinitions="Auto,*">
                     <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
                       <Border.Background>
@@ -764,7 +786,7 @@
                     <TextBlock Grid.Column="1" Text="Encre Noire &amp; Pastel" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                   </Grid>
                 </Button>
-                <Button x:Name="PalPrismBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPalettePrismClick">
+                <Button x:Name="PalPrismBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{DynamicResource Hair8}" Click="OnPalettePrismClick">
                   <Grid ColumnDefinitions="Auto,*">
                     <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
                       <Border.Background>
@@ -787,7 +809,7 @@
             <StackPanel Spacing="14">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="Luminosité" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
+                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{DynamicResource Fill04}" BorderBrush="{DynamicResource Hair8}" BorderThickness="1">
                   <StackPanel Orientation="Horizontal" Spacing="2">
                     <Button x:Name="ThemeLightBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Blanc" FontSize="10.5" Tag="light" Click="OnThemeModeClick" />
                     <Button x:Name="ThemeDarkBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Noir" FontSize="10.5" Tag="dark" Click="OnThemeModeClick" />
@@ -798,7 +820,7 @@
 
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="Présence au repos" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
+                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{DynamicResource Fill04}" BorderBrush="{DynamicResource Hair8}" BorderThickness="1">
                   <StackPanel Orientation="Horizontal" Spacing="2">
                     <Button x:Name="PresenceEdgeBtn" Classes="flat layout-pill" Width="72" Height="24" Content="Languette" FontSize="10" Tag="EdgeTab" Click="OnPresenceModeClick" />
                     <Button x:Name="PresenceStealthBtn" Classes="flat layout-pill" Width="56" Height="24" Content="Furtif" FontSize="10" Tag="Stealth" Click="OnPresenceModeClick" />
@@ -810,7 +832,7 @@
 
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="Bord d'accroche" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
+                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{DynamicResource Fill04}" BorderBrush="{DynamicResource Hair8}" BorderThickness="1">
                   <StackPanel Orientation="Horizontal" Spacing="2">
                     <Button x:Name="DockRightBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Droite" FontSize="10.5" Tag="Right" Click="OnDockSideClick" />
                     <Button x:Name="DockLeftBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Gauche" FontSize="10.5" Tag="Left" Click="OnDockSideClick" />
@@ -821,8 +843,8 @@
               <!-- Curseur Transparence aquarelle -->
               <StackPanel Spacing="4">
                 <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock Text="Transparence aquarelle" FontSize="12" Foreground="{StaticResource Ink2}" />
-                  <TextBlock x:Name="OpacityValueText" Grid.Column="1" Text="96%" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Muted}" />
+                  <TextBlock Text="Transparence aquarelle" FontSize="12" Foreground="{DynamicResource Ink2}" />
+                  <TextBlock x:Name="OpacityValueText" Grid.Column="1" Text="96%" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource Muted}" />
                 </Grid>
                 <Slider x:Name="OpacitySlider" Minimum="82" Maximum="100" Value="96" />
               </StackPanel>
@@ -832,7 +854,7 @@
                 <Grid ColumnDefinitions="*,Auto">
                   <StackPanel Spacing="2">
                     <TextBlock Text="Mode Silence &amp; Économie VRAM" FontSize="12" FontWeight="SemiBold" />
-                    <TextBlock Text="Suspend les routines en plein écran pour garantir 0 impact FPS." FontSize="10.5" Foreground="{StaticResource Muted}" />
+                    <TextBlock Text="Suspend les routines en plein écran pour garantir 0 impact FPS." FontSize="10.5" Foreground="{DynamicResource Muted}" />
                   </StackPanel>
                   <Border x:Name="EcoModeTrack" Grid.Column="1" Classes="track" VerticalAlignment="Center"><Border Classes="knob" /></Border>
                 </Grid>
@@ -857,17 +879,17 @@
             </LinearGradientBrush>
           </Border.Background>
           <Panel>
-            <TextBlock x:Name="ArtPlaceholder" Text="ART" FontFamily="{StaticResource MonoFont}" FontSize="7" Foreground="{StaticResource Faint}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <TextBlock x:Name="ArtPlaceholder" Text="ART" FontFamily="{StaticResource MonoFont}" FontSize="7" Foreground="{DynamicResource Faint}" HorizontalAlignment="Center" VerticalAlignment="Center" />
             <Image x:Name="ArtImage" Stretch="UniformToFill" />
           </Panel>
         </Border>
         <StackPanel Grid.Column="1" Spacing="5" Margin="12,0" VerticalAlignment="Center">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <TextBlock x:Name="TrackTitle" Text="Aucun média" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="150" />
-            <TextBlock x:Name="TrackArtist" FontSize="12" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" MaxWidth="110" />
+            <TextBlock x:Name="TrackArtist" FontSize="12" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" MaxWidth="110" />
           </StackPanel>
           <Border x:Name="TrackBar" Height="3" CornerRadius="2" Background="{StaticResource Fill10}" ClipToBounds="True">
-            <Border x:Name="TrackFill" HorizontalAlignment="Left" Width="0" Background="{StaticResource Ink}">
+            <Border x:Name="TrackFill" HorizontalAlignment="Left" Width="0" Background="{DynamicResource Ink}">
               <Border.Transitions>
                 <Transitions><DoubleTransition Property="Width" Duration="0:0:1" /></Transitions>
               </Border.Transitions>
@@ -875,16 +897,16 @@
           </Border>
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-          <Button Classes="flat hover-fill" Width="28" Height="28" CornerRadius="7" Foreground="{StaticResource Ink2}" ToolTip.Tip="Précédent" AutomationProperties.Name="Piste précédente" Click="OnPrevClick">
+          <Button Classes="flat hover-fill" Width="28" Height="28" CornerRadius="7" Foreground="{DynamicResource Ink2}" ToolTip.Tip="Précédent" AutomationProperties.Name="Piste précédente" Click="OnPrevClick">
             <Path Data="M1 1.5h1.6v9H1zM11 1.5v9L3.5 6z" Fill="{Binding $parent[Button].Foreground}" Width="12" Height="12" />
           </Button>
-          <Button x:Name="PlayButton" Classes="flat" Width="32" Height="32" CornerRadius="16" Background="{StaticResource Ink}" Foreground="White" ToolTip.Tip="Lecture / pause" AutomationProperties.Name="Lecture ou pause" Click="OnPlayClick">
+          <Button x:Name="PlayButton" Classes="flat" Width="32" Height="32" CornerRadius="16" Background="{DynamicResource Ink}" Foreground="White" ToolTip.Tip="Lecture / pause" AutomationProperties.Name="Lecture ou pause" Click="OnPlayClick">
             <Panel>
               <Path x:Name="PauseGlyph" Data="M2 1.5h2.6v9H2zM7.4 1.5H10v9H7.4z" Fill="White" Width="12" Height="12" IsVisible="False" />
               <Path x:Name="PlayGlyph" Data="M3 1.5v9L10.5 6z" Fill="White" Width="12" Height="12" />
             </Panel>
           </Button>
-          <Button Classes="flat hover-fill" Width="28" Height="28" CornerRadius="7" Foreground="{StaticResource Ink2}" ToolTip.Tip="Suivant" AutomationProperties.Name="Piste suivante" Click="OnNextClick">
+          <Button Classes="flat hover-fill" Width="28" Height="28" CornerRadius="7" Foreground="{DynamicResource Ink2}" ToolTip.Tip="Suivant" AutomationProperties.Name="Piste suivante" Click="OnNextClick">
             <Path Data="M1 1.5v9L8.5 6zM9.4 1.5H11v9H9.4z" Fill="{Binding $parent[Button].Foreground}" Width="12" Height="12" />
           </Button>
         </StackPanel>

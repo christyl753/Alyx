@@ -1,5 +1,6 @@
 import base64
 import ctypes
+import json
 import os
 import re
 import sys
@@ -11,7 +12,7 @@ import threading
 import urllib.parse
 import psutil
 from .scrap import construire_dictionnaire_applications
-from .files import _demander_permission
+from .files import _demander_permission, _resoudre_dossier_connu
 from core.logger import get_logger
 
 logger = get_logger('alyx.system')
@@ -1324,8 +1325,8 @@ def analyser_telechargements(jours: int = 30) -> str:
         jours: Âge minimal en jours pour être signalé (défaut: 30).
     """
     import time
-    dossier_dl = os.path.join(os.path.expanduser("~"), "Downloads")
-    if not os.path.isdir(dossier_dl):
+    dossier_dl = _resoudre_dossier_connu("~/Downloads")
+    if sys.platform != "win32" and not os.path.isdir(dossier_dl):
         dossier_dl = os.path.join(os.path.expanduser("~"), "Téléchargements")
     if not os.path.isdir(dossier_dl):
         return "Le dossier Téléchargements est introuvable."
@@ -1365,6 +1366,115 @@ def analyser_telechargements(jours: int = 30) -> str:
     lignes.append("\nVous pouvez demander à Alyx : 'Déplace les installateurs obsolètes vers la Corbeille'.")
     return "\n".join(lignes)
 
+def analyser_journaux_crash(jours: int = 7, limite: int = 60) -> str:
+    """Lit les événements d'erreur récents et relève les sources possibles de crash.
+
+    Les événements restent locaux. Le rapport distingue les faits trouvés dans les
+    journaux des pistes à examiner; il ne prétend pas établir une cause certaine.
+    """
+    try:
+        jours = max(1, min(int(jours), 30))
+        limite = max(10, min(int(limite), 100))
+    except (TypeError, ValueError):
+        return "Erreur : jours et limite doivent être des nombres entiers."
+
+    _demander_permission(
+        "LIRE LES JOURNAUX D'ERREUR ET DE CRASH",
+        f"Événements système des {jours} derniers jours (maximum {limite})"
+    )
+
+    def _extraits_logs_alyx() -> str:
+        dossier = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+        motifs = re.compile(r"error|exception|traceback|crash|fatal|panic|failed to load model|exited before becoming healthy", re.IGNORECASE)
+        extraits = []
+        for nom in ("api.log", "alyx_system.log"):
+            chemin = os.path.join(dossier, nom)
+            try:
+                with open(chemin, "rb") as f:
+                    f.seek(0, os.SEEK_END)
+                    taille = f.tell()
+                    f.seek(max(0, taille - 350_000))
+                    contenu = f.read().decode("utf-8", errors="replace")
+                lignes = [ligne.strip() for ligne in contenu.splitlines() if motifs.search(ligne)]
+                for ligne in lignes[-6:]:
+                    extraits.append(f"- {nom}: {ligne[:500]}")
+            except OSError:
+                continue
+        return "\nLogs Alyx récents pertinents :\n" + "\n".join(extraits) if extraits else ""
+
+    if sys.platform == "win32":
+        script = rf'''
+$since = (Get-Date).AddDays(-{jours})
+$events = @(Get-WinEvent -FilterHashtable @{{LogName=@('Application','System'); Level=@(1,2); StartTime=$since}} -MaxEvents {limite} -ErrorAction SilentlyContinue | ForEach-Object {{
+    [pscustomobject]@{{
+        TimeCreated = $_.TimeCreated.ToString('o')
+        Log = $_.LogName
+        Source = $_.ProviderName
+        EventId = $_.Id
+        Level = $_.LevelDisplayName
+        Message = (($_.Message -replace '\s+', ' ').Trim())
+    }}
+}})
+ConvertTo-Json -InputObject $events -Depth 3 -Compress
+'''
+        code, output = _run_ps(script, timeout=25)
+        if code != 0:
+            return f"Lecture du journal Windows impossible : {output[:1200]}"
+        try:
+            data = json.loads(output) if output.strip() else []
+            if isinstance(data, dict):
+                data = [data]
+        except (json.JSONDecodeError, TypeError):
+            return f"Journaux Windows lus, mais le résultat n'a pas pu être structuré :\n{output[:3000]}"
+
+        if not data:
+            return f"Aucun événement de niveau erreur ou critique trouvé dans Application/System sur {jours} jours."
+
+        counts = {}
+        for event in data:
+            key = (str(event.get('Source') or 'Source inconnue'), str(event.get('EventId') or '?'))
+            counts[key] = counts.get(key, 0) + 1
+        sources = sorted(counts.items(), key=lambda item: item[1], reverse=True)[:8]
+        lines = [f"Événements Windows erreur/critique : {len(data)} sur {jours} jours.", "Sources les plus fréquentes :"]
+        lines.extend(f"- {source} (événement {event_id}) : {count}" for (source, event_id), count in sources)
+        lines.append("Événements récents :")
+        for event in data[:12]:
+            msg = str(event.get('Message') or '').replace('\n', ' ')[:350]
+            lines.append(f"- {event.get('TimeCreated', '?')} | {event.get('Log', '?')} | {event.get('Source', '?')} | ID {event.get('EventId', '?')} | {msg}")
+        lines.append("Pistes de crash : les événements Application Error (1000), Windows Error Reporting (1001) et BugCheck (1001) sont des indices; vérifier leur horodatage et l'application/module nommé avant de conclure.")
+        lines.append(_extraits_logs_alyx())
+        return "\n".join(lines)[:4000]
+
+    if sys.platform.startswith("linux"):
+        journalctl = shutil.which("journalctl")
+        if not journalctl:
+            return "journalctl est introuvable; aucun journal système Linux n'a été lu."
+        args = [journalctl, "--priority=err", "--since", f"{jours} days ago", "--no-pager", "-n", str(limite), "-o", "short-iso"]
+        if not _est_admin() and shutil.which("pkexec"):
+            args = [shutil.which("pkexec"), *args]
+        try:
+            res = subprocess.run(args, capture_output=True, text=True, errors="replace", timeout=30)
+            raw = (res.stdout or res.stderr or "").strip()
+            if res.returncode != 0:
+                return f"Lecture journalctl impossible (code {res.returncode}) : {raw[:1800]}"
+            core_lines = ""
+            coredumpctl = shutil.which("coredumpctl")
+            if coredumpctl:
+                core = subprocess.run(
+                    [coredumpctl, "--no-pager", "--since", f"{jours} days ago", "list"],
+                    capture_output=True, text=True, errors="replace", timeout=15
+                )
+                if core.returncode == 0 and core.stdout.strip():
+                    core_lines = "\n\nCoredumps enregistrés :\n" + core.stdout.strip()[:1200]
+            if not raw:
+                raw = f"Aucun événement de priorité erreur trouvé sur {jours} jours."
+            return f"Journaux Linux (journalctl, erreurs sur {jours} jours) :\n{raw[:1800]}{core_lines}{_extraits_logs_alyx()}\n\nLes lignes signalant 'segfault', 'core dumped', 'oom-kill', 'panic' ou 'failed' sont des indices à corréler par heure; ce rapport ne suffit pas à prouver la cause."[:4000]
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return f"Erreur lors de la lecture des journaux Linux : {e}"
+
+    return f"La lecture de journaux système n'est pas configurée pour {sys.platform}."
+
+
 def mettre_a_jour_logiciels() -> str:
     """Met à jour les logiciels du système via winget (Windows) ou gestionnaire de paquets (Linux) (Niveau 3 - Admin requis)."""
     if sys.platform == "win32":
@@ -1374,11 +1484,32 @@ def mettre_a_jour_logiciels() -> str:
             return f"Mise à jour des logiciels terminée avec succès.\n{out[:800]}"
         return f"Résultat de mise à jour winget (code {code}) :\n{out[:800]}"
     else:
-        # Linux
-        for pkg, cmd in (("pacman", "sudo pacman -Syu --noconfirm"), ("dnf", "sudo dnf upgrade -y"), ("apt", "sudo apt update && sudo apt upgrade -y")):
-            if shutil.which(pkg):
-                _demander_permission(f"METTRE A JOUR LES PAQUETS ({pkg})", cmd)
-                res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
-                return f"Mise à jour terminée ({pkg}) :\n{res.stdout[:800]}"
+        # L'autorisation Alyx et l'élévation OS sont distinctes : pkexec affiche
+        # la demande système, sans attendre un mot de passe dans un shell caché.
+        commandes = {
+            "pacman": [["pacman", "-Syu", "--noconfirm"]],
+            "dnf": [["dnf", "upgrade", "-y"]],
+            "apt": [["apt-get", "update"], ["apt-get", "upgrade", "-y"]],
+        }
+        for pkg, steps in commandes.items():
+            executable = shutil.which(pkg)
+            if not executable:
+                continue
+            _demander_permission(f"METTRE A JOUR LES PAQUETS ({pkg})", " ; ".join(" ".join(step) for step in steps))
+            prefix = [] if _est_admin() else ([shutil.which("pkexec")] if shutil.which("pkexec") else [])
+            if not _est_admin() and not prefix:
+                return f"Mise à jour {pkg} refusée : pkexec est requis pour demander les droits système."
+            rapport = []
+            for step in steps:
+                step[0] = executable if step[0] == pkg else shutil.which(step[0]) or step[0]
+                try:
+                    res = subprocess.run(prefix + step, capture_output=True, text=True, errors="replace", timeout=600)
+                except (OSError, subprocess.TimeoutExpired) as e:
+                    return f"Échec de la mise à jour {pkg} : {e}"
+                sortie = (res.stdout or "") + ("\n" + res.stderr if res.stderr else "")
+                rapport.append(f"$ {' '.join(step)} (code {res.returncode})\n{sortie.strip()[:1500]}")
+                if res.returncode != 0:
+                    break
+            return f"Résultat mise à jour {pkg} :\n" + "\n\n".join(rapport)[:4000]
         return "Aucun gestionnaire de paquets pris en charge (pacman, dnf, apt) n'a été trouvé."
 
