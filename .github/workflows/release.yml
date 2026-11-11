@@ -220,36 +220,36 @@ jobs:
           generate_release_notes: true
           name: "Alyx ${{ github.ref_name }}"
           body: |
-            ## 🦅 Alyx — Assistant Local & Souverain (${{ github.ref_name }})
+            ## Alyx - Assistant Local et Souverain (${{ github.ref_name }})
 
-            Alyx est un assistant de bureau 100% hors-ligne, privé et souverain (air-gapped), conçu pour Windows et Linux.
-
-            ---
-
-            ### 🆕 Nouveautés & Changements majeurs de cette version (${{ github.ref_name }})
-
-            - **🎨 Moteur visuel enrichi (14 styles visuels)** :
-              - Ajout du sélecteur complet de **14 styles graphiques** avec aperçus bicolores interactifs dans l'onglet Style.
-              - Rendu dynamique par thème avec la palette **Canopée & Ambre** conservée par défaut.
-              - Refonte du composant visuel de l'œil d'Alyx (`AlyxEye`) et adaptation dynamique des couleurs et bordures.
-            - **📁 Gestion intelligente des dossiers Windows & Intégration OneDrive** :
-              - Les dossiers `Documents`, `Téléchargements`, `Bureau` et `Images` sont désormais résolus selon leurs emplacements Windows réels et configurés via l'API Shell.
-              - Détection et priorité automatique du dossier homonyme sous un compte OneDrive configuré lorsqu'il existe.
-              - Confirmation humaine obligatoire (Human-in-the-Loop) avant tout déplacement de fichier ou opération par lot.
-            - **🛠️ Maintenance système, Diagnostic & Journaux de crash** :
-              - Nouvel outil d'inspection et d'analyse des journaux d'erreurs récents sous Windows (`Application` & `System`) et Linux (`journalctl` / `coredumpctl`), croisé avec les journaux locaux d'Alyx.
-              - Mise à jour Linux fiabilisée avec élévation explicite via `pkexec` (support natif `apt`, `dnf`, `pacman`) sans exécution aveugle en arrière-plan.
-            - **📦 Installateur Windows Setup.exe fiabilisé** :
-              - Correction de l'arborescence cible post-installation (`bin\AlyxDesktop.exe`).
-              - Nettoyage des fonctions Pascal Inno Setup redondantes pour une compilation et une installation sans échec.
+            Alyx est un assistant de bureau 100% hors-ligne, prive et souverain (air-gapped), concu pour Windows et Linux.
 
             ---
 
-            ### 📦 Paquets & Installateurs Officiels
+            ### Nouveautes et corrections de cette version (${{ github.ref_name }})
 
-            | Système d'exploitation | Architecture | Format de paquet | Fichier à télécharger | Empreinte SHA-256 |
+            - **Moteur visuel enrichi (14 styles visuels)** :
+              - Ajout du selecteur complet de **14 styles graphiques** avec apercus bicolores interactifs dans l'onglet Style.
+              - Rendu dynamique par theme avec la palette **Canopee et Ambre** conservee par defaut.
+              - Adaptation dynamique des couleurs, bordures et du composant visuel de l'oeil d'Alyx (AlyxEye).
+            - **Gestion intelligente des dossiers Windows et integration OneDrive** :
+              - Resolution automatique des dossiers Documents, Telechargements, Bureau et Images via l'API Shell Windows selon leurs emplacements reels configures.
+              - Prise en compte et priorite donnee au dossier homonyme sous un compte OneDrive configure lorsqu'il existe.
+              - Confirmation humaine obligatoire (Human-in-the-Loop) avant tout deplacement de fichier ou operation par lot.
+            - **Maintenance systeme, Diagnostic et Journaux de crash** :
+              - Nouvel outil d'inspection et d'analyse des journaux d'erreurs recents sous Windows (Application et System) et Linux (journalctl / coredumpctl), croise avec les journaux locaux d'Alyx.
+              - Mise a jour Linux fiabilisee avec elevation explicite via pkexec (support natif apt, dnf, pacman).
+            - **Installateur Windows Setup.exe corrige et fiabilise** :
+              - Correction du chemin de lancement post-installation vers bin\AlyxDesktop.exe (resolvant l'erreur de lancement survenue sur la version precedente).
+              - Nettoyage du script Inno Setup et compilation autonome verifiee.
+
+            ---
+
+            ### Paquets et Installateurs Officiels
+
+            | Systeme d'exploitation | Architecture | Format de paquet | Fichier a telecharger | Empreinte SHA-256 |
             | :--- | :--- | :--- | :--- | :--- |
-            | **Windows 10 / 11** | `x86_64` (x64) | **Installateur Exécutable (.exe)** | [`alyx-${{ github.ref_name }}-windows-x64-Setup.exe`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64-Setup.exe) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64-Setup.exe.sha256) |
+            | **Windows 10 / 11** | `x86_64` (x64) | **Installateur Executable (.exe)** | [`alyx-${{ github.ref_name }}-windows-x64-Setup.exe`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64-Setup.exe) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64-Setup.exe.sha256) |
             | **Debian / Ubuntu / Linux Mint** | `x86_64` (amd64) | Paquet natif Debian (.deb) | [`alyx-${{ github.ref_name }}-linux-amd64.deb`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-amd64.deb) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-amd64.deb.sha256) |
             | **Debian / Ubuntu / Linux Mint** | `ARM64` (arm64) | Paquet natif Debian (.deb) | [`alyx-${{ github.ref_name }}-linux-arm64.deb`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-arm64.deb) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-arm64.deb.sha256) |
             | **Fedora / Nobara / RHEL** | `x86_64` | Paquet natif RPM (.rpm) | [`alyx-${{ github.ref_name }}-linux-x86_64.rpm`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-x86_64.rpm) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-x86_64.rpm.sha256) |
@@ -259,20 +259,20 @@ jobs:
 
             ---
 
-            ### 💼 Versions Portables Autonomes (Sans installation)
+            ### Versions Portables Autonomes (Sans installation)
 
-            | Système d'exploitation | Architecture | Format | Fichier à télécharger | Empreinte SHA-256 |
+            | Systeme d'exploitation | Architecture | Format | Fichier a telecharger | Empreinte SHA-256 |
             | :--- | :--- | :--- | :--- | :--- |
             | **Windows 10 / 11** | `x86_64` (x64) | Archive Portable (.zip) | [`alyx-${{ github.ref_name }}-windows-x64.zip`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64.zip) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64.zip.sha256) |
             | **Windows 11 ARM** | `ARM64` | Archive Portable (.zip) | [`alyx-${{ github.ref_name }}-windows-arm64.zip`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-arm64.zip) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-arm64.zip.sha256) |
 
             ---
 
-            ### 🚀 Commandes d'installation rapide
+            ### Commandes d'installation rapide
 
             #### Windows
             - **Installateur (.exe)** : Lancez `alyx-${{ github.ref_name }}-windows-x64-Setup.exe` et suivez l'assistant.
-            - **Portable (.zip)** : Décompressez l'archive où vous le souhaitez et lancez `Lancer_Alyx.vbs` ou `bin\AlyxDesktop.exe`.
+            - **Portable (.zip)** : Decompressez l'archive ou vous le souhaitez et lancez `Lancer_Alyx.vbs` ou `bin\AlyxDesktop.exe`.
 
             #### Debian / Ubuntu / Mint
             ```bash
@@ -292,4 +292,4 @@ jobs:
             alyx
             ```
 
-            *Chaque fichier est vérifiable via son checksum SHA-256 (`certutil -hashfile <fichier> SHA256` sous Windows ou `sha256sum <fichier>` sous Linux).*
+            *Chaque fichier est verifiable via son checksum SHA-256 (`certutil -hashfile <fichier> SHA256` sous Windows ou `sha256sum <fichier>` sous Linux).*
