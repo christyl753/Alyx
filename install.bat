@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 set "POSTINSTALL=0"
 if /I "%~1"=="--postinstall" set "POSTINSTALL=1"
-set "UI_EXE=%~dp0AlyxDesktop\bin\Release\net8.0-windows10.0.19041.0\AlyxDesktop.exe"
+set "UI_EXE=%~dp0bin\AlyxDesktop.exe"
 
 echo ==========================================
 echo    Installation des dependances ALYX

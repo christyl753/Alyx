@@ -80,9 +80,3 @@ Type: files; Name: "{userprograms}\Alyx.lnk"
 Type: filesandordirs; Name: "{app}\.venv"
 Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\run"
-
-[Code]
-function DirExists(DirName: string): Boolean;
-begin
-  Result := DirExists(DirName);
-end;

@@ -226,6 +226,25 @@ jobs:
 
             ---
 
+            ### 🆕 Nouveautés & Changements majeurs de cette version (${{ github.ref_name }})
+
+            - **🎨 Moteur visuel enrichi (14 styles visuels)** :
+              - Ajout du sélecteur complet de **14 styles graphiques** avec aperçus bicolores interactifs dans l'onglet Style.
+              - Rendu dynamique par thème avec la palette **Canopée & Ambre** conservée par défaut.
+              - Refonte du composant visuel de l'œil d'Alyx (`AlyxEye`) et adaptation dynamique des couleurs et bordures.
+            - **📁 Gestion intelligente des dossiers Windows & Intégration OneDrive** :
+              - Les dossiers `Documents`, `Téléchargements`, `Bureau` et `Images` sont désormais résolus selon leurs emplacements Windows réels et configurés via l'API Shell.
+              - Détection et priorité automatique du dossier homonyme sous un compte OneDrive configuré lorsqu'il existe.
+              - Confirmation humaine obligatoire (Human-in-the-Loop) avant tout déplacement de fichier ou opération par lot.
+            - **🛠️ Maintenance système, Diagnostic & Journaux de crash** :
+              - Nouvel outil d'inspection et d'analyse des journaux d'erreurs récents sous Windows (`Application` & `System`) et Linux (`journalctl` / `coredumpctl`), croisé avec les journaux locaux d'Alyx.
+              - Mise à jour Linux fiabilisée avec élévation explicite via `pkexec` (support natif `apt`, `dnf`, `pacman`) sans exécution aveugle en arrière-plan.
+            - **📦 Installateur Windows Setup.exe fiabilisé** :
+              - Correction de l'arborescence cible post-installation (`bin\AlyxDesktop.exe`).
+              - Nettoyage des fonctions Pascal Inno Setup redondantes pour une compilation et une installation sans échec.
+
+            ---
+
             ### 📦 Paquets & Installateurs Officiels
 
             | Système d'exploitation | Architecture | Format de paquet | Fichier à télécharger | Empreinte SHA-256 |
