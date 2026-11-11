@@ -157,11 +157,7 @@ jobs:
           Categories=Utility;
           EOF
 
-          # 1. Archive universelle portable tar.gz
-          tar -czf dist/alyx-${TAG}-linux-${{ matrix.arch }}.tar.gz -C dist/payload/opt/alyx .
-          sha256sum dist/alyx-${TAG}-linux-${{ matrix.arch }}.tar.gz > dist/alyx-${TAG}-linux-${{ matrix.arch }}.tar.gz.sha256
-
-          # 2. Paquet Debian / Ubuntu (.deb)
+          # 1. Paquet Debian / Ubuntu (.deb)
           fpm -s dir -t deb \
             -n alyx \
             -v "$VERSION" \
@@ -173,7 +169,7 @@ jobs:
 
           sha256sum dist/alyx-${TAG}-linux-${{ matrix.deb_arch }}.deb > dist/alyx-${TAG}-linux-${{ matrix.deb_arch }}.deb.sha256
 
-          # 3. Paquet Fedora / Nobara / RHEL (.rpm)
+          # 2. Paquet Fedora / Nobara / RHEL (.rpm)
           fpm -s dir -t rpm \
             -n alyx \
             -v "$VERSION" \
@@ -185,7 +181,7 @@ jobs:
 
           sha256sum dist/alyx-${TAG}-linux-${{ matrix.rpm_arch }}.rpm > dist/alyx-${TAG}-linux-${{ matrix.rpm_arch }}.rpm.sha256
 
-          # 4. Paquet Arch Linux (.pkg.tar.gz)
+          # 3. Paquet Arch Linux (.pkg.tar.gz)
           tar -czf dist/alyx-${TAG}-arch-${{ matrix.arch_arch }}.pkg.tar.gz -C dist/payload .
           sha256sum dist/alyx-${TAG}-arch-${{ matrix.arch_arch }}.pkg.tar.gz > dist/alyx-${TAG}-arch-${{ matrix.arch_arch }}.pkg.tar.gz.sha256
 
@@ -197,7 +193,6 @@ jobs:
             dist/*.deb
             dist/*.rpm
             dist/*.pkg.tar.gz
-            dist/*.tar.gz
             dist/*.sha256
 
   publish-release:
@@ -227,33 +222,38 @@ jobs:
           body: |
             ## 🦅 Alyx — Assistant Local & Souverain (${{ github.ref_name }})
 
-            Alyx est un assistant de bureau 100% hors-ligne, privé et autonome (air-gapped), doté d'une interface Néo-Brutaliste Avalonia et d'une intégration système poussée (Windows & Linux).
+            Alyx est un assistant de bureau 100% hors-ligne, privé et souverain (air-gapped), conçu pour Windows et Linux.
 
             ---
 
-            ### 📦 Matrice Récapitulative des Téléchargements
+            ### 📦 Paquets & Installateurs Officiels
 
-            | Système d'exploitation | Architecture | Format de paquet | Nom du fichier | Empreinte SHA-256 |
+            | Système d'exploitation | Architecture | Format de paquet | Fichier à télécharger | Empreinte SHA-256 |
             | :--- | :--- | :--- | :--- | :--- |
-            | **Windows 10 / 11** | `x86_64` (x64) | **Installateur Setup (.exe)** | [`alyx-${{ github.ref_name }}-windows-x64-Setup.exe`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64-Setup.exe) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64-Setup.exe.sha256) |
+            | **Windows 10 / 11** | `x86_64` (x64) | **Installateur Exécutable (.exe)** | [`alyx-${{ github.ref_name }}-windows-x64-Setup.exe`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64-Setup.exe) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64-Setup.exe.sha256) |
+            | **Debian / Ubuntu / Linux Mint** | `x86_64` (amd64) | Paquet natif Debian (.deb) | [`alyx-${{ github.ref_name }}-linux-amd64.deb`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-amd64.deb) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-amd64.deb.sha256) |
+            | **Debian / Ubuntu / Linux Mint** | `ARM64` (arm64) | Paquet natif Debian (.deb) | [`alyx-${{ github.ref_name }}-linux-arm64.deb`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-arm64.deb) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-arm64.deb.sha256) |
+            | **Fedora / Nobara / RHEL** | `x86_64` | Paquet natif RPM (.rpm) | [`alyx-${{ github.ref_name }}-linux-x86_64.rpm`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-x86_64.rpm) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-x86_64.rpm.sha256) |
+            | **Fedora / Nobara / RHEL** | `aarch64` (ARM64) | Paquet natif RPM (.rpm) | [`alyx-${{ github.ref_name }}-linux-aarch64.rpm`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-aarch64.rpm) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-aarch64.rpm.sha256) |
+            | **Arch Linux / Manjaro** | `x86_64` | Paquet natif Pacman (.pkg.tar.gz) | [`alyx-${{ github.ref_name }}-arch-x86_64.pkg.tar.gz`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-arch-x86_64.pkg.tar.gz) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-arch-x86_64.pkg.tar.gz.sha256) |
+            | **Arch Linux / Manjaro** | `aarch64` (ARM64) | Paquet natif Pacman (.pkg.tar.gz) | [`alyx-${{ github.ref_name }}-arch-aarch64.pkg.tar.gz`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-arch-aarch64.pkg.tar.gz) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-arch-aarch64.pkg.tar.gz.sha256) |
+
+            ---
+
+            ### 💼 Versions Portables Autonomes (Sans installation)
+
+            | Système d'exploitation | Architecture | Format | Fichier à télécharger | Empreinte SHA-256 |
+            | :--- | :--- | :--- | :--- | :--- |
             | **Windows 10 / 11** | `x86_64` (x64) | Archive Portable (.zip) | [`alyx-${{ github.ref_name }}-windows-x64.zip`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64.zip) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-x64.zip.sha256) |
             | **Windows 11 ARM** | `ARM64` | Archive Portable (.zip) | [`alyx-${{ github.ref_name }}-windows-arm64.zip`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-arm64.zip) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-windows-arm64.zip.sha256) |
-            | **Debian / Ubuntu / Mint** | `x86_64` (amd64) | Paquet Debian (.deb) | [`alyx-${{ github.ref_name }}-linux-amd64.deb`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-amd64.deb) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-amd64.deb.sha256) |
-            | **Debian / Ubuntu / Mint** | `ARM64` (arm64) | Paquet Debian (.deb) | [`alyx-${{ github.ref_name }}-linux-arm64.deb`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-arm64.deb) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-arm64.deb.sha256) |
-            | **Fedora / Nobara / RHEL** | `x86_64` | Paquet RPM (.rpm) | [`alyx-${{ github.ref_name }}-linux-x86_64.rpm`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-x86_64.rpm) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-x86_64.rpm.sha256) |
-            | **Fedora / Nobara / RHEL** | `aarch64` (ARM64) | Paquet RPM (.rpm) | [`alyx-${{ github.ref_name }}-linux-aarch64.rpm`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-aarch64.rpm) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-aarch64.rpm.sha256) |
-            | **Arch Linux / Manjaro** | `x86_64` | Paquet Arch (.pkg.tar.gz) | [`alyx-${{ github.ref_name }}-arch-x86_64.pkg.tar.gz`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-arch-x86_64.pkg.tar.gz) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-arch-x86_64.pkg.tar.gz.sha256) |
-            | **Arch Linux / Manjaro** | `aarch64` (ARM64) | Paquet Arch (.pkg.tar.gz) | [`alyx-${{ github.ref_name }}-arch-aarch64.pkg.tar.gz`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-arch-aarch64.pkg.tar.gz) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-arch-aarch64.pkg.tar.gz.sha256) |
-            | **Linux Portable (Toutes distros)** | `x86_64` | Archive Tarball (.tar.gz) | [`alyx-${{ github.ref_name }}-linux-x64.tar.gz`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-x64.tar.gz) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-x64.tar.gz.sha256) |
-            | **Linux Portable (Toutes distros)** | `ARM64` | Archive Tarball (.tar.gz) | [`alyx-${{ github.ref_name }}-linux-arm64.tar.gz`](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-arm64.tar.gz) | [SHA256](https://github.com/christyl753/Alyx/releases/download/${{ github.ref_name }}/alyx-${{ github.ref_name }}-linux-arm64.tar.gz.sha256) |
 
             ---
 
-            ### 🚀 Instructions d'installation rapide
+            ### 🚀 Commandes d'installation rapide
 
             #### Windows
-            - **Option 1 (Recommandée)** : Téléchargez et exécutez `alyx-${{ github.ref_name }}-windows-x64-Setup.exe`. L'installateur configure automatiquement les raccourcis et initialise l'environnement Python.
-            - **Option 2 (Portable)** : Décompressez l'archive `.zip`, puis lancez `Lancer_Alyx.vbs` ou `bin\AlyxDesktop.exe`.
+            - **Installateur (.exe)** : Lancez `alyx-${{ github.ref_name }}-windows-x64-Setup.exe` et suivez l'assistant.
+            - **Portable (.zip)** : Décompressez l'archive où vous le souhaitez et lancez `Lancer_Alyx.vbs` ou `bin\AlyxDesktop.exe`.
 
             #### Debian / Ubuntu / Mint
             ```bash
@@ -267,7 +267,7 @@ jobs:
             alyx
             ```
 
-            #### Arch Linux
+            #### Arch Linux / Manjaro
             ```bash
             sudo pacman -U ./alyx-${{ github.ref_name }}-arch-x86_64.pkg.tar.gz
             alyx
