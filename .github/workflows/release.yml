@@ -40,7 +40,7 @@ jobs:
         run: |
           dotnet publish AlyxDesktop/AlyxDesktop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o publish/app
 
-      - name: Stage Runtime Bundle
+      - name: Stage Runtime Bundle & Inno Setup (.exe)
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist\bundle\bin
@@ -49,15 +49,30 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist\bundle\logs
 
           Copy-Item -Path publish\app\* -Destination dist\bundle\bin -Recurse -Force
-          Copy-Item -Path ai.py, api.py, stt_server.py, config.yaml, requirements.txt, alyx.bat, stop.bat -Destination dist\bundle\backend -Force
+          Copy-Item -Path ai.py, api.py, stt_server.py, config.yaml, requirements.txt, alyx.bat, stop.bat, Lancer_Alyx.vbs, Arreter_Alyx.vbs -Destination dist\bundle\backend -Force
           Copy-Item -Path core, function -Destination dist\bundle\backend -Recurse -Force
 
           $tag = "${{ github.ref_name }}"
           if (-not $tag -or $tag -eq "") { $tag = "v0.1.0" }
+          $cleanVersion = $tag.TrimStart('v')
+
+          # 1. Archive ZIP standalone portable
           $zipName = "alyx-${tag}-windows-${{ matrix.arch }}.zip"
           Compress-Archive -Path dist\bundle\* -DestinationPath dist\$zipName -Force
-
           Get-FileHash dist\$zipName -Algorithm SHA256 | Out-File -FilePath dist\$zipName.sha256
+
+          # 2. Compilation de l'installateur Windows Setup.exe (Inno Setup) sur x64
+          if ("${{ matrix.arch }}" -eq "x64") {
+            choco install innosetup -y --no-progress
+            & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion="$cleanVersion" installer.iss
+            
+            $setupFile = Get-ChildItem -Path dist\*.exe | Select-Object -First 1
+            if ($setupFile) {
+              $setupTarget = "alyx-${tag}-windows-x64-Setup.exe"
+              Move-Item -Path $setupFile.FullName -Destination "dist\$setupTarget" -Force
+              Get-FileHash "dist\$setupTarget" -Algorithm SHA256 | Out-File -FilePath "dist\$setupTarget.sha256"
+            }
+          }
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
@@ -65,6 +80,7 @@ jobs:
           name: windows-${{ matrix.arch }}
           path: |
             dist/*.zip
+            dist/*.exe
             dist/*.sha256
 
   build-linux:
@@ -104,7 +120,7 @@ jobs:
         run: |
           dotnet publish AlyxDesktop/AlyxDesktop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o publish/app
 
-      - name: Assemble Linux Payload
+      - name: Assemble Linux Payload & Generate Packages (.deb, .rpm, Arch)
         run: |
           TAG="${{ github.ref_name }}"
           if [ -z "$TAG" ]; then TAG="v0.1.0"; fi
@@ -141,11 +157,11 @@ jobs:
           Categories=Utility;
           EOF
 
-          # Portable tarball
+          # 1. Archive universelle portable tar.gz
           tar -czf dist/alyx-${TAG}-linux-${{ matrix.arch }}.tar.gz -C dist/payload/opt/alyx .
           sha256sum dist/alyx-${TAG}-linux-${{ matrix.arch }}.tar.gz > dist/alyx-${TAG}-linux-${{ matrix.arch }}.tar.gz.sha256
 
-          # Debian package (.deb)
+          # 2. Paquet Debian / Ubuntu (.deb)
           fpm -s dir -t deb \
             -n alyx \
             -v "$VERSION" \
@@ -157,7 +173,7 @@ jobs:
 
           sha256sum dist/alyx-${TAG}-linux-${{ matrix.deb_arch }}.deb > dist/alyx-${TAG}-linux-${{ matrix.deb_arch }}.deb.sha256
 
-          # RPM package (Fedora / Nobara)
+          # 3. Paquet Fedora / Nobara / RHEL (.rpm)
           fpm -s dir -t rpm \
             -n alyx \
             -v "$VERSION" \
@@ -169,10 +185,7 @@ jobs:
 
           sha256sum dist/alyx-${TAG}-linux-${{ matrix.rpm_arch }}.rpm > dist/alyx-${TAG}-linux-${{ matrix.rpm_arch }}.rpm.sha256
 
-          # Arch Linux package (.pkg.tar.zst)
-          mkdir -p dist/arch-pkg
-          cp packaging/arch/PKGBUILD dist/arch-pkg/
-          sed -i "s/pkgver=.*/pkgver=$VERSION/" dist/arch-pkg/PKGBUILD
+          # 4. Paquet Arch Linux (.pkg.tar.gz)
           tar -czf dist/alyx-${TAG}-arch-${{ matrix.arch_arch }}.pkg.tar.gz -C dist/payload .
           sha256sum dist/alyx-${TAG}-arch-${{ matrix.arch_arch }}.pkg.tar.gz > dist/alyx-${TAG}-arch-${{ matrix.arch_arch }}.pkg.tar.gz.sha256
 
@@ -183,6 +196,7 @@ jobs:
           path: |
             dist/*.deb
             dist/*.rpm
+            dist/*.pkg.tar.gz
             dist/*.tar.gz
             dist/*.sha256
 
@@ -211,15 +225,21 @@ jobs:
           generate_release_notes: true
           name: "Alyx ${{ github.ref_name }}"
           body: |
-            ## Alyx - Première Release Officielle (${{ github.ref_name }})
+            ## Alyx - Version Officielle (${{ github.ref_name }})
 
-            Assistant de bureau 100% souverain, local et hors-ligne (air-gapped).
+            Assistant de bureau 100% souverain, local et autonome (air-gapped).
 
-            ### Paquets disponibles :
-            - **Windows (x64 / ARM64)** : `.zip` portables et prêts à l'emploi avec backend Python et runtime embarqué.
-            - **Debian / Ubuntu** : Paquets `.deb` pour `amd64` et `arm64`.
-            - **Fedora / Nobara / RHEL** : Paquets `.rpm` pour `x86_64` et `aarch64`.
-            - **Arch Linux** : Recette `PKGBUILD` et archives pour `x86_64` et `aarch64`.
-            - **Universel Linux** : Archives `.tar.gz` portables.
+            ### 📦 Fichiers et paquets disponibles :
+            - **Windows** :
+              - Installateur standard : `alyx-${{ github.ref_name }}-windows-x64-Setup.exe`
+              - Archives portables autonomes : `alyx-${{ github.ref_name }}-windows-x64.zip` et `windows-arm64.zip`
+            - **Linux Debian / Ubuntu** :
+              - Paquets `.deb` pour `amd64` et `arm64`
+            - **Linux Fedora / Nobara / RHEL** :
+              - Paquets `.rpm` pour `x86_64` et `aarch64`
+            - **Linux Arch** :
+              - Paquets `.pkg.tar.gz` pour `x86_64` et `aarch64`
+            - **Universel Linux** :
+              - Archives portables `.tar.gz` pour `x64` et `arm64`
 
-            Tous les paquets incluent leurs empreintes de vérification SHA-256.
+            *Tous les fichiers disposent de leur empreinte de vérification SHA-256 (`.sha256`).*

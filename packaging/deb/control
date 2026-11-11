@@ -8,3 +8,4 @@ Depends: libicu-dev, python3, python3-pip
 Description: Alyx - Sovereign AI Desktop Assistant
  A 100% offline, local and private AI assistant with full system agency,
  background automation, and neo-brutalist Avalonia desktop client.
+

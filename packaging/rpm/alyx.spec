@@ -42,3 +42,4 @@ EOF
 /opt/alyx
 /usr/bin/alyx
 /usr/share/applications/alyx.desktop
+
