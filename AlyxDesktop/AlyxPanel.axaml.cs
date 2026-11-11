@@ -35,6 +35,13 @@ public partial class AlyxPanel : UserControl
     private readonly ObservableCollection<ModelItem> _models = new();
     private readonly ObservableCollection<VoiceItem> _voices = new();
     private readonly ObservableCollection<VoiceItem> _microphones = new();
+    private readonly ObservableCollection<ScannedFileItem> _scannedFiles = new();
+    private readonly ObservableCollection<ScannedFileItem> _filteredScannedFiles = new();
+    private readonly ObservableCollection<GuardrailBatchPlanItem> _batchPlanFiles = new();
+    private readonly ObservableCollection<ReversibleTrashItem> _trashItems = new();
+    private readonly ObservableCollection<AutomationRuleItem> _automationRules = new();
+    private readonly List<string> _recentCommands = new();
+    private int _lastScanDurationMs = 42;
     private bool _syncingVoice, _speakAll, _stickToBottom = true;
     private string _language = "fr";
     private IDisposable? _rateDebounce;
@@ -90,6 +97,11 @@ public partial class AlyxPanel : UserControl
         ModelList.ItemsSource = _models;
         VoiceList.ItemsSource = _voices;
         MicList.ItemsSource = _microphones;
+        ScannerFileList.ItemsSource = _filteredScannedFiles;
+        BatchPlanList.ItemsSource = _batchPlanFiles;
+        TrashItemsList.ItemsSource = _trashItems;
+        AutomationRulesList.ItemsSource = _automationRules;
+        ScannerSearchInput.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) FilterScannerFiles(); };
         RateSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) OnRateChanged(); };
         // Défilement collant : reste en bas tant que l'utilisateur n'a pas remonté le fil
         ChatScroll.ScrollChanged += (_, e) =>
@@ -117,6 +129,7 @@ public partial class AlyxPanel : UserControl
         _clockTimer.Start();
         BuildTiles();
         BuildWidgetModeChips();
+        InitializeDesignComponents();
         RefreshComposer();
     }
 
@@ -128,7 +141,7 @@ public partial class AlyxPanel : UserControl
         FollowTrack.Classes.Set("on", settings.EyeFollowsCursor);
         StartupTrack.Classes.Set("on", StartupService.IsEnabled());
         StartupLabel.Text = OperatingSystem.IsWindows() ? "Démarrer avec Windows" : "Démarrer avec la session";
-        if (!OperatingSystem.IsWindows()) ShortcutText.Text = "Non disponible";
+        ShortcutText.Text = OperatingSystem.IsWindows() ? "Alt + Espace" : "Non disponible";
         OpacitySlider.Value = _settings.WidgetOpacityPercent;
         OpacityValueText.Text = $"{_settings.WidgetOpacityPercent}%";
         OpacitySlider.PropertyChanged += (s, e) =>
@@ -317,20 +330,43 @@ public partial class AlyxPanel : UserControl
 
     public void SelectTab(string tab)
     {
-        _tab = tab;
+        string normalized = tab switch
+        {
+            "chat" => "assistant",
+            "style" or "settings" => "appearance",
+            _ => tab
+        };
+        _tab = normalized;
         foreach (var b in TabBar.Children.OfType<Button>())
-            b.Classes.Set("active", (string?)b.Tag == tab);
-        ChatView.IsVisible = tab == "chat";
+            b.Classes.Set("active", (string?)b.Tag == normalized || (string?)b.Tag == tab);
+
+        ChatView.IsVisible = normalized == "assistant";
+        ScannerView.IsVisible = normalized == "scanner";
+        GuardrailView.IsVisible = normalized == "guardrail";
+        AutomationsView.IsVisible = normalized == "automations";
+        StyleView.IsVisible = normalized == "appearance";
+
+        // Vues secondaires préservées
         SystemView.IsVisible = tab == "system";
         TasksView.IsVisible = tab == "tasks";
         ModelsView.IsVisible = tab == "models";
         SettingsView.IsVisible = tab == "settings";
-        StyleView.IsVisible = tab == "style";
 
-        switch (tab)
+        switch (normalized)
         {
-            case "chat":
+            case "assistant":
                 Dispatcher.UIThread.Post(() => Input.Focus(), DispatcherPriority.Background);
+                break;
+            case "scanner":
+                FilterScannerFiles();
+                break;
+            case "guardrail":
+                UpdateGuardrailCount();
+                break;
+            case "automations":
+                break;
+            case "appearance":
+                SyncStyleTabUI();
                 break;
             case "tasks":
                 _ = Send(new { type = "get_processes", limit = 40 });
@@ -342,9 +378,6 @@ public partial class AlyxPanel : UserControl
                 SyncWidgetModeUI();
                 _ = RefreshSettingsAsync();
                 _ = Send(new { type = "get_voice_settings" });
-                break;
-            case "style":
-                SyncStyleTabUI();
                 break;
         }
         Dispatcher.UIThread.Post(RefreshGauges, DispatcherPriority.Render);
@@ -540,6 +573,7 @@ public partial class AlyxPanel : UserControl
         }
         if (text.Length > 0)
         {
+            RecordRecentCommand(text);
             _stickToBottom = true;
             _messages.Add(new UserMessage(text));
             Input.Text = "";
@@ -1140,7 +1174,7 @@ public partial class AlyxPanel : UserControl
         await PollMediaAsync();
     }
 
-    // ================= Onglet Style & Apparence Aquarelle =================
+    // ================= Onglet Style & Apparence =================
 
     public void SyncStyleTabUI()
     {
@@ -1149,7 +1183,6 @@ public partial class AlyxPanel : UserControl
         PalBlueBtn.Classes.Set("active", _settings.WatercolorPalette == "watercolor-blue");
         PalRoseBtn.Classes.Set("active", _settings.WatercolorPalette == "watercolor-rose");
         PalInkBtn.Classes.Set("active", _settings.WatercolorPalette == "ink-minimal");
-        PalPrismBtn.Classes.Set("active", _settings.WatercolorPalette == "alyx-prism");
 
         ThemeLightBtn.Classes.Set("active", _settings.ThemeMode == "light");
         ThemeDarkBtn.Classes.Set("active", _settings.ThemeMode == "dark");
@@ -1162,8 +1195,74 @@ public partial class AlyxPanel : UserControl
 
         DockRightBtn.Classes.Set("active", _settings.DockSide == EdgeDockSide.Right);
         DockLeftBtn.Classes.Set("active", _settings.DockSide == EdgeDockSide.Left);
+        DockBottomBtn.Classes.Set("active", _settings.DockSide == EdgeDockSide.Bottom);
+
+        LayoutRadialBtn.Classes.Set("active", _settings.LayoutMode == LayoutSelectionMode.Radial);
+        LayoutTraditionalBtn.Classes.Set("active", _settings.LayoutMode == LayoutSelectionMode.Traditional);
 
         EcoModeTrack.Classes.Set("on", _settings.LowRamEcoMode);
+        UpdateStylePreviewUI();
+    }
+
+    private void UpdateStylePreviewUI()
+    {
+        string currentStyle = _settings.ActiveVisualStyle ?? "canopee-ambre";
+        (string name, string badge, string tagline) = currentStyle switch
+        {
+            "watercolor" => ("Peinture & Aquarelle", "Aquarelle Douce", "Lavis doux bleu céleste et rose pétale sur papier porcelaine"),
+            "kde" => ("Linux KDE (Breeze)", "KDE Plasma 6", "Verre sombre/clair Breeze avec liseré cyan #3daee9"),
+            "gnome" => ("Linux GNOME (Adwaita)", "Libadwaita HIG", "Surfaces plates unifiées et pilules bleues #3584e4"),
+            "sketch" => ("Dessin Pastel", "Ligne Claire Pastel", "Trait d'encre fin continu et aplats pastel doux"),
+            "sticker" => ("Sticker Pop", "Vinyle Découpé", "Contour découpé blanc épais et badges autocollants pop"),
+            "win7" => ("Win7 Aero Glass", "Aero Glass 2009", "Cadre en verre biseauté avec reflets saphir et boutons glossy"),
+            "school" => ("Scolaire Seyès", "Grands Carreaux", "Page de cahier grands carreaux Seyès avec marge rouge"),
+            "office" => ("Bureau Pro", "Dossier Manille", "Sous-main exécutif et dossiers cartonnés Kraft"),
+            "bento-pearl" => ("Bento Perle", "Bento Givré", "Tuiles nacrées blanc opale et ergonomie aérienne ultra-douce"),
+            "bauhaus" => ("Nordique Doux", "Scandinave Doux", "Équilibre scandinave aux tons lin et bleu fjord"),
+            "eink" => ("E-Ink Mat", "Encre Électronique", "Monochrome papier électronique haute lisibilité sans fatigue"),
+            "tactile" => ("Céramique", "Céramique Satinée", "Finition céramique blanche satinée et aluminium brossé"),
+            "alyx-prism" => ("★ Prisme Alyx", "Création Originale", "Verre d'opale iridescence et halo boréal pour l'Œil Alyx"),
+            _ => ("★ Canopée & Ambre", "PAR DÉFAUT · CRÈME & SAPIN", "Fond crème vanille (#F6EED9), vert sapin ardoise (#384C48), sauge (#7DAE9B) et miel ambré (#FBA620)")
+        };
+
+        StyleNameText.Text = name;
+        StyleBadgeText.Text = badge.ToUpperInvariant();
+        StyleTaglineText.Text = tagline;
+    }
+
+    private void OnSelectVisualStyleClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string styleId })
+        {
+            _settings.ActiveVisualStyle = styleId;
+            if (styleId == "canopee-ambre") _settings.WatercolorPalette = "canopee-ambre";
+            else if (styleId is "watercolor" or "sketch") _settings.WatercolorPalette = "watercolor-duo";
+            else if (styleId is "kde" or "gnome" or "win7" or "tactile") _settings.WatercolorPalette = "watercolor-blue";
+            else if (styleId == "sticker") _settings.WatercolorPalette = "watercolor-rose";
+            else if (styleId is "office" or "eink") _settings.WatercolorPalette = "ink-minimal";
+
+            _settings.Save();
+            App.ApplyStyleSettings(_settings);
+            SyncStyleTabUI();
+            StyleSettingsChanged?.Invoke(_settings);
+        }
+    }
+
+    private void OnLayoutSelectionModeClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string tag } && Enum.TryParse<LayoutSelectionMode>(tag, out var mode))
+        {
+            _settings.LayoutMode = mode;
+            if (mode == LayoutSelectionMode.Radial)
+                _settings.EntryMode = OpenEntryMode.Radial;
+            else if (_settings.EntryMode == OpenEntryMode.Radial)
+                _settings.EntryMode = OpenEntryMode.Card;
+
+            _settings.Save();
+            SyncStyleTabUI();
+            SyncWidgetModeUI();
+            EntryModeRequested?.Invoke(_settings.EntryMode);
+        }
     }
 
     private void OnPaletteCanopeeClick(object? sender, RoutedEventArgs e) => SetPalette("canopee-ambre");
@@ -1171,7 +1270,6 @@ public partial class AlyxPanel : UserControl
     private void OnPaletteBlueClick(object? sender, RoutedEventArgs e) => SetPalette("watercolor-blue");
     private void OnPaletteRoseClick(object? sender, RoutedEventArgs e) => SetPalette("watercolor-rose");
     private void OnPaletteInkClick(object? sender, RoutedEventArgs e) => SetPalette("ink-minimal");
-    private void OnPalettePrismClick(object? sender, RoutedEventArgs e) => SetPalette("alyx-prism");
 
     private void SetPalette(string id)
     {
@@ -1223,5 +1321,250 @@ public partial class AlyxPanel : UserControl
         _settings.Save();
         SyncStyleTabUI();
         StyleSettingsChanged?.Invoke(_settings);
+    }
+
+    // ================= Composants Design (Scanner, Garde-fou, Automations, Chips) =================
+
+    private void InitializeDesignComponents()
+    {
+        // 1. Commandes récentes (5 max)
+        _recentCommands.Add("Trier mes téléchargements");
+        _recentCommands.Add("Nettoyer les doublons");
+        _recentCommands.Add("Ranger les factures PDF");
+        _recentCommands.Add("Qu'est-ce qui mange ma RAM ?");
+        _recentCommands.Add("Vérifier l'état de la batterie");
+        RefreshRecentCommandsChips();
+
+        // 2. Fichiers du Scanner
+        _scannedFiles.Add(new ScannedFileItem { Id = "1", Name = "Rapport_Q3_Facture_2026.pdf", SizeMb = 2.4, Status = "organized", ProposedPath = "~/Documents/Factures/" });
+        _scannedFiles.Add(new ScannedFileItem { Id = "2", Name = "Archive_Docs_Scan.zip", SizeMb = 48.1, Status = "proposed", ProposedPath = "~/Documents/Archives/" });
+        _scannedFiles.Add(new ScannedFileItem { Id = "3", Name = "Capture_Ecran_2026-11-01.png", SizeMb = 1.2, Status = "trashed", ProposedPath = "Corbeille" });
+        _scannedFiles.Add(new ScannedFileItem { Id = "4", Name = "Backup_Node_v2.tar.gz", SizeMb = 124.6, Status = "proposed", ProposedPath = "~/Archives/Backups/" });
+        _scannedFiles.Add(new ScannedFileItem { Id = "5", Name = "Projet_Alyx_Cahier_Des_Charges.docx", SizeMb = 0.8, Status = "organized", ProposedPath = "~/Documents/Projets/" });
+        FilterScannerFiles();
+
+        // 3. Garde-fou (>3 fichiers pour validation en lot)
+        InitializeBatchPlan();
+        UpdateGuardrailCount();
+
+        // 4. Corbeille réversible
+        _trashItems.Add(new ReversibleTrashItem { Id = "t1", OriginalName = "Ancien_Log_Debug.txt", OriginalPath = "~/Bureau/Ancien_Log_Debug.txt" });
+        _trashItems.Add(new ReversibleTrashItem { Id = "t2", OriginalName = "Cache_Navigateur_Temp.bin", OriginalPath = "~/Téléchargements/Cache_Navigateur_Temp.bin" });
+        TrashCountText.Text = $"{_trashItems.Count} fichier(s)";
+
+        // 5. Automatisations
+        _automationRules.Add(new AutomationRuleItem { Id = "r1", Name = "Tri automatique des Téléchargements", Description = "Rangement doux des PDF et archives vers Documents", TargetFolder = "~/Téléchargements", Enabled = true });
+        _automationRules.Add(new AutomationRuleItem { Id = "r2", Name = "Nettoyage mensuel de la Corbeille", Description = "Supprime les fichiers en corbeille depuis plus de 30 jours", TargetFolder = "Corbeille", Enabled = true });
+        _automationRules.Add(new AutomationRuleItem { Id = "r3", Name = "Sauvegarde des Notes et Projets", Description = "Copie miroir des notes Alyx sur disque local", TargetFolder = "~/Documents/AlyxNotes", Enabled = false });
+
+        UpdateStylePreviewUI();
+    }
+
+    private void InitializeBatchPlan()
+    {
+        _batchPlanFiles.Clear();
+        _batchPlanFiles.Add(new GuardrailBatchPlanItem { Id = "b1", Name = "Archive_Téléchargements_2025.zip", ProposedPath = "~/Documents/Archives/", ProposedAction = "move", SelectedForBatch = true });
+        _batchPlanFiles.Add(new GuardrailBatchPlanItem { Id = "b2", Name = "Facture_EDF_Janvier_2026.pdf", ProposedPath = "~/Documents/Factures/", ProposedAction = "move", SelectedForBatch = true });
+        _batchPlanFiles.Add(new GuardrailBatchPlanItem { Id = "b3", Name = "Capture_Ecran_Tmp_01.png", ProposedPath = "Corbeille", ProposedAction = "trash", SelectedForBatch = true });
+        _batchPlanFiles.Add(new GuardrailBatchPlanItem { Id = "b4", Name = "Capture_Ecran_Tmp_02.png", ProposedPath = "Corbeille", ProposedAction = "trash", SelectedForBatch = true });
+        _batchPlanFiles.Add(new GuardrailBatchPlanItem { Id = "b5", Name = "Notes_Reunion_Dev_Alyx.md", ProposedPath = "~/Notes/Alyx/", ProposedAction = "move", SelectedForBatch = true });
+        _batchPlanFiles.Add(new GuardrailBatchPlanItem { Id = "b6", Name = "Donnees_Test_Old.csv", ProposedPath = "Corbeille", ProposedAction = "trash", SelectedForBatch = true });
+        _batchPlanFiles.Add(new GuardrailBatchPlanItem { Id = "b7", Name = "Contrat_Prestation_Signe.pdf", ProposedPath = "~/Documents/Contrats/", ProposedAction = "move", SelectedForBatch = true });
+    }
+
+    private void RecordRecentCommand(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        _recentCommands.Remove(text);
+        _recentCommands.Insert(0, text);
+        if (_recentCommands.Count > 5)
+            _recentCommands.RemoveRange(5, _recentCommands.Count - 5);
+        RefreshRecentCommandsChips();
+    }
+
+    private void RefreshRecentCommandsChips()
+    {
+        RecentCommandsChips.Children.Clear();
+        RecentCommandsCount.Text = $"{_recentCommands.Count}/5";
+        RecentCommandsSection.IsVisible = _recentCommands.Count > 0;
+        foreach (var cmd in _recentCommands)
+        {
+            var textBtn = new Button
+            {
+                Classes = { "flat", "chip", "hover-accent" },
+                Content = cmd,
+                FontSize = 11,
+                Padding = new Thickness(10, 4),
+                Margin = new Thickness(0, 0, 4, 4),
+            };
+            ToolTip.SetTip(textBtn, $"Rappeler : « {cmd} »");
+            textBtn.Click += (_, _) =>
+            {
+                Input.Text = cmd;
+                Dispatcher.UIThread.Post(() => Input.Focus(), DispatcherPriority.Background);
+            };
+
+            var sendBtn = new Button
+            {
+                Classes = { "flat" },
+                Content = "↵",
+                FontSize = 11,
+                FontWeight = FontWeight.Bold,
+                Foreground = App.Res<IBrush>("Accent"),
+                Padding = new Thickness(6, 4),
+                Margin = new Thickness(0, 0, 4, 4),
+            };
+            ToolTip.SetTip(sendBtn, $"Envoyer immédiatement : « {cmd} »");
+            sendBtn.Click += async (_, _) =>
+            {
+                Input.Text = cmd;
+                await SendMessageAsync();
+            };
+
+            var chipPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 4, 4),
+                Children = { textBtn, sendBtn }
+            };
+            RecentCommandsChips.Children.Add(chipPanel);
+        }
+    }
+
+    private void OnGoToGuardrailClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab("guardrail");
+    }
+
+    private void UpdateGuardrailCount()
+    {
+        int selected = _batchPlanFiles.Count(f => f.SelectedForBatch);
+        GuardrailCountSubtitle.Text = $"Sélectionnez les fichiers à déplacer ({selected} choisis)";
+        ApproveBatchButton.Content = $"Valider le rangement ({selected})";
+        ApproveBatchButton.IsEnabled = selected > 0;
+        GuardrailInlineText.Text = $"{_batchPlanFiles.Count} fichiers prêts à être rangés";
+        GuardrailInlineBanner.IsVisible = _batchPlanFiles.Count > 3;
+    }
+
+    private void OnBatchFileCheckboxClick(object? sender, RoutedEventArgs e)
+    {
+        UpdateGuardrailCount();
+    }
+
+    private void OnApproveBatchClick(object? sender, RoutedEventArgs e)
+    {
+        var toProcess = _batchPlanFiles.Where(f => f.SelectedForBatch).ToList();
+        foreach (var f in toProcess)
+        {
+            if (f.ProposedAction == "trash")
+            {
+                _trashItems.Add(new ReversibleTrashItem
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    OriginalName = f.Name,
+                    OriginalPath = f.ProposedPath
+                });
+            }
+            _batchPlanFiles.Remove(f);
+        }
+        TrashCountText.Text = $"{_trashItems.Count} fichier(s)";
+        BatchSuccessBanner.IsVisible = true;
+        BatchPlanContent.IsVisible = false;
+        UpdateGuardrailCount();
+    }
+
+    private void OnResetBatchPlanClick(object? sender, RoutedEventArgs e)
+    {
+        BatchSuccessBanner.IsVisible = false;
+        BatchPlanContent.IsVisible = true;
+        InitializeBatchPlan();
+        UpdateGuardrailCount();
+    }
+
+    private void OnRestoreTrashClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string id })
+        {
+            var item = _trashItems.FirstOrDefault(t => t.Id == id);
+            if (item != null)
+            {
+                _trashItems.Remove(item);
+                TrashCountText.Text = $"{_trashItems.Count} fichier(s)";
+            }
+        }
+    }
+
+    private void OnRunScanClick(object? sender, RoutedEventArgs e)
+    {
+        _lastScanDurationMs = new Random().Next(35, 75);
+        ScanStatusText.Text = $"50 000 fichiers parcourus en {_lastScanDurationMs} ms";
+        FilterScannerFiles();
+    }
+
+    private void FilterScannerFiles()
+    {
+        _filteredScannedFiles.Clear();
+        string q = ScannerSearchInput.Text?.Trim().ToLowerInvariant() ?? "";
+        foreach (var file in _scannedFiles)
+        {
+            if (string.IsNullOrEmpty(q) || file.Name.ToLowerInvariant().Contains(q) || file.ProposedPath.ToLowerInvariant().Contains(q))
+            {
+                _filteredScannedFiles.Add(file);
+            }
+        }
+    }
+
+    private void OnToggleNewRuleClick(object? sender, RoutedEventArgs e)
+    {
+        NewRuleForm.IsVisible = !NewRuleForm.IsVisible;
+    }
+
+    private void OnCancelNewRuleClick(object? sender, RoutedEventArgs e)
+    {
+        NewRuleForm.IsVisible = false;
+        NewRuleNameInput.Text = "";
+        NewRuleFolderInput.Text = "";
+        NewRuleDescInput.Text = "";
+    }
+
+    private void OnCreateRuleClick(object? sender, RoutedEventArgs e)
+    {
+        string name = NewRuleNameInput.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(name)) return;
+        string folder = NewRuleFolderInput.Text?.Trim() ?? "~/Documents";
+        string desc = NewRuleDescInput.Text?.Trim() ?? "Action automatique sur dossier";
+        _automationRules.Add(new AutomationRuleItem
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Name = name,
+            TargetFolder = folder,
+            Description = desc,
+            Enabled = true
+        });
+        OnCancelNewRuleClick(sender, e);
+    }
+
+    private void OnToggleRuleActiveClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string id })
+        {
+            var rule = _automationRules.FirstOrDefault(r => r.Id == id);
+            if (rule != null)
+            {
+                rule.Enabled = !rule.Enabled;
+            }
+        }
+    }
+
+    private void OnRunRuleClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string id })
+        {
+            var rule = _automationRules.FirstOrDefault(r => r.Id == id);
+            if (rule != null)
+            {
+                _messages.Add(new ActionMessage($"Routine exécutée : {rule.Name} sur {rule.TargetFolder}"));
+            }
+        }
     }
 }

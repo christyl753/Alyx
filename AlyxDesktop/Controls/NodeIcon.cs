@@ -107,12 +107,38 @@ public sealed class NodeIcon : Control
 
         switch (Kind)
         {
-            case "settings": DrawGear(context, r, t); break;
-            case "models": DrawTopModel(context, r, t); break;
-            case "media": DrawPause(context, r, Alternate); break;
-            case "tasks": DrawList(context, r, t); break;
-            case "system": DrawMonitor(context, r, t); break;
-            case "chat": DrawBubble(context, r, t); break;
+            case "assistant":
+            case "chat":
+                DrawBubble(context, r, t);
+                break;
+            case "scanner":
+                DrawScanner(context, r, t);
+                break;
+            case "guardrail":
+                DrawGuardrail(context, r, t);
+                break;
+            case "automations":
+                DrawAutomations(context, r, t);
+                break;
+            case "appearance":
+            case "style":
+                DrawPalette(context, r, t);
+                break;
+            case "settings":
+                DrawGear(context, r, t);
+                break;
+            case "models":
+                DrawTopModel(context, r, t);
+                break;
+            case "media":
+                DrawPause(context, r, Alternate);
+                break;
+            case "tasks":
+                DrawList(context, r, t);
+                break;
+            case "system":
+                DrawMonitor(context, r, t);
+                break;
         }
     }
 
@@ -121,6 +147,95 @@ public sealed class NodeIcon : Control
     {
         double k = .6 + .4 * r;
         return Matrix.CreateTranslation(-cx, -cy) * Matrix.CreateScale(k, k) * Matrix.CreateTranslation(cx, cy);
+    }
+
+    // Scanner : dossier avec loupe dont le reflet balaie la lentille
+    private static readonly Geometry FolderGeom = Geometry.Parse("M8 12 L15 12 L17.5 15 L32 15 L32 28 C32 29.5 30.5 30.5 29 30.5 L11 30.5 C9.5 30.5 8 29.5 8 28 Z");
+
+    private static void DrawScanner(DrawingContext dc, double r, double t)
+    {
+        using var pop = dc.PushTransform(Pop(r, 20, 20));
+        var ink = Stroke(Ink, 1.8);
+        dc.DrawGeometry(Brushes.White, ink, FolderGeom);
+
+        double lx = 22, ly = 21, rad = 4.8;
+        dc.DrawEllipse(Brushes.White, Stroke(Ink, 2.0), new Point(lx, ly), rad, rad);
+        dc.DrawLine(Stroke(Ink, 2.4), new Point(lx + 3.4, ly + 3.4), new Point(lx + 7.5, ly + 7.5));
+
+        double beamAngle = t * 3.5;
+        double bx = lx + Math.Cos(beamAngle) * 2.2;
+        double by = ly + Math.Sin(beamAngle) * 2.2;
+        dc.DrawEllipse(Gold, null, new Point(bx, by), 1.6, 1.6);
+    }
+
+    // Garde-fou : bouclier de sécurité avec coche validée
+    private static readonly Geometry ShieldGeom = Geometry.Parse("M20 7.5 L29.5 11.5 C29.5 21 20 28.5 20 31 C20 28.5 10.5 21 10.5 11.5 Z");
+
+    private static void DrawGuardrail(DrawingContext dc, double r, double t)
+    {
+        using var pop = dc.PushTransform(Pop(r, 20, 19));
+        dc.DrawGeometry(Brushes.White, Stroke(Ink, 2.0), ShieldGeom);
+
+        var check = new StreamGeometry();
+        using (var c = check.Open())
+        {
+            c.BeginFigure(new Point(15.5, 18.5), false);
+            c.LineTo(new Point(18.5, 21.5));
+            c.LineTo(new Point(24.5, 14.5));
+            c.EndFigure(false);
+        }
+        dc.DrawGeometry(null, Stroke(Gold, 2.2), check);
+        double pulse = 0.5 + 0.5 * Math.Sin(t * 4);
+        using (dc.PushOpacity(0.3 + 0.7 * pulse))
+        {
+            dc.DrawEllipse(Gold, null, new Point(20, 11), 1.5, 1.5);
+        }
+    }
+
+    // Automates : puce processeur CPU avec impulsions sur les broches
+    private static void DrawAutomations(DrawingContext dc, double r, double t)
+    {
+        using var pop = dc.PushTransform(Pop(r, 20, 20));
+        var ink = Stroke(Ink, 1.8);
+        for (int i = 0; i < 2; i++)
+        {
+            double off = 16.5 + i * 7;
+            dc.DrawLine(ink, new Point(off, 8.5), new Point(off, 12));  // haut
+            dc.DrawLine(ink, new Point(off, 28), new Point(off, 31.5)); // bas
+            dc.DrawLine(ink, new Point(8.5, off), new Point(12, off));  // gauche
+            dc.DrawLine(ink, new Point(28, off), new Point(31.5, off)); // droite
+        }
+
+        dc.DrawRectangle(Brushes.White, Stroke(Ink, 2.0), new Rect(12, 12, 16, 16), 2.5, 2.5);
+        dc.DrawRectangle(Gold, Stroke(Ink, 1.2), new Rect(16, 16, 8, 8), 1.5, 1.5);
+
+        double spark = Math.Sin(t * 5);
+        if (spark > 0)
+        {
+            dc.DrawEllipse(Brushes.White, null, new Point(20, 20), 1.5, 1.5);
+        }
+    }
+
+    // Palette / Style : palette de peintre avec pastilles de couleurs
+    private static readonly Geometry PaletteGeom = Geometry.Parse("M12 25 C8 21 8 13 15 9 C22 5 32 8 32 16 C32 20 29 22 26 21 C24 20 22 22 23 25 C24 29 18 31 12 25 Z");
+
+    private static void DrawPalette(DrawingContext dc, double r, double t)
+    {
+        using var pop = dc.PushTransform(Pop(r, 20, 20));
+        dc.DrawGeometry(Brushes.White, Stroke(Ink, 2.0), PaletteGeom);
+        dc.DrawEllipse(Ink, null, new Point(14, 24), 1.8, 1.8);
+
+        dc.DrawEllipse(Gold, Stroke(Ink, 1.0), new Point(16, 13), 2.0, 2.0);
+        dc.DrawEllipse(App.Res<IBrush>("Danger"), Stroke(Ink, 1.0), new Point(22, 11), 2.0, 2.0);
+        dc.DrawEllipse(App.Res<IBrush>("CanopeeSauge"), Stroke(Ink, 1.0), new Point(28, 14), 2.0, 2.0);
+
+        double tw = Math.Max(0, Math.Sin(t * 3.0));
+        if (tw > 0.05)
+        {
+            using var sp = dc.PushTransform(Matrix.CreateTranslation(-26, -26) * Matrix.CreateScale(tw, tw)
+                                            * Matrix.CreateRotation(t * 2) * Matrix.CreateTranslation(26, 26));
+            dc.DrawGeometry(Gold, Stroke(Ink, 1), Sparkle);
+        }
     }
 
     // Réglages : l'engrenage monte depuis le bas puis tourne en continu
