@@ -20,10 +20,14 @@ echo $API_PID > "$RUNDIR/api.pid"
 echo "Backend API demarre (PID: $API_PID)"
 
 echo "[Alyx] Demarrage du Micro-service STT..."
-nohup "$DIR/.venv/bin/python" "$DIR/stt_server.py" > "$LOGDIR/stt.log" 2>&1 &
+STT_PYTHON="$DIR/.venv_stt/bin/python"
+if [ ! -x "$STT_PYTHON" ]; then
+    STT_PYTHON="$DIR/.venv/bin/python"
+fi
+nohup "$STT_PYTHON" "$DIR/stt_server.py" > "$LOGDIR/stt.log" 2>&1 &
 STT_PID=$!
 echo $STT_PID > "$RUNDIR/stt.pid"
-echo "STT demarre (PID: $STT_PID)"
+echo "STT demarre (PID: $STT_PID via $STT_PYTHON)"
 
 sleep 2
 

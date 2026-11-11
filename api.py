@@ -66,6 +66,7 @@ class Session:
         self.pending = None
         self.metrics_task = None
         self.tps = None  # débit du dernier tour (tokens/s)
+        self.context = None
 
     def occupee(self):
         return self.task is not None and not self.task.done()
@@ -198,14 +199,24 @@ def _compiler_note_faits_cles(faits: list[str], max_tokens: int = 400) -> str:
     if estimer_tokens_texte(note) <= max_tokens:
         return note
 
-    # Élagage itératif des faits les plus anciens (on conserve les k plus récents)
-    for k in range(len(faits) - 1, 0, -1):
-        nb_omis = len(faits) - k
+    # Recherche dichotomique O(log K) du nombre maximal k de faits récents conservés
+    low = 1
+    high = len(faits) - 1
+    best_note = None
+    while low <= high:
+        mid = (low + high) // 2
+        nb_omis = len(faits) - mid
         lignes = [f"• [... {nb_omis} échanges antérieurs plus anciens archivés ...]"]
-        lignes.extend(f"• {f}" for f in faits[-k:])
-        note = header + "\n".join(lignes)
-        if estimer_tokens_texte(note) <= max_tokens:
-            return note
+        lignes.extend(f"• {f}" for f in faits[-mid:])
+        candidat = header + "\n".join(lignes)
+        if estimer_tokens_texte(candidat) <= max_tokens:
+            best_note = candidat
+            low = mid + 1
+        else:
+            high = mid - 1
+
+    if best_note:
+        return best_note
 
     # Si même un seul fait ne rentre pas, tester uniquement la ligne d'archivage
     lignes = [f"• [... {len(faits)} échanges antérieurs plus anciens archivés ...]"]
@@ -216,7 +227,7 @@ def _compiler_note_faits_cles(faits: list[str], max_tokens: int = 400) -> str:
     return ""
 
 
-def _messages_avec_fenetre(etat_systeme=None, tools=None):
+def _messages_avec_fenetre(etat_systeme=None, tools=None, ctx=None):
     # Prompt système reconstruit à chaque tour : langue choisie dans les réglages + ancrage temporel
     maintenant = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     contenu_systeme = ai.prompt_systeme(preferences.charger()['language'], timestamp=maintenant)
@@ -231,9 +242,11 @@ def _messages_avec_fenetre(etat_systeme=None, tools=None):
 
     tokens_systeme_base = estimer_tokens_message(system_prompt)
     tokens_systeme = tokens_systeme_base
-    BUDGET_MAX_OUTILS = 1000
-    if tools and estimer_tokens_outils(tools) > BUDGET_MAX_OUTILS:
-        while len(tools) > 1 and estimer_tokens_outils(tools) > BUDGET_MAX_OUTILS:
+    cfg_tools = preferences.get_tools_config()
+    cfg_context = preferences.get_context_config()
+    budget_max_outils = int(cfg_tools.get('budget_max_outils', 1000))
+    if tools and estimer_tokens_outils(tools) > budget_max_outils:
+        while len(tools) > 1 and estimer_tokens_outils(tools) > budget_max_outils:
             tools.pop()
     tokens_tools = estimer_tokens_outils(tools) if tools else 0
 
@@ -242,42 +255,41 @@ def _messages_avec_fenetre(etat_systeme=None, tools=None):
     if not tours:
         return [system_prompt]
 
-    # Découpage : les 2 derniers tours forment la fenêtre verbatim (Tier 3)
-    NB_TOURS_RECENTS_VERBATIM = 2
-    idx_separation = max(0, len(tours) - NB_TOURS_RECENTS_VERBATIM)
+    # Découpage : les derniers tours forment la fenêtre verbatim (Tier 3, B.4.1)
+    nb_tours_recents = int(cfg_context.get('nb_tours_recents_verbatim', 2))
+    idx_separation = max(0, len(tours) - nb_tours_recents)
     anciens_tours = [[dict(m) for m in t] for t in tours[:idx_separation]]
     recents_tours = [[dict(m) for m in t] for t in tours[idx_separation:]]
 
-    def _tokens_des_tours(liste_tours):
-        return sum(sum(estimer_tokens_message(m) for m in t) for t in liste_tours)
+    def _estimer_tokens_rapide(m):
+        c = m.get('content')
+        return 4 + (len(c) + 3) // 4 if m.get('role') == 'tool' and isinstance(c, str) and len(c) > 15000 else estimer_tokens_message(m)
 
-    def _nb_messages_total():
-        return sum(len(t) for t in anciens_tours) + sum(len(t) for t in recents_tours)
+    def _tokens_des_tours(liste_tours):
+        return sum(sum(_estimer_tokens_rapide(m) for m in t) for t in liste_tours)
+
+    nb_messages_total = sum(len(t) for t in anciens_tours) + sum(len(t) for t in recents_tours)
+
+    # Tier 1 : Compactage des outils dans les tours anciens
+    for t in anciens_tours:
+        for msg in t:
+            if msg.get('role') == 'tool':
+                msg['content'] = _condenser_retour_outil(msg.get('name') or msg.get('tool_name', ''), msg.get('content', ''))
 
     tokens_anciens = _tokens_des_tours(anciens_tours)
     tokens_recents = _tokens_des_tours(recents_tours)
     total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
 
-    # Tier 1 : Compactage des outils dans les tours anciens
-    if anciens_tours:
-        for t in anciens_tours:
-            for msg in t:
-                if msg.get('role') == 'tool':
-                    msg['content'] = _condenser_retour_outil(
-                        msg.get('name') or msg.get('tool_name', ''),
-                        msg.get('content', '')
-                    )
-        tokens_anciens = _tokens_des_tours(anciens_tours)
-        total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
-
     # Tier 2 : Éviction progressive des tours anciens et mémorisation des faits
     faits_evinces = []
-    while (total_tokens > MAX_INPUT_TOKENS or _nb_messages_total() > MAX_CONTEXT_MESSAGES) and anciens_tours:
+    while (total_tokens > MAX_INPUT_TOKENS or nb_messages_total > MAX_CONTEXT_MESSAGES) and anciens_tours:
         tour_a_evincer = anciens_tours.pop(0)
         fait = _resumer_tour_evince(tour_a_evincer)
         faits_evinces.append(fait)
-        tokens_anciens = _tokens_des_tours(anciens_tours)
-        total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+        t_tokens = sum(estimer_tokens_message(m) for m in tour_a_evincer)
+        tokens_anciens -= t_tokens
+        total_tokens -= t_tokens
+        nb_messages_total -= len(tour_a_evincer)
 
     note_faits = ""
     if faits_evinces:
@@ -289,12 +301,14 @@ def _messages_avec_fenetre(etat_systeme=None, tools=None):
             total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
 
         # Si l'ajout de la note fait dépasser le budget, continuer d'évincer les anciens tours
-        while (total_tokens > MAX_INPUT_TOKENS or _nb_messages_total() > MAX_CONTEXT_MESSAGES) and anciens_tours:
+        while (total_tokens > MAX_INPUT_TOKENS or nb_messages_total > MAX_CONTEXT_MESSAGES) and anciens_tours:
             tour_a_evincer = anciens_tours.pop(0)
             fait = _resumer_tour_evince(tour_a_evincer)
             faits_evinces.append(fait)
-            tokens_anciens = _tokens_des_tours(anciens_tours)
-            total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+            t_tokens = sum(estimer_tokens_message(m) for m in tour_a_evincer)
+            tokens_anciens -= t_tokens
+            total_tokens -= t_tokens
+            nb_messages_total -= len(tour_a_evincer)
 
         # Si anciens_tours est vide et que total_tokens dépasse encore, réduire note_faits
         if total_tokens > MAX_INPUT_TOKENS:
@@ -312,13 +326,15 @@ def _messages_avec_fenetre(etat_systeme=None, tools=None):
             total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
 
     # Filet de sécurité d'urgence : si même les tours récents dépassent (Tier 3)
-    if total_tokens > MAX_INPUT_TOKENS or _nb_messages_total() > MAX_CONTEXT_MESSAGES:
-        while (total_tokens > MAX_INPUT_TOKENS or _nb_messages_total() > MAX_CONTEXT_MESSAGES) and len(recents_tours) > 1:
+    if total_tokens > MAX_INPUT_TOKENS or nb_messages_total > MAX_CONTEXT_MESSAGES:
+        while (total_tokens > MAX_INPUT_TOKENS or nb_messages_total > MAX_CONTEXT_MESSAGES) and len(recents_tours) > 1:
             tour_evince = recents_tours.pop(0)
             fait = _resumer_tour_evince(tour_evince)
             faits_evinces.append(fait)
-            tokens_recents = _tokens_des_tours(recents_tours)
-            total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
+            t_tokens = sum(estimer_tokens_message(m) for m in tour_evince)
+            tokens_recents -= t_tokens
+            total_tokens -= t_tokens
+            nb_messages_total -= len(tour_evince)
 
         # Si l'éviction de tours récents a libéré de l'espace pour note_faits, la rétablir/ajuster
         if faits_evinces:
@@ -340,11 +356,8 @@ def _messages_avec_fenetre(etat_systeme=None, tools=None):
         for t in recents_tours:
             for m in t:
                 if m.get('role') == 'tool':
-                    m['content'] = _condenser_retour_outil(
-                        m.get('name') or m.get('tool_name', ''),
-                        m.get('content', '')
-                    )
-        tokens_recents = _tokens_des_tours(recents_tours)
+                    m['content'] = _condenser_retour_outil(m.get('name') or m.get('tool_name', ''), m.get('content', ''))
+        tokens_recents = sum(sum(estimer_tokens_message(m) for m in t) for t in recents_tours)
         total_tokens = tokens_systeme + tokens_tools + tokens_anciens + tokens_recents
 
         if total_tokens > MAX_INPUT_TOKENS:
@@ -394,12 +407,83 @@ def _messages_avec_fenetre(etat_systeme=None, tools=None):
 
     optimized = [system_prompt]
     for i, msg in enumerate(messages_retenus):
-        if i == last_user_idx and etat_systeme and msg.get('role') == 'user':
+        if i == last_user_idx and msg.get('role') == 'user':
             msg_augmente = dict(msg)
-            msg_augmente['content'] = f"{msg.get('content', '')}\n\n[Contexte matériel actuel : {etat_systeme}]"
+            blocs_contexte = []
+            if etat_systeme:
+                blocs_contexte.append(f"Contexte matériel actuel : {etat_systeme}")
+            if ctx:
+                fen = ctx.get('fenetre_active') or {}
+                if fen.get('titre'):
+                    blocs_contexte.append(f"Fenêtre active : « {fen['titre']} » ({fen.get('processus', 'inconnu')})")
+                clip = ctx.get('presse_papiers')
+                if clip:
+                    blocs_contexte.append(f"Presse-papiers : « {clip[:400]} »")
+            if blocs_contexte:
+                msg_augmente['content'] = f"{msg.get('content', '')}\n\n[{' | '.join(blocs_contexte)}]"
             optimized.append(msg_augmente)
         else:
             optimized.append(msg)
+
+    total_tokens = sum(estimer_tokens_message(m) for m in optimized) + tokens_tools
+    if total_tokens > MAX_INPUT_TOKENS:
+        if note_faits:
+            ancien_sys = estimer_tokens_message(optimized[0])
+            optimized[0] = {'role': 'system', 'content': contenu_systeme}
+            total_tokens += (estimer_tokens_message(optimized[0]) - ancien_sys)
+
+        outils_deja_condenses = set()
+
+        # 1. Éviction atomique des tours de conversation antérieurs si plusieurs tours subsistent
+        if total_tokens > MAX_INPUT_TOKENS:
+            tours = _partitionner_en_tours(optimized[1:])
+            if len(tours) > 1:
+                msgs_a_supprimer = 0
+                for t in tours[:-1]:
+                    t_tokens = sum(estimer_tokens_message(m) for m in t)
+                    total_tokens -= t_tokens
+                    msgs_a_supprimer += len(t)
+                    if total_tokens <= MAX_INPUT_TOKENS:
+                        break
+                del optimized[1:1 + msgs_a_supprimer]
+
+        while total_tokens > MAX_INPUT_TOKENS:
+            depassement = total_tokens - MAX_INPUT_TOKENS
+
+            # 2. Condensation des retours d'outils volumineux au sein du tour actif (au plus une fois par outil)
+            outil_volumineux = next(
+                (m for m in optimized if m.get('role') == 'tool' and id(m) not in outils_deja_condenses and len(str(m.get('content', ''))) > 150),
+                None
+            )
+            if outil_volumineux:
+                outils_deja_condenses.add(id(outil_volumineux))
+                ancien_t = estimer_tokens_message(outil_volumineux)
+                outil_volumineux['content'] = _condenser_retour_outil(
+                    outil_volumineux.get('name') or outil_volumineux.get('tool_name', ''),
+                    outil_volumineux.get('content', '')
+                )
+                nouveau_t = estimer_tokens_message(outil_volumineux)
+                total_tokens += (nouveau_t - ancien_t)
+                continue
+
+            # 3. Réduction progressive de l'invite utilisateur active si elle est longue (> 50 car.)
+            user_msg = next((m for m in reversed(optimized) if m.get('role') == 'user'), None)
+            if user_msg and isinstance(user_msg.get('content'), str) and len(user_msg['content']) > 50:
+                ancien_t = estimer_tokens_message(user_msg)
+                caracteres_a_couper = max(20, depassement * 4 + 20)
+                nouveau_contenu = user_msg['content'][:-caracteres_a_couper].rstrip()
+                user_msg['content'] = nouveau_contenu + "\n[... tronqué ...]" if nouveau_contenu else "\n[... tronqué ...]"
+                nouveau_t = estimer_tokens_message(user_msg)
+                total_tokens += (nouveau_t - ancien_t)
+            # 4. Élagage des métadonnées contextuelles injectées (blocs_contexte) si l'invite est courte (<= 50 car.)
+            elif user_msg and isinstance(user_msg.get('content'), str) and "\n\n[" in user_msg['content']:
+                ancien_t = estimer_tokens_message(user_msg)
+                user_msg['content'] = user_msg['content'].split("\n\n[")[0].rstrip()
+                nouveau_t = estimer_tokens_message(user_msg)
+                total_tokens += (nouveau_t - ancien_t)
+            else:
+                # Filet de sécurité ultime : impossible de réduire davantage sans violer B.7 ou briser le cadrage
+                break
 
     return optimized
 
@@ -613,6 +697,7 @@ async def _terminer(session):
         history.sauvegarder_etat_session(messages, session_id=session_id)
     except Exception as e:
         logger.debug(f'Erreur enregistrement historique: {e}')
+    session.context = None
     await session.envoyer({"type": "done", "tps": session.tps, "provider": get_model_provider(ai.MODEL)})
 
 def restaurer_etat_session(session_id: str = "session_active") -> int:
@@ -647,7 +732,7 @@ async def _executer_tour(session, vocal, iteration=0):
     etat_tour = await _etat_systeme() if ai.besoin_etat_systeme(dernier_user) else None
     while True:
         tools = outils_tour if iteration < MAX_ITERATIONS_OUTILS else None
-        contexte = _messages_avec_fenetre(etat_tour, tools=tools)
+        contexte = _messages_avec_fenetre(etat_tour, tools=tools, ctx=getattr(session, 'context', None))
         contenu, tool_calls, annule = await _stream_llm(session, model, contexte, tools, vocal)
 
         if annule:
@@ -674,7 +759,7 @@ def _abandonner_attente(session):
             _ajouter_resultat(tool_call, "Action non validée par l'utilisateur (abandonnée).")
 
 async def handle_chat(session, data):
-    user_input = str(data.get('prompt') or '').strip()
+    user_input = (data.get('prompt') or '').strip()
     mode_vocal = bool(data.get('vocal', False))
 
     if mode_vocal and not user_input:
@@ -688,6 +773,13 @@ async def handle_chat(session, data):
     if not user_input:
         await session.envoyer({"type": "done"})
         return
+
+    # Conscience contextuelle à l'invocation (B.8.6)
+    from core.context import capturer_contexte_invocation
+    ctx = data.get('context')
+    if not ctx and preferences.charger_config().get('context_awareness', {}).get('enabled', True):
+        ctx = await asyncio.to_thread(capturer_contexte_invocation)
+    session.context = ctx
 
     _abandonner_attente(session)
 
@@ -757,9 +849,13 @@ def _arreter_stt():
 
 # --- WIDGET : MÉTRIQUES, PROCESSUS, MODÈLES ---
 async def _boucle_metriques(session):
-    """Envoie les métriques système chaque seconde tant que le menu du widget est ouvert."""
+    """Envoie les métriques système tant que le menu du widget est ouvert, espacé en mode gaming (B.8.5)."""
+    from core.focus_gaming import est_focus_gaming_actif
     try:
         while True:
+            if est_focus_gaming_actif():
+                await asyncio.sleep(30)
+                continue
             snapshot = await asyncio.to_thread(system_monitor.snapshot)
             payload = {
                 "type": "metrics",
@@ -877,9 +973,30 @@ def _tester_micro():
     }
 
 
+from websockets.http11 import Response as HttpResponse, Headers as HttpHeaders
+
+_start_time = time.time()
+_backend_pret = threading.Event()
+
+def is_backend_ready() -> bool:
+    """Indique si le backend et ses modèles sont prêts (B.3.2)."""
+    return _backend_pret.is_set()
+
+_sessions_actives: set = set()
+
+async def diffuser_evenement_global(payload: dict):
+    """Diffuse un événement JSON à toutes les interfaces clientes connectées."""
+    for session in list(_sessions_actives):
+        try:
+            await session.envoyer(payload)
+        except Exception:
+            pass
+
+
 async def handler_client(websocket):
     logger.info("Interface C# connectée.")
     session = Session(websocket)
+    _sessions_actives.add(session)
 
     try:
         async for message_brut in websocket:
@@ -984,6 +1101,13 @@ async def handler_client(websocket):
                     }
                 })
 
+            elif msg_type == 'get_ready':
+                await session.envoyer({
+                    "type": "ready",
+                    "ready": _backend_pret.is_set(),
+                    "model": ai.MODEL
+                })
+
             elif msg_type == 'select_model':
                 new_model = data.get('model', '')
                 if new_model:
@@ -1001,6 +1125,7 @@ async def handler_client(websocket):
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
+        _sessions_actives.discard(session)
         logger.info("Interface C# déconnectée.")
         session.cancel.set()
         if session.occupee():
@@ -1009,6 +1134,124 @@ async def handler_client(websocket):
             session.metrics_task.cancel()
         # Pas de tool_call orphelin dans l'historique (sinon erreur 400 des API OpenAI-compatibles)
         _abandonner_attente(session)
+
+async def _boucle_surveillance_rappels():
+    """Vérifie périodiquement les rappels locaux échus et alerte l'utilisateur (B.8.3)."""
+    from function.reminders import verifier_rappels_imminents
+    while True:
+        try:
+            echus = await asyncio.to_thread(verifier_rappels_imminents)
+            for r in echus:
+                msg = f"Rappel : {r.get('texte')}"
+                logger.info(f"Déclenchement du rappel [ID: {r.get('id')}] : {msg}")
+                await diffuser_evenement_global({
+                    "type": "reminder_due",
+                    "id": r.get("id"),
+                    "text": r.get("texte"),
+                    "due": r.get("echeance"),
+                })
+                if preferences.charger().get('speak_all', False):
+                    faire_parler(msg)
+        except Exception as e:
+            logger.warning(f"Erreur vérification rappels: {e}")
+        await asyncio.sleep(5)
+
+
+async def _boucle_surveillance_focus_gaming():
+    """Surveille les applications plein écran pour suspendre les routines et libérer la VRAM (B.8.5)."""
+    from core.focus_gaming import evaluer_changement_focus
+    cfg = preferences.charger_config().get('focus_gaming', {})
+    if not cfg.get('enabled', True):
+        return
+    intervalle = cfg.get('check_interval_seconds', 5)
+    auto_unload = cfg.get('auto_unload_vram', True)
+
+    while True:
+        try:
+            changement, actif, nom_proc = await asyncio.to_thread(evaluer_changement_focus, auto_unload)
+            if changement:
+                await diffuser_evenement_global({
+                    "type": "focus_gaming",
+                    "active": actif,
+                    "process": nom_proc,
+                    "vram_unloaded": actif and auto_unload,
+                })
+        except Exception as e:
+            logger.debug(f"Erreur surveillance focus gaming: {e}")
+        await asyncio.sleep(intervalle)
+
+
+async def process_http_request(connection, request):
+    """
+    Gestionnaire HTTP REST léger multiplexé sur le serveur WebSocket (B.1.3, B.3.2, B.4.2).
+    Intercepte les requêtes GET sur /api/ready et /api/status.
+    Renvoie None pour toute autre requête afin de laisser le protocole WebSocket opérer.
+    """
+    path = getattr(request, 'path', '')
+    if not path.startswith('/api/'):
+        return None
+
+    clean_path = path.split('?')[0].rstrip('/')
+
+    if clean_path in ('/api/ready', '/api/v1/ready'):
+        pret = _backend_pret.is_set()
+        code = 200 if pret else 503
+        phrase = "OK" if pret else "Service Unavailable"
+        corps = json.dumps({
+            "ready": pret,
+            "model": ai.MODEL
+        }).encode('utf-8')
+        headers = HttpHeaders([
+            ('Content-Type', 'application/json'),
+            ('Content-Length', str(len(corps))),
+            ('Access-Control-Allow-Origin', '*'),
+        ])
+        return HttpResponse(code, phrase, headers, corps)
+
+    if clean_path in ('/api/status', '/api/v1/status'):
+        # Polling rapide et non-bloquant de STT
+        stt_health = await asyncio.to_thread(_appel_stt, '/health', timeout=0.5)
+        stt_online = isinstance(stt_health, dict) and stt_health.get('status') == 'ok'
+        stt_model_ready = stt_health.get('model_ready', False) if isinstance(stt_health, dict) else False
+
+        # Métriques GPU / VRAM via NVML
+        vram_data = system_monitor._gpu() or {}
+
+        # Mémoire système (psutil)
+        mem = psutil.virtual_memory()
+        mem_data = {
+            "percent": mem.percent,
+            "used_gb": round(mem.used / 1024**3, 1),
+            "total_gb": round(mem.total / 1024**3, 1)
+        }
+
+        uptime = round(time.time() - _start_time, 2)
+
+        data = {
+            "status": "ok",
+            "backend_ready": _backend_pret.is_set(),
+            "model": ai.MODEL,
+            "providers": get_provider_status(),
+            "stt_ready": stt_online and stt_model_ready,
+            "stt": {
+                "status": "online" if stt_online else "offline",
+                "model_ready": stt_model_ready,
+                "url": STT_URL
+            },
+            "vram": vram_data,
+            "memory": mem_data,
+            "uptime": uptime
+        }
+        corps = json.dumps(data).encode('utf-8')
+        headers = HttpHeaders([
+            ('Content-Type', 'application/json'),
+            ('Content-Length', str(len(corps))),
+            ('Access-Control-Allow-Origin', '*'),
+        ])
+        return HttpResponse(200, "OK", headers, corps)
+
+    return None
+
 
 async def demarrer_serveur_alyx():
     global _arret
@@ -1038,18 +1281,31 @@ async def demarrer_serveur_alyx():
             try:
                 urllib.request.urlopen(f"{STT_URL}/health", timeout=1)
                 logger.info("Service STT prêt.")
-                return
+                break
             except Exception:
                 time.sleep(delai)
                 delai = min(delai * 2, 2)
-        logger.warning("Service STT injoignable : le mode vocal sera indisponible.")
+        else:
+            logger.warning("Service STT injoignable : le mode vocal sera indisponible.")
+
+        _backend_pret.set()
+        logger.info("Backend Alyx prêt (exposé sur /api/ready et /api/status).")
 
     threading.Thread(target=_preload, daemon=True).start()
 
-    logger.info(f"---> Serveur WebSocket Alyx démarré sur ws://127.0.0.1:{PORT}")
+    asyncio.create_task(_boucle_surveillance_rappels())
+    asyncio.create_task(_boucle_surveillance_focus_gaming())
+
+    logger.info(f"---> Serveur WebSocket & REST Alyx démarré sur http://127.0.0.1:{PORT}")
     # origins=[None] : seuls les clients sans en-tête Origin (l'UI C#) sont acceptés.
     # Les navigateurs envoient toujours Origin, ce qui bloque le Cross-Site WebSocket Hijacking.
-    async with websockets.serve(handler_client, "127.0.0.1", PORT, origins=[None]):
+    async with websockets.serve(
+        handler_client,
+        "127.0.0.1",
+        PORT,
+        origins=[None],
+        process_request=process_http_request
+    ):
         await _arret.wait()
 
 if __name__ == "__main__":

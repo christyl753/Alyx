@@ -13,9 +13,12 @@ call :arreter "%RUNDIR%\stt.pid" "stt_server.py" "STT"
 call :arreter "%RUNDIR%\api.pid" "api.py" "Backend API"
 
 :: Filet de securite si le PID pointait vers 'dotnet run' (l'executable final est un enfant)
-taskkill /IM AlyxDesktop.exe /T /F >nul 2>&1
+taskkill /IM AlyxDesktop.exe /T >nul 2>&1
+timeout /t 1 /nobreak >nul
+tasklist /FI "IMAGENAME eq AlyxDesktop.exe" 2>nul | findstr /I /C:"AlyxDesktop.exe" >nul 2>&1
 if not errorlevel 1 (
-    echo [OK] AlyxDesktop ferme de force.
+    taskkill /IM AlyxDesktop.exe /T /F >nul 2>&1
+    if not errorlevel 1 echo [OK] AlyxDesktop ferme (force).
 )
 
 echo.
@@ -41,11 +44,25 @@ if errorlevel 1 (
     exit /b 0
 )
 
-echo [Alyx] Arret : %~3 (PID: %PID%).
-taskkill /PID %PID% /T /F >nul 2>&1
+echo [Alyx] Arret : %~3 (PID: %PID%)...
+:: Palier 1 : Demande d'arret gracieux (sans /F - B.7.3)
+taskkill /PID %PID% /T >nul 2>&1
+
+:: Attente courte de 2 secondes pour permettre aux processus de terminer leurs E/S proprement
+timeout /t 2 /nobreak >nul
+
+:: Verification si le processus est toujours actif
+tasklist /FI "PID eq %PID%" 2>nul | findstr /C:"%PID%" >nul 2>&1
 if not errorlevel 1 (
-    echo [OK] %~3 arrete.
+    :: Palier 2 : Arret force si le processus persiste
+    echo [Alyx] %~3 ne repond pas apres 2s, arret force (SIGKILL)...
+    taskkill /PID %PID% /T /F >nul 2>&1
+    if not errorlevel 1 (
+        echo [OK] %~3 arrete (force).
+    ) else (
+        echo [!] Echec de l'arret force : %~3.
+    )
 ) else (
-    echo [!] Echec de l'arret : %~3.
+    echo [OK] %~3 arrete proprement.
 )
 exit /b 0

@@ -1,0 +1,37 @@
+# Maintainer: Alyx Maintainers <support@alyx.local>
+pkgname=alyx-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Sovereign AI desktop companion - air-gapped, local and autonomous"
+arch=('x86_64' 'aarch64')
+url="https://github.com/christyl753/Alyx"
+license=('MIT')
+depends=('dotnet-runtime-8.0' 'python' 'python-pip')
+optdepends=('ollama: Local LLM backend support')
+provides=('alyx')
+conflicts=('alyx')
+
+package() {
+    install -d "${pkgdir}/opt/alyx"
+    install -d "${pkgdir}/usr/bin"
+    install -d "${pkgdir}/usr/share/applications"
+
+    cp -r "${srcdir}"/* "${pkgdir}/opt/alyx/" 2>/dev/null || true
+
+    cat << 'EOF' > "${pkgdir}/usr/bin/alyx"
+#!/usr/bin/env bash
+exec /opt/alyx/bin/AlyxDesktop "$@"
+EOF
+    chmod 755 "${pkgdir}/usr/bin/alyx"
+
+    cat << 'EOF' > "${pkgdir}/usr/share/applications/alyx.desktop"
+[Desktop Entry]
+Name=Alyx
+Comment=Sovereign AI desktop companion
+Exec=/usr/bin/alyx
+Icon=alyx
+Terminal=false
+Type=Application
+Categories=Utility;
+EOF
+}

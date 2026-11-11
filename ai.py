@@ -42,12 +42,21 @@ from function import (
     executer_commande_systeme,
     rechercher_ou_jouer_media,
     lire_presse_papiers,
+    copier_presse_papiers,
     diagnostiquer_reseau,
     reparer_reseau,
     nettoyer_caches,
     analyser_telechargements,
     mettre_a_jour_logiciels,
+    creer_rappel,
+    lister_rappels,
+    supprimer_rappel,
+    ajouter_note_rapide,
+    lister_notes_rapides,
+    lire_note_rapide,
+    supprimer_note_rapide,
 )
+from core.context import obtenir_fenetre_active
 
 from core.llm_provider import (
     chat_with_provider,
@@ -63,6 +72,15 @@ outils_disponibles = {
     'fermer_application': fermer_application,
     'rechercher_ou_jouer_media': rechercher_ou_jouer_media,
     'lire_presse_papiers': lire_presse_papiers,
+    'copier_presse_papiers': copier_presse_papiers,
+    'creer_rappel': creer_rappel,
+    'lister_rappels': lister_rappels,
+    'supprimer_rappel': supprimer_rappel,
+    'ajouter_note_rapide': ajouter_note_rapide,
+    'lister_notes_rapides': lister_notes_rapides,
+    'lire_note_rapide': lire_note_rapide,
+    'supprimer_note_rapide': supprimer_note_rapide,
+    'obtenir_fenetre_active': obtenir_fenetre_active,
     'rechercher_processus': rechercher_processus,
     'lister_services': lister_services,
     'gerer_service': gerer_service,
@@ -203,6 +221,36 @@ ALIAS_OUTILS: dict[str, str] = {
 
     'web_search': 'rechercher_web',
     'search_web': 'rechercher_web',
+
+    # Rappels & Notes (B.8.3)
+    'create_reminder': 'creer_rappel',
+    'add_reminder': 'creer_rappel',
+    'rappel': 'creer_rappel',
+    'nouveau_rappel': 'creer_rappel',
+    'list_reminders': 'lister_rappels',
+    'get_reminders': 'lister_rappels',
+    'rappels': 'lister_rappels',
+    'delete_reminder': 'supprimer_rappel',
+    'remove_reminder': 'supprimer_rappel',
+
+    'add_note': 'ajouter_note_rapide',
+    'create_note': 'ajouter_note_rapide',
+    'quick_note': 'ajouter_note_rapide',
+    'nouvelle_note': 'ajouter_note_rapide',
+    'note': 'ajouter_note_rapide',
+    'list_notes': 'lister_notes_rapides',
+    'get_notes': 'lister_notes_rapides',
+    'notes': 'lister_notes_rapides',
+    'read_note': 'lire_note_rapide',
+    'get_note': 'lire_note_rapide',
+    'view_note': 'lire_note_rapide',
+    'delete_note': 'supprimer_note_rapide',
+    'remove_note': 'supprimer_note_rapide',
+
+    'copy_clipboard': 'copier_presse_papiers',
+    'set_clipboard': 'copier_presse_papiers',
+    'copier': 'copier_presse_papiers',
+    'get_active_window': 'obtenir_fenetre_active',
 }
 
 ARG_ALIASES: dict[str, dict[str, str]] = {
@@ -265,6 +313,47 @@ ARG_ALIASES: dict[str, dict[str, str]] = {
         'new_name': 'nouveau_nom',
         'name': 'nouveau_nom',
     },
+    'creer_rappel': {
+        'message': 'texte',
+        'rappel': 'texte',
+        'content': 'texte',
+        'delai': 'delai_minutes',
+        'minutes': 'delai_minutes',
+        'time': 'date_heure',
+        'date': 'date_heure',
+    },
+    'supprimer_rappel': {
+        'id': 'rappel_id',
+        'id_rappel': 'rappel_id',
+    },
+    'ajouter_note_rapide': {
+        'title': 'titre',
+        'text': 'contenu',
+        'content': 'contenu',
+        'body': 'contenu',
+        'tag': 'etiquette',
+        'category': 'etiquette',
+    },
+    'lister_notes_rapides': {
+        'tag': 'etiquette',
+        'category': 'etiquette',
+        'count': 'limite',
+        'max': 'limite',
+    },
+    'lire_note_rapide': {
+        'id': 'titre_ou_id',
+        'title': 'titre_ou_id',
+        'name': 'titre_ou_id',
+    },
+    'supprimer_note_rapide': {
+        'id': 'titre_ou_id',
+        'title': 'titre_ou_id',
+    },
+    'copier_presse_papiers': {
+        'text': 'texte',
+        'content': 'texte',
+        'valeur': 'texte',
+    },
 }
 
 
@@ -325,7 +414,7 @@ _DOMAINES_OUTILS = (
         ),
         (controler_media, rechercher_ou_jouer_media, ouvrir_application, fermer_application),
     ),
-    # Presse-papiers
+    # Presse-papiers (lecture & copie - B.8.3)
     (
         re.compile(
             r'\b(?:presse[- ]papiers?|clipboard|portapapeles|zwischenablage|'
@@ -333,7 +422,36 @@ _DOMAINES_OUTILS = (
             r'colle[rzs]?|paste|pega[rn]?|einf(?:[uü]|ue)g[a-z]*)\b',
             re.IGNORECASE,
         ),
-        (lire_presse_papiers,),
+        (copier_presse_papiers, lire_presse_papiers),
+    ),
+    # Rappels programmés (B.8.3)
+    (
+        re.compile(
+            r'\b(?:rappels?|reminders?|recordatorios?|erinnerung(?:en)?|'
+            r'rappelle[rzs]?|remind|recu[eé]rda[rn]?|erinner[a-z]*|'
+            r'alarme?s?|alarm(?:en)?|minuteur|timer|compte [aà] rebours)\b',
+            re.IGNORECASE,
+        ),
+        (creer_rappel, lister_rappels, supprimer_rappel),
+    ),
+    # Notes rapides (B.8.3)
+    (
+        re.compile(
+            r'\b(?:notes? rapides?|quick\s*notes?|notas? r[aá]pidas?|kurze\s*notizen?|m[eé]mo[s]?|pense[- ]b[eê]te|carnet)\b|'
+            r'(?<!bloc[- ])(?<!bloc de )(?<!bloc )\b(?:notes?|notizen?|note[rzs]?|noter|apunt[a-z]*|notier[a-z]*|aufschreib[a-z]*)\b|'
+            r'(?<!bloc de )\bnotas?\b',
+            re.IGNORECASE,
+        ),
+        (ajouter_note_rapide, lister_notes_rapides, lire_note_rapide, supprimer_note_rapide),
+    ),
+    # Contexte & Fenêtre active (B.8.6)
+    (
+        re.compile(
+            r'\b(?:fen[eê]tre active|active window|foreground window|'
+            r'application active|programme actif|sur quoi je travaille)\b',
+            re.IGNORECASE,
+        ),
+        (obtenir_fenetre_active, lister_apps_actives),
     ),
     # Télémétrie
     (
@@ -587,8 +705,19 @@ _KIT_BASE_POLYVALENT = [
     rechercher_processus,
 ]
 
-MAX_OUTILS_ROUTAGE = 6
-BUDGET_MAX_OUTILS = 1000
+def _charger_tools_config() -> dict:
+    try:
+        from core.preferences import get_tools_config
+        return get_tools_config()
+    except Exception:
+        return {
+            'budget_max_outils': 1000,
+            'max_outils_routage': 6,
+        }
+
+_tools_init = _charger_tools_config()
+MAX_OUTILS_ROUTAGE = _tools_init['max_outils_routage']
+BUDGET_MAX_OUTILS = _tools_init['budget_max_outils']
 
 _REGEX_BESOIN_ETAT_SYSTEME = re.compile(
     r'\b(?:cpu|processeur|processor|procesador|prozessor[a-z]*|coeurs?|cores?|'
@@ -616,8 +745,13 @@ def _load_cached_config():
 
 def selectionner_outils_pertinents(user_input: str) -> list:
     """Selectionne le sous-ensemble d'outils pertinent pour la requete utilisateur."""
-    if not _load_cached_config().get('llm_provider', {}).get('dynamic_tool_routing', True):
+    cfg = _load_cached_config()
+    if not cfg.get('llm_provider', {}).get('dynamic_tool_routing', True):
         return LISTE_FONCTIONS
+
+    tools_cfg = cfg.get('tools', {})
+    max_outils = int(tools_cfg.get('max_outils_routage', MAX_OUTILS_ROUTAGE))
+    budget_max = int(tools_cfg.get('budget_max_outils', BUDGET_MAX_OUTILS))
 
     texte = str(user_input or "")
     selection = []
@@ -628,16 +762,16 @@ def selectionner_outils_pertinents(user_input: str) -> list:
                 if fn not in vus:
                     vus.add(fn)
                     selection.append(fn)
-                    if len(selection) >= MAX_OUTILS_ROUTAGE:
+                    if len(selection) >= max_outils:
                         break
-        if len(selection) >= MAX_OUTILS_ROUTAGE:
+        if len(selection) >= max_outils:
             break
 
     if not selection:
         selection = list(_KIT_BASE_POLYVALENT)
 
     from core.token_counter import estimer_tokens_outils
-    while len(selection) > 1 and estimer_tokens_outils(selection) > BUDGET_MAX_OUTILS:
+    while len(selection) > 1 and estimer_tokens_outils(selection) > budget_max:
         selection.pop()
 
     return selection

@@ -432,32 +432,58 @@ def _fermeture_socket(resp):
     """
     Coupe une réponse HTTP streamée depuis n'importe quel thread, sans bloquer.
     (resp.close() appelé depuis un autre thread attend la fin de la lecture en cours.)
+    Marque la fermeture comme volontaire pour ne pas déclencher le circuit breaker.
     """
-    # Socket portée par le flux de la réponse (toujours présente pendant le streaming,
-    # même si http.client l'a détachée de la connexion), sinon celle de la connexion keep-alive
-    fp = getattr(getattr(getattr(resp.raw, '_fp', None), 'fp', None), 'raw', None)
-    sock = getattr(fp, '_sock', None) or getattr(getattr(resp.raw, '_connection', None), 'sock', None)
+    sock = None
+    try:
+        raw = resp.raw
+        sock = getattr(raw, '_sock', None)
+        if sock is None:
+            fp = getattr(raw, '_fp', None)
+            sock = getattr(fp, '_sock', None)
+            if sock is None:
+                raw_sock = getattr(fp, 'raw', None)
+                sock = getattr(raw_sock, '_sock', None)
+    except Exception:
+        pass
+    if sock is None:
+        fp = getattr(getattr(getattr(resp.raw, '_fp', None), 'fp', None), 'raw', None)
+        sock = getattr(fp, '_sock', None) or getattr(getattr(resp.raw, '_connection', None), 'sock', None)
     if sock is None:
         logger.debug("Socket introuvable : le kill switch attendra le prochain token.")
+
+    fermeture_volontaire = [False]
+    try:
+        setattr(resp, '_fermeture_volontaire', fermeture_volontaire)
+    except Exception:
+        pass
+
     def fermer():
+        fermeture_volontaire[0] = True
         if sock is not None:
             try:
                 sock.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
+
     return fermer
 
 def _post_stream(provider, url, payload, enregistrer_fermeture):
     try:
         resp = _http.post(url, json=payload, stream=True, timeout=(SCAN_TIMEOUT * 2, CHAT_TIMEOUT))
     except requests.RequestException as e:
+        _record_failure(provider)
         raise Exception(f"Erreur {provider}: {e}") from e
+
     if resp.status_code >= 400:
         detail = resp.text[:300]
         resp.close()
+        _record_failure(provider)
         raise Exception(f"Erreur {provider} (HTTP {resp.status_code}): {detail}")
+
     if enregistrer_fermeture is not None:
         enregistrer_fermeture(_fermeture_socket(resp))
+
     return resp
 
 def _stream_ollama(model_name, messages_list, tools, enregistrer_fermeture=None):
@@ -474,6 +500,7 @@ def _stream_ollama(model_name, messages_list, tools, enregistrer_fermeture=None)
         payload['tools'] = schemas
 
     url = f"{PROVIDERS['ollama']['api_base']}/api/chat"
+    t0 = time.time()
     try:
         resp = _post_stream('ollama', url, payload, enregistrer_fermeture)
     except Exception as e:
@@ -483,7 +510,10 @@ def _stream_ollama(model_name, messages_list, tools, enregistrer_fermeture=None)
             resp = _post_stream('ollama', url, payload_compat, enregistrer_fermeture)
         else:
             raise
+
+    annulation = getattr(resp, '_fermeture_volontaire', None)
     tool_calls = []
+    succes = False
     try:
         for line in resp.iter_lines():
             if not line:
@@ -493,6 +523,7 @@ def _stream_ollama(model_name, messages_list, tools, enregistrer_fermeture=None)
             except json.JSONDecodeError:
                 continue
             if data.get('error'):
+                _record_failure('ollama')
                 raise Exception(f"Erreur ollama: {data['error']}")
             msg = data.get('message') or {}
             if msg.get('content'):
@@ -500,12 +531,22 @@ def _stream_ollama(model_name, messages_list, tools, enregistrer_fermeture=None)
             if msg.get('tool_calls'):
                 tool_calls.extend(msg['tool_calls'])
             if data.get('done'):
+                succes = True
                 if data.get('eval_count') and data.get('eval_duration'):
                     yield {'stats': {'tps': round(data['eval_count'] / (data['eval_duration'] / 1e9), 1)}}
                 break
+        succes = True
+    except Exception:
+        est_annule = isinstance(annulation, list) and len(annulation) > 0 and annulation[0]
+        if not est_annule:
+            _record_failure('ollama')
+        raise
     finally:
-        # Ferme la connexion HTTP : Ollama interrompt la génération (kill switch)
         resp.close()
+        est_annule = isinstance(annulation, list) and len(annulation) > 0 and annulation[0]
+        if succes and not est_annule:
+            _record_success('ollama', time.time() - t0)
+
     if tool_calls:
         yield {'tool_calls': normaliser_tool_calls(tool_calls)}
 
@@ -524,6 +565,7 @@ def _stream_openai(provider, model_name, messages_list, tools, enregistrer_ferme
         payload['tools'] = schemas
 
     url = f"{api_base}/v1/chat/completions"
+    t0 = time.time()
     try:
         resp = _post_stream(provider, url, payload, enregistrer_fermeture)
     except Exception as e:
@@ -535,6 +577,8 @@ def _stream_openai(provider, model_name, messages_list, tools, enregistrer_ferme
             raise
 
     accumulateur = {}  # index -> {'id', 'name', 'arguments'}
+    succes = False
+    annulation = getattr(resp, '_fermeture_volontaire', None)
     try:
         for line in resp.iter_lines():
             if not line:
@@ -544,18 +588,21 @@ def _stream_openai(provider, model_name, messages_list, tools, enregistrer_ferme
                 continue
             data_str = decoded_line[5:].strip()
             if data_str == '[DONE]':
+                succes = True
                 break
             try:
                 data = json.loads(data_str)
             except json.JSONDecodeError:
                 continue
+            if data.get('error'):
+                _record_failure(provider)
+                raise Exception(f"Erreur {provider}: {data['error']}")
             choices = data.get('choices') or []
             if not choices:
                 continue
             delta = choices[0].get('delta') or {}
             if delta.get('content'):
                 yield {'content': delta['content']}
-            # Les tool_calls arrivent en fragments indexés à recoller
             for tc in delta.get('tool_calls') or []:
                 slot = accumulateur.setdefault(tc.get('index', 0), {'id': None, 'name': '', 'arguments': ''})
                 if tc.get('id'):
@@ -566,9 +613,18 @@ def _stream_openai(provider, model_name, messages_list, tools, enregistrer_ferme
                 if fn.get('arguments'):
                     args = fn['arguments']
                     slot['arguments'] += args if isinstance(args, str) else json.dumps(args)
+        succes = True
+    except Exception:
+        est_annule = isinstance(annulation, list) and len(annulation) > 0 and annulation[0]
+        if not est_annule:
+            _record_failure(provider)
+        raise
     finally:
-        # Ferme la connexion HTTP : le serveur interrompt la génération (kill switch)
         resp.close()
+        est_annule = isinstance(annulation, list) and len(annulation) > 0 and annulation[0]
+        if succes and not est_annule:
+            _record_success(provider, time.time() - t0)
+
     if accumulateur:
         yield {'tool_calls': normaliser_tool_calls([
             {'id': s['id'], 'function': {'name': s['name'], 'arguments': s['arguments']}}
@@ -584,6 +640,8 @@ def stream_chat(model_name, messages_list, tools=None, enregistrer_fermeture=Non
     la connexion immédiatement (kill switch), même pendant l'attente du premier token.
     """
     provider = get_model_provider(model_name)
+    if not _is_provider_available(provider):
+        raise Exception(f"Fournisseur '{provider}' temporairement indisponible (circuit breaker, en quarantaine)")
     if provider == 'ollama':
         return _stream_ollama(model_name, messages_list, tools, enregistrer_fermeture)
     if provider in ('lmstudio', 'nvidia'):

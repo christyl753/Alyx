@@ -20,18 +20,25 @@ arreter() {
     rm -f "$pid_file"
 
     # Verification d'identite : un PID perime peut avoir ete reattribue a un autre programme
-    if [ -z "$pid" ] || ! tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q "$motif"; then
+    if [ -z "$pid" ] || ! tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -qE "$motif"; then
         echo "[Info] $libelle n'est plus actif, rien a arreter."
         return
     fi
 
     echo "[Alyx] Arret : $libelle (PID: $pid)..."
-    # Arret gracieux par paliers : SIGTERM -> attente 3 s -> SIGKILL
-    kill -TERM "$pid" 2>/dev/null
-    for _ in 1 2 3 4 5 6; do
-        kill -0 "$pid" 2>/dev/null || { echo "[OK] $libelle arrete."; return; }
+    # Palier 1 : Arret gracieux SIGTERM sur le processus et ses enfants (B.7.3)
+    pkill -TERM -P "$pid" 2>/dev/null || true
+    kill -TERM "$pid" 2>/dev/null || true
+
+    # Attente de 2 secondes (4 iterations de 0.5s - B.7.3)
+    for _ in 1 2 3 4; do
+        kill -0 "$pid" 2>/dev/null || { echo "[OK] $libelle arrete proprement."; return; }
         sleep 0.5
     done
+
+    # Palier 2 : SIGKILL si le processus persiste
+    echo "[Alyx] $libelle (PID: $pid) persiste apres 2s, arret force (SIGKILL)..."
+    pkill -KILL -P "$pid" 2>/dev/null || true
     kill -KILL "$pid" 2>/dev/null && echo "[OK] $libelle arrete (force)."
 }
 

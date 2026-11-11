@@ -1138,6 +1138,55 @@ def lire_presse_papiers() -> str:
         texte = texte[:8000] + "\n...[Contenu du presse-papiers tronqué à 8000 caractères]"
     return f"Contenu du presse-papiers :\n{texte}"
 
+
+def copier_presse_papiers(texte: str) -> str:
+    """Copie le texte spécifié dans le presse-papiers du système.
+
+    Args:
+        texte: Texte ou contenu à copier dans le presse-papiers.
+    """
+    if texte is None or not str(texte).strip():
+        return "Erreur : Le texte à copier ne peut pas être vide."
+    texte_str = str(texte)
+
+    if sys.platform == "win32":
+        try:
+            # clip.exe lit depuis stdin en UTF-16LE sous Windows pour conserver les caractères accentués
+            proc = subprocess.run(
+                ["clip.exe"],
+                input=texte_str.encode("utf-16le"),
+                check=True,
+                capture_output=True,
+                timeout=5
+            )
+            return f"Texte ({len(texte_str)} caractères) copié dans le presse-papiers avec succès."
+        except Exception as e:
+            # Repli PowerShell si clip.exe échoue
+            encoded = base64.b64encode(texte_str.encode('utf-8')).decode('ascii')
+            code, sortie = _run_ps(f"Set-Clipboard -Value ([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('{encoded}')))")
+            if code == 0:
+                return f"Texte ({len(texte_str)} caractères) copié dans le presse-papiers."
+            return f"Erreur lors de la copie dans le presse-papiers : {sortie or e}"
+    else:
+        commandes = []
+        if os.environ.get('WAYLAND_DISPLAY') and shutil.which('wl-copy'):
+            commandes.append(['wl-copy'])
+        if shutil.which('xclip'):
+            commandes.append(['xclip', '-selection', 'clipboard'])
+        if shutil.which('xsel'):
+            commandes.append(['xsel', '-b', '-i'])
+        if not commandes:
+            return "Erreur : Aucun utilitaire de presse-papiers trouvé (installez wl-clipboard ou xclip)."
+        for cmd in commandes:
+            try:
+                res = subprocess.run(cmd, input=texte_str, text=True, capture_output=True, timeout=5)
+                if res.returncode == 0:
+                    return f"Texte ({len(texte_str)} caractères) copié dans le presse-papiers avec succès."
+            except Exception:
+                continue
+        return "Erreur : Échec de la copie dans le presse-papiers via les utilitaires système."
+
+
 # --- TÂCHES AUTOMATISATION SYSTÈME (CAHIER DES CHARGES PROFIL C CHAPITRE 5) ---
 
 def _est_hote_externe(hote: str) -> bool:

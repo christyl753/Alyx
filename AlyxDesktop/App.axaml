@@ -4,12 +4,36 @@
              RequestedThemeVariant="Light">
 
   <Application.Resources>
-    <!-- Typographie : Manrope (UI), JetBrains Mono (données), Fredoka Medium (affichage / horloge) -->
-    <FontFamily x:Key="UiFont">avares://AlyxDesktop/Assets/Fonts#Manrope</FontFamily>
-    <FontFamily x:Key="MonoFont">avares://AlyxDesktop/Assets/Fonts#JetBrains Mono</FontFamily>
-    <FontFamily x:Key="DisplayFont">avares://AlyxDesktop/Assets/Fonts#Fredoka Medium, avares://AlyxDesktop/Assets/Fonts#Fredoka SemiBold, avares://AlyxDesktop/Assets/Fonts#Manrope, sans-serif</FontFamily>
+    <!-- Typographie : Rubik SemiBold (Néo-brutalisme UI), Manrope, JetBrains Mono (données/code), Fredoka Medium (horloge) -->
+    <FontFamily x:Key="UiFont">avares://AlyxDesktop/Assets/Fonts#Rubik, avares://AlyxDesktop/Assets/Fonts#Manrope, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif</FontFamily>
+    <FontFamily x:Key="MonoFont">avares://AlyxDesktop/Assets/Fonts#JetBrains Mono, Fira Code, Consolas, monospace</FontFamily>
+    <FontFamily x:Key="DisplayFont">avares://AlyxDesktop/Assets/Fonts#Rubik, avares://AlyxDesktop/Assets/Fonts#Fredoka Medium, avares://AlyxDesktop/Assets/Fonts#Manrope, sans-serif</FontFamily>
 
-    <!-- Tokens Aquarelle & Minimaliste (Blanc porcelaine, Lavis bleu céleste et rose pétale, Encre) -->
+    <!-- Palette Maîtresse : Canopée & Ambre (#F6EED9, #1F2C2A, #384C48, #7DAE9B, #FBA620, #FFE866) -->
+    <Color x:Key="ColorCanopeeCream">#F6EED9</Color>
+    <Color x:Key="ColorCanopeeDark">#1F2C2A</Color>
+    <Color x:Key="ColorCanopeeSapin">#384C48</Color>
+    <Color x:Key="ColorCanopeeSauge">#7DAE9B</Color>
+    <Color x:Key="ColorCanopeeAmbre">#FBA620</Color>
+    <Color x:Key="ColorCanopeeSoleil">#FFE866</Color>
+    <Color x:Key="ColorCanopeeSurfaceLight">#FBF6EA</Color>
+    <Color x:Key="ColorCanopeeSurfaceDark">#243230</Color>
+
+    <SolidColorBrush x:Key="CanopeeCream" Color="{StaticResource ColorCanopeeCream}" />
+    <SolidColorBrush x:Key="CanopeeDark" Color="{StaticResource ColorCanopeeDark}" />
+    <SolidColorBrush x:Key="CanopeeSapin" Color="{StaticResource ColorCanopeeSapin}" />
+    <SolidColorBrush x:Key="CanopeeSauge" Color="{StaticResource ColorCanopeeSauge}" />
+    <SolidColorBrush x:Key="CanopeeAmbre" Color="{StaticResource ColorCanopeeAmbre}" />
+    <SolidColorBrush x:Key="CanopeeSoleil" Color="{StaticResource ColorCanopeeSoleil}" />
+
+    <!-- Dégradé Iris Canopée & Ambre pour l'Œil Alyx -->
+    <LinearGradientBrush x:Key="CanopeeIris" StartPoint="0%,0%" EndPoint="100%,100%">
+      <GradientStop Color="#384C48" Offset="0.0" />
+      <GradientStop Color="#7DAE9B" Offset="0.55" />
+      <GradientStop Color="#FBA620" Offset="1.0" />
+    </LinearGradientBrush>
+
+    <!-- Tokens Aquarelle & Minimaliste (Conservés pour compatibilité de styles) -->
     <SolidColorBrush x:Key="WatercolorBlue" Color="#0284C7" />
     <SolidColorBrush x:Key="WatercolorRose" Color="#EC4899" />
     <SolidColorBrush x:Key="WatercolorLightBlue" Color="#7DD3FC" />
@@ -30,57 +54,58 @@
       <GradientStop Color="#EC4899" Offset="1.0" />
     </LinearGradientBrush>
 
-    <!-- Tokens du thème actif (adaptables dynamiquement au mode clair/sombre et palette) -->
-    <SolidColorBrush x:Key="Bg" Color="#FAF9F6" />
-    <SolidColorBrush x:Key="Surface" Color="#FFFFFF" />
-    <!-- Surface opaque blanche pour éviter les fuites de texte en arrière-plan -->
-    <SolidColorBrush x:Key="PanelSurface" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="NodeSurface" Color="#F5FFFFFF" />
-    <SolidColorBrush x:Key="Ink" Color="#14151A" />
-    <SolidColorBrush x:Key="Ink2" Color="#27272A" />
-    <SolidColorBrush x:Key="TextBody" Color="#3F3F46" />
-    <SolidColorBrush x:Key="Muted" Color="#71717A" />
-    <SolidColorBrush x:Key="Faint" Color="#A1A1AA" />
-    <SolidColorBrush x:Key="Accent" Color="#0284C7" />
-    <SolidColorBrush x:Key="AccentText" Color="#0369A1" />
-    <SolidColorBrush x:Key="AccentDeep" Color="#0C4A6E" />
-    <SolidColorBrush x:Key="AccentActivePill" Color="#260284C7" />
-    <SolidColorBrush x:Key="AccentTint" Color="#1C0284C7" />
-    <SolidColorBrush x:Key="AccentTint05" Color="#0D0284C7" />
-    <SolidColorBrush x:Key="AccentTint08" Color="#150284C7" />
-    <SolidColorBrush x:Key="AccentBorder" Color="#660284C7" />
-    <SolidColorBrush x:Key="AccentBorder28" Color="#470284C7" />
-    <SolidColorBrush x:Key="AccentBorder35" Color="#590284C7" />
-    <SolidColorBrush x:Key="AccentFocus" Color="#730284C7" />
-    <SolidColorBrush x:Key="OverlayScrim" Color="#260D0E12" />
-    <SolidColorBrush x:Key="GpuChart" Color="#38BDF8" />
+    <!-- Tokens Néo-Brutalistes Canopée (Actifs par défaut) -->
+    <SolidColorBrush x:Key="Bg" Color="#F6EED9" />
+    <SolidColorBrush x:Key="Surface" Color="#FBF6EA" />
+    <!-- Surface opaque pour éviter les fuites de texte en arrière-plan -->
+    <SolidColorBrush x:Key="PanelSurface" Color="#F6EED9" />
+    <SolidColorBrush x:Key="NodeSurface" Color="#FBF6EA" />
+    <SolidColorBrush x:Key="Ink" Color="#384C48" />
+    <SolidColorBrush x:Key="Ink2" Color="#243230" />
+    <SolidColorBrush x:Key="TextBody" Color="#384C48" />
+    <SolidColorBrush x:Key="Muted" Color="#5D726D" />
+    <SolidColorBrush x:Key="Faint" Color="#7DAE9B" />
+    <SolidColorBrush x:Key="Accent" Color="#384C48" />
+    <SolidColorBrush x:Key="AccentText" Color="#384C48" />
+    <SolidColorBrush x:Key="AccentDeep" Color="#1F2C2A" />
+    <SolidColorBrush x:Key="AccentActivePill" Color="#33FBA620" />
+    <SolidColorBrush x:Key="AccentTint" Color="#267DAE9B" />
+    <SolidColorBrush x:Key="AccentTint05" Color="#0D7DAE9B" />
+    <SolidColorBrush x:Key="AccentTint08" Color="#1A7DAE9B" />
+    <SolidColorBrush x:Key="AccentBorder" Color="#66384C48" />
+    <SolidColorBrush x:Key="AccentBorder28" Color="#47384C48" />
+    <SolidColorBrush x:Key="AccentBorder35" Color="#59384C48" />
+    <SolidColorBrush x:Key="AccentFocus" Color="#FBA620" />
+    <SolidColorBrush x:Key="OverlayScrim" Color="#331F2C2A" />
+    <SolidColorBrush x:Key="GpuChart" Color="#7DAE9B" />
     <SolidColorBrush x:Key="Success" Color="#10B981" />
-    <SolidColorBrush x:Key="Danger" Color="#EC4899" />
-    <SolidColorBrush x:Key="DangerTint" Color="#1AEF4444" />
-    <SolidColorBrush x:Key="Hair6" Color="#0F14151A" />
-    <SolidColorBrush x:Key="Hair7" Color="#1214151A" />
-    <SolidColorBrush x:Key="Hair8" Color="#1414151A" />
-    <SolidColorBrush x:Key="Hair9" Color="#1814151A" />
-    <SolidColorBrush x:Key="Hair10" Color="#1E14151A" />
-    <SolidColorBrush x:Key="Hair12" Color="#2414151A" />
-    <SolidColorBrush x:Key="Hair14" Color="#2A14151A" />
-    <SolidColorBrush x:Key="Fill025" Color="#0614151A" />
-    <SolidColorBrush x:Key="Fill035" Color="#0914151A" />
-    <SolidColorBrush x:Key="Fill04" Color="#0C14151A" />
-    <SolidColorBrush x:Key="Fill07" Color="#1414151A" />
-    <SolidColorBrush x:Key="Fill08" Color="#1814151A" />
-    <SolidColorBrush x:Key="Fill10" Color="#1F14151A" />
-    <SolidColorBrush x:Key="Fill12" Color="#2614151A" />
+    <SolidColorBrush x:Key="Danger" Color="#FBA620" />
+    <SolidColorBrush x:Key="DangerTint" Color="#26FBA620" />
+    <SolidColorBrush x:Key="NeoBorder" Color="#384C48" />
+    <SolidColorBrush x:Key="Hair6" Color="#14384C48" />
+    <SolidColorBrush x:Key="Hair7" Color="#1A384C48" />
+    <SolidColorBrush x:Key="Hair8" Color="#24384C48" />
+    <SolidColorBrush x:Key="Hair9" Color="#33384C48" />
+    <SolidColorBrush x:Key="Hair10" Color="#47384C48" />
+    <SolidColorBrush x:Key="Hair12" Color="#59384C48" />
+    <SolidColorBrush x:Key="Hair14" Color="#6B384C48" />
+    <SolidColorBrush x:Key="Fill025" Color="#0B384C48" />
+    <SolidColorBrush x:Key="Fill035" Color="#10384C48" />
+    <SolidColorBrush x:Key="Fill04" Color="#14384C48" />
+    <SolidColorBrush x:Key="Fill07" Color="#1E384C48" />
+    <SolidColorBrush x:Key="Fill08" Color="#26384C48" />
+    <SolidColorBrush x:Key="Fill10" Color="#30384C48" />
+    <SolidColorBrush x:Key="Fill12" Color="#3A384C48" />
 
-    <!-- Curseurs (volume / luminosité) aux couleurs de l'accent -->
-    <SolidColorBrush x:Key="SliderTrackValueFill" Color="#0284C7" />
-    <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#0284C7" />
-    <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#0369A1" />
-    <SolidColorBrush x:Key="SliderThumbBackground" Color="#0284C7" />
-    <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#0284C7" />
-    <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="#0369A1" />
-    <SolidColorBrush x:Key="SliderTrackFill" Color="#1F14151A" />
-    <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#2914151A" />
+    <!-- Curseurs (volume / luminosité) aux couleurs Canopée & Ambre -->
+    <SolidColorBrush x:Key="SliderTrackValueFill" Color="#384C48" />
+    <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#384C48" />
+    <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#1F2C2A" />
+    <SolidColorBrush x:Key="SliderThumbBackground" Color="#FBA620" />
+    <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#FBA620" />
+    <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="#E59419" />
+    <SolidColorBrush x:Key="SliderTrackFill" Color="#2B384C48" />
+    <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#38384C48" />
   </Application.Resources>
 
   <Application.Styles>
@@ -199,10 +224,10 @@
 
   <TrayIcon.Icons>
     <TrayIcons>
-      <TrayIcon Icon="/Assets/logo.ico" ToolTipText="Alyx — Alt+J" Clicked="OnTrayClicked">
+      <TrayIcon Icon="/Assets/logo.ico" ToolTipText="Alyx — Alt+Espace" Clicked="OnTrayClicked">
         <TrayIcon.Menu>
           <NativeMenu>
-            <NativeMenuItem Header="Ouvrir / Masquer Alyx (Alt+J)" Click="OnTrayToggle" />
+            <NativeMenuItem Header="Ouvrir / Masquer Alyx (Alt+Espace)" Click="OnTrayToggle" />
             <NativeMenuItem Header="Format du panneau">
               <NativeMenuItem.Menu>
                 <NativeMenu>
@@ -216,7 +241,7 @@
               <NativeMenuItem.Menu>
                 <NativeMenu>
                   <NativeMenuItem Header="Languette de bord (discret)" ToggleType="Radio" Click="OnTrayIdleEdgeTab" />
-                  <NativeMenuItem Header="Caché (Systray + Alt+J uniquement)" ToggleType="Radio" Click="OnTrayIdleStealth" />
+                  <NativeMenuItem Header="Caché (Systray + Alt+Espace uniquement)" ToggleType="Radio" Click="OnTrayIdleStealth" />
                   <NativeMenuItem Header="Mini-orbe (48 px)" ToggleType="Radio" Click="OnTrayIdleMiniOrb" />
                   <NativeMenuItem Header="Orbe classique (84 px)" ToggleType="Radio" Click="OnTrayIdleOrb" />
                 </NativeMenu>

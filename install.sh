@@ -64,6 +64,28 @@ echo "Installation des librairies Python requises..."
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
 
+# Configuration de l'environnement dedie STT (.venv_stt - B.1.2)
+echo ""
+echo "[B.1.2] Recherche d'un interpreteur Python 3.11 ou 3.12 dedie pour le STT..."
+STT_PY_BIN=""
+if command -v python3.11 &> /dev/null; then
+    STT_PY_BIN="python3.11"
+elif command -v python3.12 &> /dev/null; then
+    STT_PY_BIN="python3.12"
+fi
+
+if [ -n "$STT_PY_BIN" ]; then
+    echo "[OK] Python dedie STT detecte ($STT_PY_BIN). Configuration de .venv_stt..."
+    if [ ! -d ".venv_stt" ]; then
+        "$STT_PY_BIN" -m venv .venv_stt
+    fi
+    .venv_stt/bin/python -m pip install --upgrade pip
+    .venv_stt/bin/python -m pip install -r requirements.txt
+else
+    echo "[!] Ni python3.11 ni python3.12 n'ont ete trouves pour .venv_stt."
+    echo "    Le service STT utilisera l'environnement principal .venv."
+fi
+
 # 6. Compilation de l'interface (evite un "dotnet run" lent a chaque lancement)
 echo ""
 echo "[6/6] Compilation de l'interface Alyx (Release)..."

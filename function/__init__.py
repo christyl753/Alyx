@@ -34,9 +34,22 @@ from .system import (
     executer_commande_systeme,
     rechercher_ou_jouer_media,
     lire_presse_papiers,
+    copier_presse_papiers,
     diagnostiquer_reseau,
     reparer_reseau,
     nettoyer_caches,
     analyser_telechargements,
     mettre_a_jour_logiciels,
+)
+from .reminders import (
+    creer_rappel,
+    lister_rappels,
+    supprimer_rappel,
+    verifier_rappels_imminents,
+)
+from .notes import (
+    ajouter_note_rapide,
+    lister_notes_rapides,
+    lire_note_rapide,
+    supprimer_note_rapide,
 )

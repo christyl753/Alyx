@@ -27,6 +27,6 @@ if exist "%UI_EXE%" (
     for /f %%I in ('powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'Name=''AlyxDesktop.exe''' | Sort-Object CreationDate -Descending | Select-Object -First 1).ProcessId"') do >"%RUNDIR%\ui.pid" echo %%I
 ) else (
     echo [Alyx] Executable introuvable, compilation via dotnet run ^(lancez install.bat pour accelerer le demarrage^)...
-    cd /d "%~dp0AlyxDesktop"
-    start "Alyx UI" /B dotnet run -c Release >"%LOGDIR%\ui.log" 2>&1
+    start "Alyx UI" /B dotnet run --project "%~dp0AlyxDesktop" -c Release >"%LOGDIR%\ui.log" 2>&1
+    for /f %%I in ('powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'Name=''dotnet.exe''' | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('AlyxDesktop') } | Sort-Object CreationDate -Descending | Select-Object -First 1).ProcessId"') do >"%RUNDIR%\ui.pid" echo %%I
 )

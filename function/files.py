@@ -9,14 +9,24 @@ from core.exceptions import PermissionRequiredException
 
 logger = get_logger('alyx.files')
 
-# Taille maximale lue par lire_fichier_securise (le contenu part dans le contexte du LLM)
-TAILLE_MAX_LECTURE = 8 * 1024
+def _charger_config_fichiers() -> tuple[int, int]:
+    try:
+        from core.preferences import get_tools_config
+        cfg = get_tools_config()
+        return int(cfg.get('taille_max_lecture', 8 * 1024)), int(cfg.get('max_entrees_liste', 50))
+    except Exception:
+        return 8 * 1024, 50
+
+_taille_init, _entrees_init = _charger_config_fichiers()
+
+# Taille maximale lue par lire_fichier_securise (conformité B.4.1)
+TAILLE_MAX_LECTURE = _taille_init
 
 # Permission accordée par l'utilisateur pour l'appel d'outil en cours (par thread)
 _permission_ctx = threading.local()
 
-# Nombre maximal d'entrées renvoyées par lister_fichiers (le résultat part dans le contexte du LLM)
-MAX_ENTREES_LISTE = 50
+# Nombre maximal d'entrées renvoyées par lister_fichiers (conformité B.4.1)
+MAX_ENTREES_LISTE = _entrees_init
 
 # Journal d'actions réversibles (déplacements, suppressions) pour l'annulation (undo)
 _JOURNAL_ANNULATION: list[dict] = []

@@ -39,3 +39,41 @@ providers:
     priority: 3
     auto_start: false
     max_concurrency: 1
+
+# --- B.4.1 : Paramètres de Contexte & Rétention ---
+context:
+  nb_tours_recents_verbatim: 2
+  retention_jours: 90
+
+# --- B.4.1 : Paramètres des Outils Système ---
+tools:
+  budget_max_outils: 1000
+  max_outils_routage: 6
+  max_entrees_liste: 50
+  taille_max_lecture: 8192
+
+# --- B.4.1 : Paramètres du Micro-Service Vocal (STT Whisper) ---
+stt:
+  port: 5001
+  model_size: "base"
+  sample_rate: 16000
+  seuil_muet: 0.0005
+  min_disk_free_gb: 1.0
+
+# --- B.8.3 : Paramètres des Tâches Quotidiennes ---
+daily_tasks:
+  reminders_check_interval: 5
+  notes_preview_chars: 120
+
+# --- B.8.5 : Paramètres du Mode Focus / Gaming ---
+focus_gaming:
+  enabled: true
+  auto_unload_vram: true
+  check_interval_seconds: 5
+
+# --- B.8.6 : Paramètres de Conscience Contextuelle ---
+context_awareness:
+  enabled: true
+  auto_active_window: true
+  auto_clipboard: true
+  max_clipboard_chars: 1500

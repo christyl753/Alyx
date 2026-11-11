@@ -108,20 +108,26 @@ public partial class App : Application
                 Current.Resources["Bg"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#1F2C2A"));
                 Current.Resources["Surface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#243230"));
                 Current.Resources["PanelSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(242, 31, 44, 42));
+                Current.Resources["NodeSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A3A37"));
                 Current.Resources["Ink"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F6EED9"));
                 Current.Resources["Ink2"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#E2D8BF"));
+                Current.Resources["Faint"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#7DAE9B"));
+                Current.Resources["Muted"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#A4C3B7"));
+                Current.Resources["NeoBorder"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#7DAE9B"));
             }
             else
             {
                 Current.Resources["Bg"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#0D0E12"));
                 Current.Resources["Surface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#11131A"));
                 Current.Resources["PanelSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(242, 17, 19, 26));
+                Current.Resources["NodeSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#191B24"));
                 Current.Resources["Ink"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F5F6FA"));
                 Current.Resources["Ink2"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#D4D4D8"));
+                Current.Resources["Faint"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#71717A"));
+                Current.Resources["Muted"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#A1A1AA"));
+                Current.Resources["NeoBorder"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#384C48"));
             }
             Current.Resources["TextBody"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#E4E4E7"));
-            Current.Resources["Muted"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#A1A1AA"));
-            Current.Resources["Faint"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#71717A"));
             Current.Resources["Fill035"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(14, 255, 255, 255));
             Current.Resources["Fill04"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(18, 255, 255, 255));
             Current.Resources["Fill07"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(26, 255, 255, 255));
@@ -137,20 +143,26 @@ public partial class App : Application
                 Current.Resources["Bg"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F6EED9"));
                 Current.Resources["Surface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FBF6EA"));
                 Current.Resources["PanelSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F6EED9"));
+                Current.Resources["NodeSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FBF6EA"));
                 Current.Resources["Ink"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#384C48"));
                 Current.Resources["Ink2"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#243230"));
+                Current.Resources["Faint"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#7DAE9B"));
+                Current.Resources["Muted"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#5D726D"));
+                Current.Resources["NeoBorder"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#384C48"));
             }
             else
             {
                 Current.Resources["Bg"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FAF9F6"));
                 Current.Resources["Surface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FFFFFF"));
                 Current.Resources["PanelSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#FFFFFF"));
+                Current.Resources["NodeSurface"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F5FFFFFF"));
                 Current.Resources["Ink"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#14151A"));
                 Current.Resources["Ink2"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#27272A"));
+                Current.Resources["Faint"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#A1A1AA"));
+                Current.Resources["Muted"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#71717A"));
+                Current.Resources["NeoBorder"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#14151A"));
             }
             Current.Resources["TextBody"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#3F3F46"));
-            Current.Resources["Muted"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#71717A"));
-            Current.Resources["Faint"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#A1A1AA"));
             Current.Resources["Fill035"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(9, 20, 21, 26));
             Current.Resources["Fill04"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(12, 20, 21, 26));
             Current.Resources["Fill07"] = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(20, 20, 21, 26));

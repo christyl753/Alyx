@@ -16,24 +16,39 @@ for _flux in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-def _charger_port():
-    chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml')
-    try:
-        with open(chemin, 'r', encoding='utf-8') as f:
-            return (yaml.safe_load(f) or {}).get('server', {}).get('stt_port', 5001)
-    except OSError:
-        return 5001
-
-def _charger_min_disk_free():
+def _charger_config_stt() -> dict:
+    """Charge les paramètres STT depuis config.yaml avec valeurs de repli défensives (B.4.1)."""
     chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml')
     try:
         with open(chemin, 'r', encoding='utf-8') as f:
             cfg = yaml.safe_load(f) or {}
-            return float(cfg.get('server', {}).get('min_disk_free_gb', 1.0))
-    except (OSError, ValueError, TypeError):
-        return 1.0
+            stt_cfg = cfg.get('stt', {})
+            server_cfg = cfg.get('server', {})
+            return {
+                'port': int(server_cfg.get('stt_port', stt_cfg.get('port', 5001))),
+                'min_disk_free_gb': float(server_cfg.get('min_disk_free_gb', stt_cfg.get('min_disk_free_gb', 1.0))),
+                'sample_rate': int(stt_cfg.get('sample_rate', 16000)),
+                'model_size': str(stt_cfg.get('model_size', 'base')),
+                'seuil_muet': float(stt_cfg.get('seuil_muet', 0.0005)),
+            }
+    except Exception:
+        return {
+            'port': 5001,
+            'min_disk_free_gb': 1.0,
+            'sample_rate': 16000,
+            'model_size': 'base',
+            'seuil_muet': 0.0005,
+        }
 
-MIN_DISK_FREE_GB = _charger_min_disk_free()
+_stt_cfg = _charger_config_stt()
+
+def _charger_port():
+    return _stt_cfg['port']
+
+def _charger_min_disk_free():
+    return _stt_cfg['min_disk_free_gb']
+
+MIN_DISK_FREE_GB = _stt_cfg['min_disk_free_gb']
 
 def verifier_espace_disque(chemin_cible=None, min_go_requis=None):
     """Vérifie l'espace disque disponible avant téléchargement du modèle STT (B.5.1).
@@ -65,12 +80,12 @@ def verifier_espace_disque(chemin_cible=None, min_go_requis=None):
         return True, 999.0, f"Vérification espace disque ignorée : {e}"
 
 # --- CONFIGURATION ---
-SAMPLE_RATE = 16000
-WHISPER_MODEL_SIZE = "base"
-PORT = _charger_port()
+SAMPLE_RATE = _stt_cfg['sample_rate']
+WHISPER_MODEL_SIZE = _stt_cfg['model_size']
+PORT = _stt_cfg['port']
 LANGUES_WHISPER = {'fr', 'en', 'es', 'de'}
 LANGUES_WHISPER_STABLES = {'fr', 'en'}
-SEUIL_MUET = 0.0005  # crête max en dessous de laquelle le micro est considéré coupé
+SEUIL_MUET = _stt_cfg['seuil_muet']
 
 PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
 IS_ISOLATED = (

@@ -136,3 +136,68 @@ def phrase_test(code: str) -> str:
 
 def langues() -> list:
     return [{'code': code, 'label': v[0]} for code, v in LANGUES.items()]
+
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
+CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.yaml')
+_config_cache = (0.0, {})
+_config_lock = threading.Lock()
+
+
+def charger_config() -> dict:
+    """Charge le fichier unique de configuration config.yaml (conformité B.4.1) avec cache mtime et thread-safety."""
+    global _config_cache
+    if not yaml:
+        return dict(_config_cache[1]) if _config_cache[1] else {}
+    with _config_lock:
+        if os.path.exists(CONFIG_PATH):
+            try:
+                mtime = os.path.getmtime(CONFIG_PATH)
+                if mtime == _config_cache[0] and _config_cache[1]:
+                    return dict(_config_cache[1])
+                with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                    data = yaml.safe_load(f) or {}
+                _config_cache = (mtime, data)
+                return dict(data)
+            except Exception as e:
+                logger.warning(f"Erreur lecture config.yaml : {e}")
+        return dict(_config_cache[1]) if _config_cache[1] else {}
+
+
+def get_context_config() -> dict:
+    """Retourne les paramètres de contexte/historique avec valeurs par défaut défensives (B.4.1)."""
+    cfg = charger_config().get('context', {})
+    return {
+        'nb_tours_recents_verbatim': int(cfg.get('nb_tours_recents_verbatim', 2)),
+        'retention_jours': int(cfg.get('retention_jours', 90)),
+    }
+
+
+def get_tools_config() -> dict:
+    """Retourne les paramètres des outils avec valeurs par défaut défensives (B.4.1)."""
+    cfg = charger_config().get('tools', {})
+    return {
+        'budget_max_outils': int(cfg.get('budget_max_outils', 1000)),
+        'max_outils_routage': int(cfg.get('max_outils_routage', 6)),
+        'max_entrees_liste': int(cfg.get('max_entrees_liste', 50)),
+        'taille_max_lecture': int(cfg.get('taille_max_lecture', 8192)),
+    }
+
+
+def get_stt_config() -> dict:
+    """Retourne les paramètres STT avec valeurs par défaut défensives (B.4.1)."""
+    cfg = charger_config()
+    stt_cfg = cfg.get('stt', {})
+    server_cfg = cfg.get('server', {})
+    return {
+        'port': int(server_cfg.get('stt_port', stt_cfg.get('port', 5001))),
+        'min_disk_free_gb': float(server_cfg.get('min_disk_free_gb', stt_cfg.get('min_disk_free_gb', 1.0))),
+        'sample_rate': int(stt_cfg.get('sample_rate', 16000)),
+        'model_size': str(stt_cfg.get('model_size', 'base')),
+        'seuil_muet': float(stt_cfg.get('seuil_muet', 0.0005)),
+    }
+

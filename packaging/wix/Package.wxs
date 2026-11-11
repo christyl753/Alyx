@@ -1,0 +1,36 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Alyx" Manufacturer="Alyx Project" Version="0.1.0" UpgradeCode="84A29283-CEF3-4813-A5B1-BE2C324AC391" Scope="perUserOrMachine">
+    <MajorUpgrade DowngradeErrorMessage="Une version plus récente d'Alyx est déjà installée." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Alyx">
+        <Directory Id="BinFolder" Name="bin" />
+        <Directory Id="BackendFolder" Name="backend" />
+        <Directory Id="RunFolder" Name="run" />
+        <Directory Id="LogsFolder" Name="logs" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="Alyx" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component Id="ExecutableShortcut" Guid="71F7E64B-8334-4537-88A9-270BA76E0124">
+        <Shortcut Id="ApplicationStartMenuShortcut"
+                  Name="Alyx"
+                  Description="Alyx - Sovereign AI Desktop Companion"
+                  Target="[BinFolder]AlyxDesktop.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\Alyx" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="MainFeature" Title="Alyx Application" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+  </Package>
+</Wix>

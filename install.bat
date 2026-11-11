@@ -100,6 +100,47 @@ if errorlevel 1 (
     echo [!] faster-whisper n'a pas pu etre installe : le mode vocal ^(micro^) sera indisponible.
 )
 
+:: 4.b Isolation STT : creation de .venv_stt dedie (Python 3.11/3.12 - B.1.2)
+echo.
+echo [B.1.2] Recherche d'un interpreteur Python 3.11 ou 3.12 dedie pour le STT...
+set "STT_PY_CMD="
+
+py -3.11 -c "import sys; exit(0)" >nul 2>&1
+if not errorlevel 1 (
+    set "STT_PY_CMD=py -3.11"
+) else (
+    py -3.12 -c "import sys; exit(0)" >nul 2>&1
+    if not errorlevel 1 (
+        set "STT_PY_CMD=py -3.12"
+    ) else (
+        python3.11 --version >nul 2>&1
+        if not errorlevel 1 (
+            set "STT_PY_CMD=python3.11"
+        ) else (
+            python3.12 --version >nul 2>&1
+            if not errorlevel 1 (
+                set "STT_PY_CMD=python3.12"
+            )
+        )
+    )
+)
+
+if defined STT_PY_CMD (
+    echo [OK] Python dedie STT detecte : !STT_PY_CMD!
+    if not exist .venv_stt (
+        echo Creation de l'environnement virtuel isole .venv_stt...
+        !STT_PY_CMD! -m venv .venv_stt
+    )
+    if exist .venv_stt\Scripts\python.exe (
+        echo Installation des librairies STT dans .venv_stt...
+        .\.venv_stt\Scripts\python.exe -m pip install --upgrade pip
+        .\.venv_stt\Scripts\python.exe -m pip install -r requirements.txt
+    )
+) else (
+    echo [!] Aucun Python 3.11/3.12 detecte dans le PATH ou le lanceur py.
+    echo     Le service STT utilisera l'environnement virtuel principal .venv.
+)
+
 :: 5. Compilation de l'interface (evite un "dotnet run" lent a chaque lancement)
 echo.
 echo [5/5] Compilation de l'interface Alyx (Release)...

@@ -31,6 +31,7 @@ public sealed class WidgetSettings
     public EdgeDockSide DockSide { get; set; } = EdgeDockSide.Right;
     public double? EdgeTabY { get; set; }
     public string WatercolorPalette { get; set; } = "canopee-ambre";
+    public string ActiveVisualStyle { get; set; } = "canopee-ambre";
     public string ThemeMode { get; set; } = "light";
     public int WidgetOpacityPercent { get; set; } = 96;
     public bool LowRamEcoMode { get; set; } = false;

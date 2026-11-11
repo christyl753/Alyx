@@ -10,8 +10,15 @@ from core.logger import get_logger
 
 logger = get_logger('alyx.history')
 
-RETENTION_JOURS = 90
-_session_lock = threading.Lock()
+def _charger_retention_jours() -> int:
+    try:
+        from core.preferences import get_context_config
+        return int(get_context_config().get('retention_jours', 90))
+    except Exception:
+        return 90
+
+RETENTION_JOURS = _charger_retention_jours()
+_session_lock = threading.RLock()
 
 def _dossier_historique() -> str:
     """Résolution du répertoire selon l'OS (Multi-OS B.8).
@@ -26,8 +33,10 @@ def _dossier_historique() -> str:
     os.makedirs(dossier, mode=0o700, exist_ok=True)
     return dossier
 
-def purger_historique_ancien(retention_jours: int = RETENTION_JOURS) -> int:
-    """Supprime les sessions antérieures à la durée de rétention (90 jours par défaut)."""
+def purger_historique_ancien(retention_jours: int | None = None) -> int:
+    """Supprime les sessions antérieures à la durée de rétention (90 jours par défaut, conformité B.4.1)."""
+    if retention_jours is None:
+        retention_jours = _charger_retention_jours()
     dossier = _dossier_historique()
     seuil = time.time() - (retention_jours * 86400)
     purges = 0
@@ -241,7 +250,7 @@ def charger_etat_session(session_id: str = "session_active", max_age_heures: int
             if not isinstance(messages, list):
                 raise ValueError(f"Le champ 'messages' n'est pas une liste ({type(messages).__name__})")
 
-            if any(not isinstance(m, dict) for m in messages):
+            if not all(isinstance(m, dict) for m in messages):
                 raise ValueError("La liste de messages contient des éléments non-dictionnaires")
 
             return messages

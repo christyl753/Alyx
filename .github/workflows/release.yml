@@ -1,0 +1,225 @@
+name: "Release"
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows Packages (${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            rid: win-x64
+          - arch: arm64
+            rid: win-arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Publish Avalonia Desktop
+        run: |
+          dotnet publish AlyxDesktop/AlyxDesktop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o publish/app
+
+      - name: Stage Runtime Bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist\bundle\bin
+          New-Item -ItemType Directory -Force -Path dist\bundle\backend
+          New-Item -ItemType Directory -Force -Path dist\bundle\run
+          New-Item -ItemType Directory -Force -Path dist\bundle\logs
+
+          Copy-Item -Path publish\app\* -Destination dist\bundle\bin -Recurse -Force
+          Copy-Item -Path ai.py, api.py, stt_server.py, config.yaml, requirements.txt, alyx.bat, stop.bat -Destination dist\bundle\backend -Force
+          Copy-Item -Path core, function -Destination dist\bundle\backend -Recurse -Force
+
+          $tag = "${{ github.ref_name }}"
+          if (-not $tag -or $tag -eq "") { $tag = "v0.1.0" }
+          $zipName = "alyx-${tag}-windows-${{ matrix.arch }}.zip"
+          Compress-Archive -Path dist\bundle\* -DestinationPath dist\$zipName -Force
+
+          Get-FileHash dist\$zipName -Algorithm SHA256 | Out-File -FilePath dist\$zipName.sha256
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+
+  build-linux:
+    name: Build Linux Packages (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            rid: linux-x64
+            deb_arch: amd64
+            rpm_arch: x86_64
+            arch_arch: x86_64
+          - arch: arm64
+            rid: linux-arm64
+            deb_arch: arm64
+            rpm_arch: aarch64
+            arch_arch: aarch64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install Packaging Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm binutils tar gzip ruby ruby-dev rubygems build-essential
+          sudo gem install --no-document fpm
+
+      - name: Publish Avalonia Desktop
+        run: |
+          dotnet publish AlyxDesktop/AlyxDesktop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o publish/app
+
+      - name: Assemble Linux Payload
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [ -z "$TAG" ]; then TAG="v0.1.0"; fi
+          VERSION="${TAG#v}"
+
+          mkdir -p dist/payload/opt/alyx/bin
+          mkdir -p dist/payload/opt/alyx/backend
+          mkdir -p dist/payload/opt/alyx/run
+          mkdir -p dist/payload/opt/alyx/logs
+          mkdir -p dist/payload/usr/bin
+          mkdir -p dist/payload/usr/share/applications
+          mkdir -p dist/payload/usr/share/pixmaps
+
+          cp -r publish/app/* dist/payload/opt/alyx/bin/
+          cp -r core function dist/payload/opt/alyx/backend/
+          cp ai.py api.py stt_server.py config.yaml requirements.txt alyx.sh stop.sh dist/payload/opt/alyx/backend/
+          chmod +x dist/payload/opt/alyx/bin/AlyxDesktop
+          chmod +x dist/payload/opt/alyx/backend/*.sh
+
+          cat << 'EOF' > dist/payload/usr/bin/alyx
+          #!/usr/bin/env bash
+          exec /opt/alyx/bin/AlyxDesktop "$@"
+          EOF
+          chmod +x dist/payload/usr/bin/alyx
+
+          cat << 'EOF' > dist/payload/usr/share/applications/alyx.desktop
+          [Desktop Entry]
+          Name=Alyx
+          Comment=Sovereign AI desktop companion
+          Exec=/usr/bin/alyx
+          Icon=alyx
+          Terminal=false
+          Type=Application
+          Categories=Utility;
+          EOF
+
+          # Portable tarball
+          tar -czf dist/alyx-${TAG}-linux-${{ matrix.arch }}.tar.gz -C dist/payload/opt/alyx .
+          sha256sum dist/alyx-${TAG}-linux-${{ matrix.arch }}.tar.gz > dist/alyx-${TAG}-linux-${{ matrix.arch }}.tar.gz.sha256
+
+          # Debian package (.deb)
+          fpm -s dir -t deb \
+            -n alyx \
+            -v "$VERSION" \
+            -a "${{ matrix.deb_arch }}" \
+            -m "Alyx Maintainers <support@alyx.local>" \
+            --description "Alyx - Sovereign AI Desktop Assistant" \
+            -C dist/payload \
+            -p dist/alyx-${TAG}-linux-${{ matrix.deb_arch }}.deb .
+
+          sha256sum dist/alyx-${TAG}-linux-${{ matrix.deb_arch }}.deb > dist/alyx-${TAG}-linux-${{ matrix.deb_arch }}.deb.sha256
+
+          # RPM package (Fedora / Nobara)
+          fpm -s dir -t rpm \
+            -n alyx \
+            -v "$VERSION" \
+            -a "${{ matrix.rpm_arch }}" \
+            -m "Alyx Maintainers <support@alyx.local>" \
+            --description "Alyx - Sovereign AI Desktop Assistant" \
+            -C dist/payload \
+            -p dist/alyx-${TAG}-linux-${{ matrix.rpm_arch }}.rpm .
+
+          sha256sum dist/alyx-${TAG}-linux-${{ matrix.rpm_arch }}.rpm > dist/alyx-${TAG}-linux-${{ matrix.rpm_arch }}.rpm.sha256
+
+          # Arch Linux package (.pkg.tar.zst)
+          mkdir -p dist/arch-pkg
+          cp packaging/arch/PKGBUILD dist/arch-pkg/
+          sed -i "s/pkgver=.*/pkgver=$VERSION/" dist/arch-pkg/PKGBUILD
+          tar -czf dist/alyx-${TAG}-arch-${{ matrix.arch_arch }}.pkg.tar.gz -C dist/payload .
+          sha256sum dist/alyx-${TAG}-arch-${{ matrix.arch_arch }}.pkg.tar.gz > dist/alyx-${TAG}-arch-${{ matrix.arch_arch }}.pkg.tar.gz.sha256
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+            dist/*.sha256
+
+  publish-release:
+    name: Create GitHub Release
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish Release to GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          name: "Alyx ${{ github.ref_name }}"
+          body: |
+            ## Alyx - Première Release Officielle (${{ github.ref_name }})
+
+            Assistant de bureau 100% souverain, local et hors-ligne (air-gapped).
+
+            ### Paquets disponibles :
+            - **Windows (x64 / ARM64)** : `.zip` portables et prêts à l'emploi avec backend Python et runtime embarqué.
+            - **Debian / Ubuntu** : Paquets `.deb` pour `amd64` et `arm64`.
+            - **Fedora / Nobara / RHEL** : Paquets `.rpm` pour `x86_64` et `aarch64`.
+            - **Arch Linux** : Recette `PKGBUILD` et archives pour `x86_64` et `aarch64`.
+            - **Universel Linux** : Archives `.tar.gz` portables.
+
+            Tous les paquets incluent leurs empreintes de vérification SHA-256.
