@@ -19,8 +19,8 @@ api.log
 document.md
 documentation.txt
 
-# Modèles IA lourds
-models/
+# Modèles IA lourds (racine uniquement pour ne pas masquer AlyxDesktop/Models)
+/models/
 
 # Fichiers générés C# (Avalonia)
 AlyxDesktop/bin/
