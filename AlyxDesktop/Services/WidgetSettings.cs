@@ -15,10 +15,7 @@ public enum OpenEntryMode { Radial, Card, Side, Overlay }
 public enum IdlePresenceMode { EdgeTab, Stealth, MiniOrb, Orb }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum EdgeDockSide { Right, Left, Bottom }
-
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum LayoutSelectionMode { Radial, Traditional }
+public enum EdgeDockSide { Right, Left }
 
 /// <summary>Préférences du widget, persistées dans %APPDATA%/Alyx/widget.json (~/.config/Alyx sous Linux).</summary>
 public sealed class WidgetSettings
@@ -36,7 +33,6 @@ public sealed class WidgetSettings
     public string WatercolorPalette { get; set; } = "canopee-ambre";
     public string ActiveVisualStyle { get; set; } = "canopee-ambre";
     public string ThemeMode { get; set; } = "light";
-    public LayoutSelectionMode LayoutMode { get; set; } = LayoutSelectionMode.Radial;
     public int WidgetOpacityPercent { get; set; } = 96;
     public bool LowRamEcoMode { get; set; } = false;
 

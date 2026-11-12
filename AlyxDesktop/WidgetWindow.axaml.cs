@@ -24,16 +24,12 @@ public partial class WidgetWindow : Window
 
     private const double OrbSize = 84, MiniOrbSize = 48, OrbEyeSize = 72, MiniOrbEyeSize = 40;
     private const double EdgeTabCollapsedW = 10, EdgeTabExpandedW = 36, EdgeTabH = 56, EdgeTabMargin = 16;
-    private const double NodeSize = 72, RadialRadius = 106;
+    private const double NodeSize = 72, RadialRadius = 124, RadialSpread = 200;
     private const double IdleMargin = 30, PanelShadow = 40;
 
     private static readonly (string Key, string Label)[] NodeDefs =
     {
-        ("assistant", "Assistant"),
-        ("scanner", "Scanner"),
-        ("guardrail", "Garde-fou"),
-        ("automations", "Automates"),
-        ("appearance", "Style")
+        ("chat", "Chat"), ("system", "Système"), ("tasks", "Tâches"), ("media", "Lecture"), ("models", "Modèles"), ("settings", "Réglages"),
     };
 
     private readonly BackendClient _backend;
@@ -603,13 +599,12 @@ public partial class WidgetWindow : Window
     private void LayoutNodes()
     {
         var c = RadialCenter();
-        const double startAngleDeg = -160.0;
-        const double endAngleDeg = -20.0;
-        double spread = _nodes.Length > 1 ? (endAngleDeg - startAngleDeg) / (_nodes.Length - 1) : 0;
+        // L'arc de 200° est orienté vers le centre de l'écran : le menu s'ouvre toujours vers l'intérieur
+        double baseAngle = Math.Atan2(_work.Height / 2 - c.Y, _work.Width / 2 - c.X);
+        double spread = RadialSpread * Math.PI / 180;
         for (int i = 0; i < _nodes.Length; i++)
         {
-            double angleDeg = startAngleDeg + i * spread;
-            double a = angleDeg * Math.PI / 180.0;
+            double a = baseAngle + ((double)i / (_nodes.Length - 1) - .5) * spread;
             _nodeOffsets[i] = new Vector(Math.Cos(a) * RadialRadius, Math.Sin(a) * RadialRadius);
             Canvas.SetLeft(_nodes[i], c.X + _nodeOffsets[i].X - NodeSize / 2);
             Canvas.SetTop(_nodes[i], c.Y + _nodeOffsets[i].Y - NodeSize / 2);
@@ -722,9 +717,14 @@ public partial class WidgetWindow : Window
             _anim.Animate("orb", 1, 420, CubicBezierEasing.OrbSpring, v => OrbScale.ScaleX = OrbScale.ScaleY = v);
     }
 
-    private void OnNodeClick(object? sender, RoutedEventArgs e)
+    private async void OnNodeClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string key }) return;
+        if (key == "media")
+        {
+            await Panel.TogglePlayAsync();
+            return;
+        }
         OpenPanel(key);
     }
 
@@ -740,19 +740,28 @@ public partial class WidgetWindow : Window
 
     private void UpdateNodeValues()
     {
+        var media = Panel.Media;
+        string model = string.IsNullOrEmpty(Panel.CurrentModel) || Panel.CurrentModel == "Aucun modèle"
+            ? "aucun" : Panel.CurrentModel.Split(':', ' ', '/')[0];
+        string firstWord = media.HasSession ? media.Title.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "" : "aucun";
         string[] values =
         {
             "Demander",
-            "Analyser",
-            "Sécurité",
-            "Routines",
-            "Couleurs",
+            $"CPU {Panel.CpuPercent:0}%",
+            Panel.ProcessTotal > 0 ? $"{Panel.ProcessTotal} proc." : "—",
+            firstWord,
+            model,
+            "Rapide",
         };
         for (int i = 0; i < _nodes.Length; i++)
         {
             var stack = _nodeTexts[i];
-            if (i < values.Length)
-                ((TextBlock)stack.Children[1]).Text = values[i];
+            ((TextBlock)stack.Children[1]).Text = values[i];
+            if (NodeDefs[i].Key == "media")
+            {
+                ((TextBlock)stack.Children[0]).Text = media.Playing ? "Pause" : "Lecture";
+                _nodeIcons[i].Alternate = media.Playing;
+            }
         }
     }
 

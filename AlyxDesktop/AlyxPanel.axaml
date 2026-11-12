@@ -269,14 +269,15 @@
         </Grid>
       </Border>
 
-      <!-- 3. Onglets (5 Piliers Design Alyx) -->
+      <!-- 3. Onglets -->
       <Border BorderBrush="{StaticResource Hair7}" BorderThickness="0,0,0,1">
         <StackPanel x:Name="TabBar" Orientation="Horizontal" Spacing="18" Margin="18,14,18,0">
-          <Button Classes="flat tab active" Tag="assistant" Content="Assistant" Click="OnTabClick" />
-          <Button Classes="flat tab" Tag="scanner" Content="Scanner" Click="OnTabClick" />
-          <Button Classes="flat tab" Tag="guardrail" Content="Garde-fou" Click="OnTabClick" />
-          <Button Classes="flat tab" Tag="automations" Content="Automates" Click="OnTabClick" />
-          <Button Classes="flat tab" Tag="appearance" Content="Apparence" Click="OnTabClick" />
+          <Button Classes="flat tab active" Tag="chat" Content="Chat" Click="OnTabClick" />
+          <Button Classes="flat tab" Tag="system" Content="Système" Click="OnTabClick" />
+          <Button Classes="flat tab" Tag="tasks" Content="Tâches" Click="OnTabClick" />
+          <Button Classes="flat tab" Tag="models" Content="Modèles" Click="OnTabClick" />
+          <Button Classes="flat tab" Tag="settings" Content="Réglages" Click="OnTabClick" />
+          <Button Classes="flat tab" Tag="style" Content="Style" Click="OnTabClick" />
         </StackPanel>
       </Border>
     </StackPanel>
@@ -341,38 +342,12 @@
           </StackPanel>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="1" MaxWidth="720" HorizontalAlignment="Stretch" Margin="18,2,18,4" Spacing="4">
-          <!-- Alerte garde-fou inline (>3 fichiers) -->
-          <Border x:Name="GuardrailInlineBanner" Margin="0,2,0,4" Padding="12,8" CornerRadius="10"
-                  Background="{StaticResource AccentTint08}" BorderBrush="{StaticResource AccentBorder35}" BorderThickness="1"
-                  IsVisible="False">
-            <Grid ColumnDefinitions="*,Auto">
-              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Path Data="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z" Fill="{StaticResource Accent}" Width="14" Height="14" VerticalAlignment="Center" />
-                <TextBlock x:Name="GuardrailInlineText" Text="7 fichiers prêts à être rangés" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Ink}" VerticalAlignment="Center" />
-              </StackPanel>
-              <Button Grid.Column="1" Classes="flat" Padding="12,5" CornerRadius="8" Background="{StaticResource Accent}" Foreground="White" FontSize="11" FontWeight="SemiBold"
-                      Content="Vérifier →" Click="OnGoToGuardrailClick" />
-            </Grid>
-          </Border>
-
-          <!-- Rappel des 5 dernières commandes saisies (chips dynamiques cliquables + bouton envoi) -->
-          <StackPanel x:Name="RecentCommandsSection" Spacing="3" IsVisible="False">
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Text="5 dernières commandes saisies :" FontSize="10.5" Foreground="{StaticResource Muted}" />
-              <TextBlock x:Name="RecentCommandsCount" Grid.Column="1" Text="5/5" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Faint}" />
-            </Grid>
-            <WrapPanel x:Name="RecentCommandsChips" />
-          </StackPanel>
-
-          <!-- Suggestions rapides par défaut -->
-          <WrapPanel x:Name="Suggestions">
-            <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Trier mes téléchargements" Click="OnSuggestionClick" />
-            <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Nettoyer les doublons" Click="OnSuggestionClick" />
-            <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Ranger les factures PDF" Click="OnSuggestionClick" />
-            <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Qu'est-ce qui mange ma RAM ?" Click="OnSuggestionClick" />
-          </WrapPanel>
-        </StackPanel>
+        <WrapPanel x:Name="Suggestions" Grid.Row="1" MaxWidth="720" HorizontalAlignment="Stretch" Margin="18,4,18,4">
+          <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Qu'est-ce qui mange ma RAM ?" Click="OnSuggestionClick" />
+          <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Pourquoi mon PC rame ?" Click="OnSuggestionClick" />
+          <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Mets la musique en pause" Click="OnSuggestionClick" />
+          <Button Classes="flat chip hover-accent" Margin="0,0,6,6" Content="Un modèle plus léger ?" Click="OnSuggestionClick" />
+        </WrapPanel>
 
         <Border Grid.Row="2" Padding="14,10,14,12" BorderBrush="{StaticResource Hair6}" BorderThickness="0,1,0,0">
           <StackPanel MaxWidth="720" HorizontalAlignment="Stretch" Spacing="6">
@@ -402,171 +377,6 @@
           </StackPanel>
         </Border>
       </Grid>
-
-      <!-- Scanner (Tri & Fichiers) -->
-      <ScrollViewer x:Name="ScannerView" IsVisible="False">
-        <StackPanel MaxWidth="720" HorizontalAlignment="Stretch" Spacing="14" Margin="18,16">
-          <Border Classes="card" Background="{StaticResource Fill04}">
-            <Grid ColumnDefinitions="*,Auto">
-              <StackPanel Spacing="3" VerticalAlignment="Center">
-                <TextBlock Text="Analyse rapide du PC" FontSize="13" FontWeight="SemiBold" />
-                <TextBlock x:Name="ScanStatusText" Text="50 000 fichiers parcourus en 42 ms" FontSize="11" Foreground="{StaticResource Muted}" />
-              </StackPanel>
-              <Button x:Name="RunScanButton" Grid.Column="1" Classes="flat" Padding="16,8" CornerRadius="10" Background="{StaticResource Accent}" Foreground="White"
-                      FontSize="12" FontWeight="SemiBold" Content="Analyser" Click="OnRunScanClick" />
-            </Grid>
-          </Border>
-
-          <Border CornerRadius="12" Padding="12,6" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
-            <Grid ColumnDefinitions="Auto,*">
-              <Path Data="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
-                    Fill="{StaticResource Faint}" Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0" />
-              <TextBox x:Name="ScannerSearchInput" Classes="bare" Watermark="Rechercher un fichier..." FontSize="12.5" />
-            </Grid>
-          </Border>
-
-          <StackPanel Spacing="6">
-            <TextBlock Classes="label10" Text="FICHIERS DÉTECTÉS" Margin="4,4,4,2" />
-            <ItemsControl x:Name="ScannerFileList">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="m:ScannedFileItem">
-                  <Border Classes="card" Margin="0,0,0,6" Padding="12,10">
-                    <Grid ColumnDefinitions="*,Auto">
-                      <StackPanel Spacing="3">
-                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding StatusText}" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" />
-                      </StackPanel>
-                      <TextBlock Grid.Column="1" Text="{Binding SizeText}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </StackPanel>
-        </StackPanel>
-      </ScrollViewer>
-
-      <!-- Guardrail (Garde-fou >3 fichiers & Corbeille réversible) -->
-      <ScrollViewer x:Name="GuardrailView" IsVisible="False">
-        <StackPanel MaxWidth="720" HorizontalAlignment="Stretch" Spacing="16" Margin="18,16">
-          <Border Classes="card">
-            <StackPanel Spacing="12">
-              <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="2">
-                  <TextBlock Text="Validation avant rangement" FontSize="13" FontWeight="SemiBold" />
-                  <TextBlock x:Name="GuardrailCountSubtitle" Text="Sélectionnez les fichiers à déplacer (7 choisis)" FontSize="11" Foreground="{StaticResource Muted}" />
-                </StackPanel>
-                <Border Grid.Column="1" Padding="8,4" CornerRadius="8" Background="{StaticResource AccentTint08}">
-                  <TextBlock Text="Garde-fou >3" FontFamily="{StaticResource MonoFont}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource AccentText}" />
-                </Border>
-              </Grid>
-
-              <Border x:Name="BatchSuccessBanner" IsVisible="False" Padding="12,10" CornerRadius="10" Background="{StaticResource Fill04}">
-                <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock Text="✓ Rangement terminé en douceur." FontSize="12.5" Foreground="{StaticResource Success}" VerticalAlignment="Center" />
-                  <Button Grid.Column="1" Classes="flat outline" Content="Réinitialiser" Click="OnResetBatchPlanClick" />
-                </Grid>
-              </Border>
-
-              <StackPanel x:Name="BatchPlanContent" Spacing="8">
-                <ItemsControl x:Name="BatchPlanList">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="m:GuardrailBatchPlanItem">
-                      <Border Classes="card" Margin="0,0,0,4" Padding="10,8" Background="{StaticResource Fill035}">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                          <CheckBox IsChecked="{Binding SelectedForBatch}" VerticalAlignment="Center" Margin="0,0,8,0" Click="OnBatchFileCheckboxClick" />
-                          <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding ProposedPath, StringFormat='→ {0}'}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" />
-                          </StackPanel>
-                          <Border Grid.Column="2" Padding="8,3" CornerRadius="6" Background="{StaticResource Fill07}" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding ActionLabel}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" />
-                          </Border>
-                        </Grid>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <Button x:Name="ApproveBatchButton" Classes="flat" Padding="16,10" CornerRadius="10" Background="{StaticResource Accent}" Foreground="White"
-                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12.5" FontWeight="SemiBold"
-                        Content="Valider le rangement (7)" Click="OnApproveBatchClick" />
-              </StackPanel>
-            </StackPanel>
-          </Border>
-
-          <Border Classes="card">
-            <StackPanel Spacing="10">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Corbeille réversible" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <TextBlock x:Name="TrashCountText" Grid.Column="1" Text="2 fichier(s)" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
-              </Grid>
-              <ItemsControl x:Name="TrashItemsList">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate DataType="m:ReversibleTrashItem">
-                    <Border Classes="row" Padding="10,8" CornerRadius="8" Margin="0,0,0,4">
-                      <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Spacing="2" VerticalAlignment="Center">
-                          <TextBlock Text="{Binding OriginalName}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Text="{Binding OriginalPath}" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource Faint}" TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                        <Button Grid.Column="1" Classes="flat outline" Padding="10,4" CornerRadius="6" FontSize="11" Content="Restaurer" Tag="{Binding Id}" Click="OnRestoreTrashClick" />
-                      </Grid>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-          </Border>
-        </StackPanel>
-      </ScrollViewer>
-
-      <!-- Automations (Routines automatiques) -->
-      <ScrollViewer x:Name="AutomationsView" IsVisible="False">
-        <StackPanel MaxWidth="720" HorizontalAlignment="Stretch" Spacing="14" Margin="18,16">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="Routines automatiques" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <Button x:Name="ToggleNewRuleButton" Grid.Column="1" Classes="flat" Padding="14,6" CornerRadius="8" Background="{StaticResource Accent}" Foreground="White"
-                    FontSize="11.5" FontWeight="SemiBold" Content="+ Ajouter" Click="OnToggleNewRuleClick" />
-          </Grid>
-
-          <Border x:Name="NewRuleForm" IsVisible="False" Classes="card" Background="{StaticResource Fill04}">
-            <StackPanel Spacing="10">
-              <TextBlock Text="Nouvelle routine automatique" FontSize="12" FontWeight="SemiBold" />
-              <TextBox x:Name="NewRuleNameInput" Watermark="Nom de la routine..." FontSize="12" />
-              <TextBox x:Name="NewRuleFolderInput" Watermark="Dossier cible (ex: ~/Téléchargements)" FontSize="12" />
-              <TextBox x:Name="NewRuleDescInput" Watermark="Description de l'action..." FontSize="12" />
-              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,4,0,0">
-                <Button Classes="flat outline" Content="Annuler" Click="OnCancelNewRuleClick" />
-                <Button Classes="flat" Padding="14,6" CornerRadius="8" Background="{StaticResource Accent}" Foreground="White"
-                        FontSize="11.5" FontWeight="SemiBold" Content="Créer" Click="OnCreateRuleClick" />
-              </StackPanel>
-            </StackPanel>
-          </Border>
-
-          <ItemsControl x:Name="AutomationRulesList">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="m:AutomationRuleItem">
-                <Border Classes="card" Margin="0,0,0,8" Padding="12,10">
-                  <StackPanel Spacing="6">
-                    <Grid ColumnDefinitions="*,Auto">
-                      <StackPanel Spacing="2">
-                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
-                      </StackPanel>
-                      <Button Grid.Column="1" Classes="flat layout-pill" Padding="10,4" Content="{Binding StatusText}" Tag="{Binding Id}" Click="OnToggleRuleActiveClick" />
-                    </Grid>
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
-                      <TextBlock Text="{Binding TargetFolder}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
-                      <Button Grid.Column="1" Classes="flat hover-accent" Padding="8,3" FontSize="11" Foreground="{StaticResource AccentText}" Content="▶ Lancer" Tag="{Binding Id}" Click="OnRunRuleClick" />
-                    </Grid>
-                  </StackPanel>
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-      </ScrollViewer>
 
       <!-- Système -->
       <ScrollViewer x:Name="SystemView" IsVisible="False">
@@ -859,7 +669,7 @@
               <Grid ColumnDefinitions="*,Auto" Margin="0,9">
                 <TextBlock Text="Raccourci d'ouverture" FontSize="13" VerticalAlignment="Center" />
                 <Border Grid.Column="1" Padding="8,3" CornerRadius="6" BorderBrush="{StaticResource Hair12}" BorderThickness="1">
-                  <TextBlock x:Name="ShortcutText" Text="Alt + Espace" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Ink2}" />
+                  <TextBlock x:Name="ShortcutText" Text="Alt + J" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource Ink2}" />
                 </Border>
               </Grid>
             </StackPanel>
@@ -867,125 +677,27 @@
         </StackPanel>
       </ScrollViewer>
 
-      <!-- Style & Apparence (Galerie 14 styles, 5 palettes, disposition) -->
+      <!-- Style & Apparence Aquarelle -->
       <ScrollViewer x:Name="StyleView" IsVisible="False">
         <StackPanel MaxWidth="720" HorizontalAlignment="Stretch" Spacing="16" Margin="16">
 
-          <!-- Aperçu du style actif et Logo Loupe-Œil -->
-          <Border Classes="card" Background="{StaticResource Fill04}">
+          <!-- Aperçu du Logo Loupe & Œil Aquarelle -->
+          <Border Classes="card" Background="{StaticResource WatercolorCardWash}">
             <Grid ColumnDefinitions="Auto,*">
-              <Border Width="56" Height="56" CornerRadius="16" Background="#F2FFFFFF" BorderBrush="{StaticResource Hair8}" BorderThickness="1" Margin="0,0,14,0" VerticalAlignment="Center">
-                <c:AlyxEye Width="46" Height="46" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <Border Width="64" Height="64" CornerRadius="18" Background="#F2FFFFFF" BorderBrush="{StaticResource Hair8}" BorderThickness="1" Margin="0,0,14,0" VerticalAlignment="Center">
+                <c:AlyxEye Width="52" Height="52" HorizontalAlignment="Center" VerticalAlignment="Center" />
               </Border>
-              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                <TextBlock x:Name="StyleBadgeText" Text="PAR DÉFAUT · CRÈME &amp; SAPIN" FontFamily="{StaticResource MonoFont}" FontSize="9.5" LetterSpacing="1" Foreground="{StaticResource AccentText}" />
-                <TextBlock x:Name="StyleNameText" Text="★ Canopée &amp; Ambre" FontSize="14" FontWeight="SemiBold" />
-                <TextBlock x:Name="StyleTaglineText" Text="Fond crème vanille (#F6EED9), vert sapin ardoise (#384C48), sauge (#7DAE9B) et miel ambré (#FBA620)" FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                <TextBlock Text="Logo Loupe &amp; Œil Aquarelle" FontSize="14" FontWeight="SemiBold" />
+                <TextBlock Text="Trait d'encre minimaliste avec double lavis bleu céleste et rose pétale au cœur de la lentille." FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" LineHeight="16" />
               </StackPanel>
             </Grid>
           </Border>
 
-          <!-- Galerie des 14 Styles Visuels -->
+          <!-- Nuances Aquarelle & Encre -->
           <Border Classes="card">
             <StackPanel Spacing="10">
-              <TextBlock Text="01. Styles OS, Créatifs &amp; Bureau (8 thèmes)" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" />
-              <UniformGrid Columns="2" Margin="0,2,0,4">
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="canopee-ambre" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="★ Canopée &amp; Ambre" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Rubik &amp; Pilules Fines" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="watercolor" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="Peinture &amp; Aquarelle" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Lavis Céleste &amp; Rose" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="kde" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="Linux KDE (Breeze)" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Cyan #3daee9 &amp; Angles" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="gnome" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="Linux GNOME (Adwaita)" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Libadwaita &amp; Pilules" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="sketch" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="Dessin Pastel" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Ligne Claire Pastel" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="sticker" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="Sticker Pop" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Vinyle Découpé" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="win7" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="Win7 Aero Glass" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Aero Glass 2009" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="school" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="Scolaire Seyès" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Grands Carreaux" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-              </UniformGrid>
-
-              <TextBlock Text="02. Designs Acclamés &amp; Création Originale (6 thèmes)" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" Margin="0,4,0,0" />
-              <UniformGrid Columns="2" Margin="0,2,0,0">
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="office" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="Bureau Pro" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Dossier Manille" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="bento-pearl" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="Bento Perle" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Verre Givré Nacré" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="bauhaus" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="Nordique Doux" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Scandinave Doux" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="eink" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="E-Ink Mat" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Liseuse Électronique" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="tactile" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="Céramique" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Aluminium Satiné" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-                <Button Classes="flat layout-pill" Margin="3" Padding="10,6" Tag="alyx-prism" Click="OnSelectVisualStyleClick">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="★ Prisme Alyx" FontSize="11" FontWeight="SemiBold" />
-                    <TextBlock Text="Création Originale" FontSize="9.5" Foreground="{StaticResource Faint}" />
-                  </StackPanel>
-                </Button>
-              </UniformGrid>
-            </StackPanel>
-          </Border>
-
-          <!-- 5 Nuances de Couleurs / Accents -->
-          <Border Classes="card">
-            <StackPanel Spacing="10">
-              <TextBlock Text="Nuances de couleurs (5 palettes)" FontSize="12" FontWeight="SemiBold" />
+              <TextBlock Text="Nuances Aquarelle &amp; Encre" FontSize="12" FontWeight="SemiBold" />
               <UniformGrid Columns="2" Margin="0,2,0,0">
                 <Button x:Name="PalCanopeeBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPaletteCanopeeClick">
                   <Grid ColumnDefinitions="Auto,*">
@@ -1049,52 +761,41 @@
                         </LinearGradientBrush>
                       </Border.Background>
                     </Border>
-                    <TextBlock Grid.Column="1" Text="Encre Noire &amp; Blanc" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Text="Encre Noire &amp; Pastel" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  </Grid>
+                </Button>
+                <Button x:Name="PalPrismBtn" Classes="flat" Margin="3" Padding="10" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Hair8}" Click="OnPalettePrismClick">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <Border Width="20" Height="20" CornerRadius="10" BorderThickness="1" BorderBrush="#20000000">
+                      <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                          <GradientStop Color="#0284C7" Offset="0" />
+                          <GradientStop Color="#6366F1" Offset="0.5" />
+                          <GradientStop Color="#EC4899" Offset="1" />
+                        </LinearGradientBrush>
+                      </Border.Background>
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="★ Prisme Alyx" Margin="8,0,0,0" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                   </Grid>
                 </Button>
               </UniformGrid>
             </StackPanel>
           </Border>
 
-          <!-- Thème (Luminosité), Bordure d'écran & Disposition -->
+          <!-- Thème (Luminosité) et Format de bureau -->
           <Border Classes="card">
             <StackPanel Spacing="14">
-              <!-- Luminosité -->
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="Luminosité" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
                   <StackPanel Orientation="Horizontal" Spacing="2">
-                    <Button x:Name="ThemeLightBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Clair" FontSize="10.5" Tag="light" Click="OnThemeModeClick" />
-                    <Button x:Name="ThemeDarkBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Sombre" FontSize="10.5" Tag="dark" Click="OnThemeModeClick" />
+                    <Button x:Name="ThemeLightBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Blanc" FontSize="10.5" Tag="light" Click="OnThemeModeClick" />
+                    <Button x:Name="ThemeDarkBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Noir" FontSize="10.5" Tag="dark" Click="OnThemeModeClick" />
                     <Button x:Name="ThemeAutoBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Auto" FontSize="10.5" Tag="auto" Click="OnThemeModeClick" />
                   </StackPanel>
                 </Border>
               </Grid>
 
-              <!-- Bord d'accroche (Gauche, Bas, Droite) -->
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Bordure d'écran" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
-                  <StackPanel Orientation="Horizontal" Spacing="2">
-                    <Button x:Name="DockLeftBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Gauche" FontSize="10.5" Tag="Left" Click="OnDockSideClick" />
-                    <Button x:Name="DockBottomBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Bas" FontSize="10.5" Tag="Bottom" Click="OnDockSideClick" />
-                    <Button x:Name="DockRightBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Droite" FontSize="10.5" Tag="Right" Click="OnDockSideClick" />
-                  </StackPanel>
-                </Border>
-              </Grid>
-
-              <!-- Disposition (Radial vs Traditionnel) -->
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Mode de disposition" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
-                  <StackPanel Orientation="Horizontal" Spacing="2">
-                    <Button x:Name="LayoutRadialBtn" Classes="flat layout-pill" Width="68" Height="24" Content="Radial" FontSize="10.5" Tag="Radial" Click="OnLayoutSelectionModeClick" />
-                    <Button x:Name="LayoutTraditionalBtn" Classes="flat layout-pill" Width="84" Height="24" Content="Traditionnel" FontSize="10.5" Tag="Traditional" Click="OnLayoutSelectionModeClick" />
-                  </StackPanel>
-                </Border>
-              </Grid>
-
-              <!-- Présence au repos -->
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="Présence au repos" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
@@ -1103,6 +804,16 @@
                     <Button x:Name="PresenceStealthBtn" Classes="flat layout-pill" Width="56" Height="24" Content="Furtif" FontSize="10" Tag="Stealth" Click="OnPresenceModeClick" />
                     <Button x:Name="PresenceMiniBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Mini-orbe" FontSize="10" Tag="MiniOrb" Click="OnPresenceModeClick" />
                     <Button x:Name="PresenceOrbBtn" Classes="flat layout-pill" Width="52" Height="24" Content="Orbe" FontSize="10" Tag="Orb" Click="OnPresenceModeClick" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Bord d'accroche" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Border Grid.Column="1" Padding="2" CornerRadius="14" Background="{StaticResource Fill04}" BorderBrush="{StaticResource Hair8}" BorderThickness="1">
+                  <StackPanel Orientation="Horizontal" Spacing="2">
+                    <Button x:Name="DockRightBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Droite" FontSize="10.5" Tag="Right" Click="OnDockSideClick" />
+                    <Button x:Name="DockLeftBtn" Classes="flat layout-pill" Width="60" Height="24" Content="Gauche" FontSize="10.5" Tag="Left" Click="OnDockSideClick" />
                   </StackPanel>
                 </Border>
               </Grid>

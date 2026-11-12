@@ -5,11 +5,11 @@ using System.Threading;
 
 namespace AlyxDesktop.Platform;
 
-/// <summary>Raccourci global Alt+Espace / Alt+Space (Windows : RegisterHotKey sur un thread dédié à la boucle de messages).</summary>
+/// <summary>Raccourci global Alt+J (Windows : RegisterHotKey sur un thread dédié à la boucle de messages).</summary>
 public sealed class HotkeyService : IDisposable
 {
     private const int HotkeyId = 0xA1;
-    private const uint ModAlt = 0x0001, ModNoRepeat = 0x4000, VkSpace = 0x20, VkJ = 0x4A;
+    private const uint ModAlt = 0x0001, ModNoRepeat = 0x4000, VkJ = 0x4A;
     private const uint WmHotkey = 0x0312, WmQuit = 0x0012;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -33,7 +33,7 @@ public sealed class HotkeyService : IDisposable
 
     public event Action? Pressed;
 
-    /// <summary>Enregistre Alt+Espace (avec repli Alt+J si réservé par l'OS). false si non supporté (Linux) ou indisponible.</summary>
+    /// <summary>Enregistre Alt+J. false si non supporté (Linux) ou déjà pris par une autre application.</summary>
     public bool Start()
     {
         if (!OperatingSystem.IsWindows()) return false;
@@ -42,12 +42,7 @@ public sealed class HotkeyService : IDisposable
         var thread = new Thread(() =>
         {
             _threadId = GetCurrentThreadId();
-            ok = RegisterHotKey(IntPtr.Zero, HotkeyId, ModAlt | ModNoRepeat, VkSpace);
-            if (!ok)
-            {
-                // Repli vers Alt+J si Alt+Espace est capturé par le menu système de la fenêtre
-                ok = RegisterHotKey(IntPtr.Zero, HotkeyId, ModAlt | ModNoRepeat, VkJ);
-            }
+            ok = RegisterHotKey(IntPtr.Zero, HotkeyId, ModAlt | ModNoRepeat, VkJ);
             ready.Set();
             if (!ok) return;
             while (GetMessage(out var msg, IntPtr.Zero, 0, 0) > 0)
